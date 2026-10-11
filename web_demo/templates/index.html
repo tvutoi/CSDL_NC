@@ -347,7 +347,8 @@
           <button
             class="btn btn-sm btn-outline-light"
             data-bs-toggle="modal"
-            data-bs-target="#configModal">
+            data-bs-target="#configModal"
+            onclick="loadClusterConfig()">
             Cấu hình IP mạng LAN
           </button>
           <button
@@ -1202,7 +1203,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                 type="text"
                 id="cfg-mysql-nodes"
                 class="form-control"
-                value="192.168.1.221, 192.168.1.222, 192.168.1.223, 192.168.1.224" />
+                value="192.168.1.221, 192.168.1.222, 192.168.1.222:3307, 192.168.1.222:3308" />
             </div>
             <div class="mb-2">
               <label class="form-label">Danh sách IP:Port 4 Node MongoDB</label>
@@ -1210,7 +1211,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                 type="text"
                 id="cfg-mongo-nodes"
                 class="form-control"
-                value="192.168.1.221:27017, 192.168.1.222:27017, 192.168.1.223:27017, 192.168.1.224:27017" />
+                value="192.168.1.221:27017, 192.168.1.222:27017, 192.168.1.222:27018, 192.168.1.222:27019" />
             </div>
             <div class="row g-2 mb-2">
               <div class="col-6">
@@ -2440,21 +2441,26 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       // 8. TẢI VÀ LƯU CẤU HÌNH IP MẠNG LAN (ĐỒNG BỘ 2 CHIỀU VỚI SERVER)
       async function loadClusterConfig() {
         try {
-          const res = await fetch("/api/cluster/config");
+          const res = await fetch("/api/cluster/config?_t=" + Date.now(), { cache: "no-store" });
           if (!res.ok) return;
           const cfg = await res.json();
           if (cfg.mysql_nodes && cfg.mysql_nodes.length) {
-            document.getElementById("cfg-mysql-nodes").value = cfg.mysql_nodes.join(", ");
+            const el = document.getElementById("cfg-mysql-nodes");
+            if (el) el.value = cfg.mysql_nodes.join(", ");
           }
           if (cfg.mongo_nodes && cfg.mongo_nodes.length) {
-            document.getElementById("cfg-mongo-nodes").value = cfg.mongo_nodes.join(", ");
+            const el = document.getElementById("cfg-mongo-nodes");
+            if (el) el.value = cfg.mongo_nodes.join(", ");
           }
           if (cfg.client_node) {
-            document.getElementById("cfg-client-node").value = cfg.client_node;
+            const el = document.getElementById("cfg-client-node");
+            if (el) el.value = cfg.client_node;
           }
           if (cfg.mysql_password) {
-            document.getElementById("cfg-mysql-pass").value = cfg.mysql_password;
+            const el = document.getElementById("cfg-mysql-pass");
+            if (el) el.value = cfg.mysql_password;
           }
+          console.log("[ClusterConfig] Đã nạp cấu hình mới nhất từ server:", cfg);
         } catch (e) {
           console.warn("Không thể tải cấu hình cluster:", e);
         }

@@ -297,6 +297,7 @@ class ClusterConfigUpdate(BaseModel):
 
 @app.get("/api/cluster/config")
 def get_config():
+    load_cluster_config()
     return {
         "mysql_nodes": CLUSTER_CONFIG["mysql_nodes"],
         "mongo_nodes": CLUSTER_CONFIG["mongo_nodes"],
