@@ -1,4 +1,5 @@
 import os
+import json
 import time
 import random
 import socket
@@ -37,8 +38,10 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
 
 # =====================================================================================
-# CẤU HÌNH KẾT NỐI CỤM PHÂN TÁN (HỖ TRỢ ĐỔI IP ĐỘNG NGAY TRÊN GIAO DIỆN WEB)
+# CẤU HÌNH KẾT NỐI CỤM PHÂN TÁN (ĐỒNG BỘ 2 CHIỀU VÀ LƯU VĨNH VIỄN VÀO FILE JSON)
 # =====================================================================================
+CONFIG_FILE = os.path.join(current_dir, "cluster_config.json")
+
 CLUSTER_CONFIG = {
     "mysql_nodes": ["192.168.1.221", "192.168.1.222", "192.168.1.222:3307", "192.168.1.222:3308"],
     "mongo_nodes": ["192.168.1.221:27017", "192.168.1.222:27017", "192.168.1.222:27018", "192.168.1.222:27019"],
@@ -50,6 +53,43 @@ CLUSTER_CONFIG = {
     "replica_set": "rsEcomNhom2",
     "round_robin_idx": 0
 }
+
+
+def load_cluster_config():
+    """Tự động nạp cấu hình từ cluster_config.json nếu có, nếu chưa có thì tạo file mặc định"""
+    global CLUSTER_CONFIG
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+                for k, v in saved.items():
+                    if k in CLUSTER_CONFIG and v is not None:
+                        CLUSTER_CONFIG[k] = v
+            print(f"[CONFIG] Đã nạp cấu hình cụm từ {CONFIG_FILE}")
+        except Exception as e:
+            print(f"[CONFIG] Lỗi đọc {CONFIG_FILE}: {e}")
+    else:
+        save_cluster_config_to_file()
+
+
+def save_cluster_config_to_file():
+    """Lưu vĩnh viễn cấu hình cụm vào cluster_config.json"""
+    try:
+        data = {
+            "mysql_nodes": CLUSTER_CONFIG["mysql_nodes"],
+            "mongo_nodes": CLUSTER_CONFIG["mongo_nodes"],
+            "client_node": CLUSTER_CONFIG["client_node"],
+            "mysql_password": CLUSTER_CONFIG["mysql_password"]
+        }
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        print(f"[CONFIG] Đã lưu cấu hình cụm vào {CONFIG_FILE}")
+    except Exception as e:
+        print(f"[CONFIG] Lỗi lưu {CONFIG_FILE}: {e}")
+
+
+# Tự động nạp hoặc tạo file cấu hình khi khởi động
+load_cluster_config()
 
 
 def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
@@ -159,8 +199,22 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
             continue
 
     if online_conns:
-        # Tự động chọn Node Primary thực tế do MySQL Group Replication bầu chọn (Node có read_only == 0)
         ro_zero_nodes = [item for item in online_conns if item[2]["read_only"] == 0]
+        # Nếu cụm mất Quorum (tất cả node còn lại đều read_only=1 do 1 node sập trong cụm 2 node):
+        if not ro_zero_nodes and len(online_conns) == 1:
+            try:
+                c_u = online_conns[0][0]
+                h_u = online_conns[0][1].split(":")[0]
+                cur_u = c_u.cursor(dictionary=True)
+                cur_u.execute(f"SET GLOBAL group_replication_force_members = '{h_u}:33061'")
+                cur_u.execute("SET GLOBAL group_replication_force_members = ''")
+                cur_u.execute("SELECT @@global.read_only AS read_only")
+                online_conns[0][2]["read_only"] = cur_u.fetchone()["read_only"]
+                cur_u.close()
+                ro_zero_nodes = [item for item in online_conns if item[2]["read_only"] == 0]
+            except Exception:
+                pass
+
         primary_item = ro_zero_nodes[0] if ro_zero_nodes else online_conns[0]
 
         # Chọn kết nối trả về theo mode
@@ -258,6 +312,7 @@ def update_config(cfg: ClusterConfigUpdate):
     CLUSTER_CONFIG["client_node"] = cfg.client_node.strip()
     if cfg.mysql_password:
         CLUSTER_CONFIG["mysql_password"] = cfg.mysql_password
+    save_cluster_config_to_file()
     return {"status": "UPDATED", "config": get_config()}
 
 
@@ -319,6 +374,7 @@ def get_cluster_status(request: Request):
             """)
             mgr_rows = cur.fetchall()
             online_mgr_rows = [r for r in mgr_rows if r.get("MEMBER_STATE") == "ONLINE"]
+            unreachable_mgr_rows = [r for r in mgr_rows if r.get("MEMBER_STATE") == "UNREACHABLE"]
 
             cur.execute("SELECT @@server_uuid AS uuid, @@server_id AS sid, @@hostname AS hname, @@global.read_only AS ro, @@global.gtid_executed AS gtid")
             sys_info = cur.fetchone()
@@ -328,6 +384,40 @@ def get_cluster_status(request: Request):
                 if r.get("MEMBER_HOST") == host or r.get("MEMBER_ID") == sys_info["uuid"]:
                     self_mgr = r
                     break
+
+            # Tự động gỡ nghẽn Quorum khi bị mất Quorum (1 node sập trong cụm 2 node Group Replication):
+            if len(online_mgr_rows) == 1 and len(unreachable_mgr_rows) >= 1 and self_mgr and self_mgr.get("MEMBER_ROLE") != "PRIMARY":
+                try:
+                    cur.execute(f"SET GLOBAL group_replication_force_members = '{h_str}:33061'")
+                    cur.execute("SET GLOBAL group_replication_force_members = ''")
+                    cur.execute("SELECT MEMBER_ID, MEMBER_HOST, MEMBER_STATE, MEMBER_ROLE FROM performance_schema.replication_group_members")
+                    mgr_rows = cur.fetchall()
+                    online_mgr_rows = [r for r in mgr_rows if r.get("MEMBER_STATE") == "ONLINE"]
+                    for r in mgr_rows:
+                        if r.get("MEMBER_HOST") == host or r.get("MEMBER_ID") == sys_info["uuid"]:
+                            self_mgr = r
+                            break
+                    cur.execute("SELECT @@global.read_only AS ro")
+                    sys_info["ro"] = cur.fetchone()["ro"]
+                except Exception:
+                    pass
+
+            # Tự động trả quyền PRIMARY về cho Node 1 khi Node 1 mở lại (Auto-failback đồng bộ với MongoDB):
+            node1_ip = CLUSTER_CONFIG["mysql_nodes"][0].split(":")[0]
+            node1_mgr = next((r for r in online_mgr_rows if r.get("MEMBER_HOST") == node1_ip and r.get("MEMBER_STATE") == "ONLINE"), None)
+            if node1_mgr and node1_mgr.get("MEMBER_ROLE") != "PRIMARY" and self_mgr and self_mgr.get("MEMBER_ROLE") == "PRIMARY":
+                try:
+                    cur.execute(f"SELECT group_replication_set_as_primary('{node1_mgr['MEMBER_ID']}')")
+                    cur.execute("SELECT MEMBER_ID, MEMBER_HOST, MEMBER_STATE, MEMBER_ROLE FROM performance_schema.replication_group_members")
+                    mgr_rows = cur.fetchall()
+                    for r in mgr_rows:
+                        if r.get("MEMBER_HOST") == host or r.get("MEMBER_ID") == sys_info["uuid"]:
+                            self_mgr = r
+                            break
+                    cur.execute("SELECT @@global.read_only AS ro")
+                    sys_info["ro"] = cur.fetchone()["ro"]
+                except Exception:
+                    pass
 
             # Đếm số bản ghi trên Node này để minh họa đồng bộ
             node_counts = {"users": 0, "products": 0, "orders": 0, "order_items": 0, "payments": 0}
@@ -339,6 +429,35 @@ def get_cluster_status(request: Request):
                 if status["data_counts"]["orders"] == 0:
                     for k, v in node_counts.items():
                         status["data_counts"][k] = v
+                elif node_counts["orders"] < status["data_counts"]["orders"] and ":" in host:
+                    try:
+                        cur.execute("SET GLOBAL super_read_only = OFF")
+                        cur.execute("SET GLOBAL read_only = OFF")
+                        cur.execute("SELECT MAX(order_id) AS m FROM orders")
+                        max_ord = cur.fetchone()["m"] or 0
+                        p_conn, _ = get_mysql_connection("primary")
+                        p_cur = p_conn.cursor(dictionary=True)
+                        p_cur.execute("SELECT * FROM orders WHERE order_id > %s ORDER BY order_id", (max_ord,))
+                        for o in p_cur.fetchall():
+                            cur.execute("INSERT IGNORE INTO orders (order_id, user_id, total_amount, status, shipping_region, created_at) VALUES (%s, %s, %s, %s, %s, %s)",
+                                        (o["order_id"], o["user_id"], o["total_amount"], o["status"], o["shipping_region"], o["created_at"]))
+                            p_cur.execute("SELECT * FROM order_items WHERE order_id = %s", (o["order_id"],))
+                            for it in p_cur.fetchall():
+                                cur.execute("INSERT IGNORE INTO order_items (item_id, order_id, product_id, quantity, unit_price) VALUES (%s, %s, %s, %s, %s)",
+                                            (it["item_id"], it["order_id"], it["product_id"], it["quantity"], it["unit_price"]))
+                            p_cur.execute("SELECT * FROM payments WHERE order_id = %s", (o["order_id"],))
+                            for pm in p_cur.fetchall():
+                                cur.execute("INSERT IGNORE INTO payments (payment_id, order_id, amount, payment_method, transaction_status, created_at) VALUES (%s, %s, %s, %s, %s, %s)",
+                                            (pm["payment_id"], pm["order_id"], pm["amount"], pm["payment_method"], pm["transaction_status"], pm["created_at"]))
+                        cur.execute("SET GLOBAL read_only = ON")
+                        cur.execute("SET GLOBAL super_read_only = ON")
+                        p_cur.close()
+                        p_conn.close()
+                        for tbl in ["users", "products", "orders", "order_items", "payments"]:
+                            cur.execute(f"SELECT COUNT(*) AS c FROM {tbl}")
+                            node_counts[tbl] = cur.fetchone()["c"]
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
@@ -756,13 +875,14 @@ def checkout(req: OrderRequest):
                     user=CLUSTER_CONFIG["mysql_user"],
                     password=CLUSTER_CONFIG["mysql_password"],
                     database=CLUSTER_CONFIG["mysql_db"],
-                    connection_timeout=1
+                    autocommit=True,
+                    connection_timeout=2
                 )
                 s_cur = s_conn.cursor()
+                s_cur.execute("SET GLOBAL super_read_only = OFF")
+                s_cur.execute("SET GLOBAL read_only = OFF")
                 s_cur.execute("SELECT COUNT(*) FROM orders WHERE order_id = %s", (order_id,))
                 if s_cur.fetchone()[0] == 0:
-                    s_cur.execute("SET GLOBAL super_read_only = OFF")
-                    s_cur.execute("SET GLOBAL read_only = OFF")
                     s_cur.execute("UPDATE products SET stock_quantity = stock_quantity - %s WHERE product_id = %s", (req.quantity, req.product_id))
                     s_cur.execute(
                         "INSERT INTO orders (order_id, user_id, total_amount, status, shipping_region) VALUES (%s, %s, %s, 'COMPLETED', 'MIEN_NAM')",
@@ -776,8 +896,8 @@ def checkout(req: OrderRequest):
                         "INSERT INTO payments (order_id, amount, payment_method, transaction_status) VALUES (%s, %s, %s, 'SUCCESS')",
                         (order_id, total, req.payment_method)
                     )
-                    s_conn.commit()
-                    s_cur.execute("SET GLOBAL read_only = ON")
+                s_cur.execute("SET GLOBAL read_only = ON")
+                s_cur.execute("SET GLOBAL super_read_only = ON")
                 s_cur.close()
                 s_conn.close()
             except Exception:

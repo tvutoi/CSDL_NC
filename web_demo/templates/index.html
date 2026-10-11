@@ -339,7 +339,7 @@
             MONGODB)
           </div>
           <div class="course-sub">
-            Học phần: Cơ sở dữ liệu nâng cao (CTH574T) - Đề tài 2 - Nhóm thực
+            Học phần: Cơ sở dữ liệu nâng cao (CTH612) - Đề tài 2 - Nhóm thực
             hiện: Nhóm 2
           </div>
         </div>
@@ -1231,6 +1231,9 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                   class="form-control"
                   value="root" />
               </div>
+            </div>
+            <div class="alert alert-info py-1 px-2 mb-0 mt-2 small" style="font-size: 0.8rem;">
+              &#x1F4A1; Cấu hình được nạp tự động từ server. Bấm <b>Lưu cấu hình</b> sẽ tự động ghi vĩnh viễn vào file <code>cluster_config.json</code> (không bị mất khi restart server).
             </div>
           </div>
           <div class="modal-footer py-2">
@@ -2434,37 +2437,78 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         }
       }
 
-      // 8. LƯU CẤU HÌNH IP MẠNG LAN
-      async function saveClusterConfig() {
-        const mysqlNodes = document
-          .getElementById("cfg-mysql-nodes")
-          .value.split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-        const mongoNodes = document
-          .getElementById("cfg-mongo-nodes")
-          .value.split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-        const clientNode = document
-          .getElementById("cfg-client-node")
-          .value.trim();
-        const mysqlPass = document.getElementById("cfg-mysql-pass").value;
+      // 8. TẢI VÀ LƯU CẤU HÌNH IP MẠNG LAN (ĐỒNG BỘ 2 CHIỀU VỚI SERVER)
+      async function loadClusterConfig() {
+        try {
+          const res = await fetch("/api/cluster/config");
+          if (!res.ok) return;
+          const cfg = await res.json();
+          if (cfg.mysql_nodes && cfg.mysql_nodes.length) {
+            document.getElementById("cfg-mysql-nodes").value = cfg.mysql_nodes.join(", ");
+          }
+          if (cfg.mongo_nodes && cfg.mongo_nodes.length) {
+            document.getElementById("cfg-mongo-nodes").value = cfg.mongo_nodes.join(", ");
+          }
+          if (cfg.client_node) {
+            document.getElementById("cfg-client-node").value = cfg.client_node;
+          }
+          if (cfg.mysql_password) {
+            document.getElementById("cfg-mysql-pass").value = cfg.mysql_password;
+          }
+        } catch (e) {
+          console.warn("Không thể tải cấu hình cluster:", e);
+        }
+      }
 
-        await fetch("/api/cluster/config", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mysql_nodes: mysqlNodes,
-            mongo_nodes: mongoNodes,
-            client_node: clientNode,
-            mysql_password: mysqlPass,
-          }),
-        });
-        bootstrap.Modal.getInstance(
-          document.getElementById("configModal"),
-        ).hide();
-        refreshAll();
+      async function saveClusterConfig() {
+        const btnSave = document.querySelector("#configModal .btn-navy");
+        const originalText = btnSave ? btnSave.innerText : "Lưu cấu hình";
+        if (btnSave) {
+          btnSave.disabled = true;
+          btnSave.innerText = "Đang lưu...";
+        }
+        try {
+          const mysqlNodes = document
+            .getElementById("cfg-mysql-nodes")
+            .value.split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+          const mongoNodes = document
+            .getElementById("cfg-mongo-nodes")
+            .value.split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+          const clientNode = document
+            .getElementById("cfg-client-node")
+            .value.trim();
+          const mysqlPass = document.getElementById("cfg-mysql-pass").value;
+
+          const res = await fetch("/api/cluster/config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              mysql_nodes: mysqlNodes,
+              mongo_nodes: mongoNodes,
+              client_node: clientNode,
+              mysql_password: mysqlPass,
+            }),
+          });
+          if (!res.ok) {
+            throw new Error(`Mã lỗi HTTP: ${res.status}`);
+          }
+          bootstrap.Modal.getInstance(
+            document.getElementById("configModal"),
+          ).hide();
+          await refreshAll(true);
+          alert("✓ Đã lưu cấu hình cụm và đồng bộ vĩnh viễn vào cluster_config.json thành công!");
+        } catch (err) {
+          alert("Lỗi khi lưu cấu hình: " + err);
+        } finally {
+          if (btnSave) {
+            btnSave.disabled = false;
+            btnSave.innerText = originalText;
+          }
+        }
       }
 
       async function refreshAll(isManual = false) {
@@ -2510,6 +2554,11 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       }
 
       window.addEventListener("DOMContentLoaded", () => {
+        loadClusterConfig();
+        const configModalEl = document.getElementById("configModal");
+        if (configModalEl) {
+          configModalEl.addEventListener("show.bs.modal", loadClusterConfig);
+        }
         refreshAll(false);
         setInterval(fetchClusterStatus, 5000);
       });
