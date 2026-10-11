@@ -24,9 +24,9 @@ Write-Host "  -> Đã thiết lập Network Category = Private!" -ForegroundColo
 
 # 3. Mở cổng Firewall cho MySQL (3306), Group Replication (33061), MongoDB (27017), Web App (8000) và ICMP Ping
 Write-Host "`n[3] Mở các cổng Firewall cần thiết (3306, 33061, 27017, 8000 & Ping ICMP)..." -ForegroundColor Yellow
-Remove-NetFirewallRule -DisplayName "CTH574T_Nhom2_DB_Ports" -ErrorAction SilentlyContinue
-New-NetFirewallRule -DisplayName "CTH574T_Nhom2_DB_Ports" -Direction Inbound -LocalPort 3306,33061,27017,8000 -Protocol TCP -Action Allow -Profile Any | Out-Null
-New-NetFirewallRule -DisplayName "CTH574T_Nhom2_ICMP_Ping" -Direction Inbound -Protocol ICMPv4 -IcmpType 8 -Action Allow -Profile Any | Out-Null
+Remove-NetFirewallRule -DisplayName "CTH612_Nhom2_DB_Ports" -ErrorAction SilentlyContinue
+New-NetFirewallRule -DisplayName "CTH612_Nhom2_DB_Ports" -Direction Inbound -LocalPort 3306,33061,27017,8000 -Protocol TCP -Action Allow -Profile Any | Out-Null
+New-NetFirewallRule -DisplayName "CTH612_Nhom2_ICMP_Ping" -Direction Inbound -Protocol ICMPv4 -IcmpType 8 -Action Allow -Profile Any | Out-Null
 Write-Host "  -> Đã mở thông cổng TCP 3306, 33061, 27017, 8000 và ICMP Ping!" -ForegroundColor Green
 
 Write-Host "`n=====================================================================" -ForegroundColor Cyan
