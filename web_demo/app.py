@@ -5,6 +5,7 @@ import random
 import socket
 from datetime import datetime
 from typing import List, Optional
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -338,214 +339,131 @@ def get_cluster_status(request: Request):
         "timestamp": datetime.now().strftime("%H:%M:%S")
     }
 
-    # 1. Quét từng Node MySQL
-    any_lan_online = False
-    for idx, host in enumerate(CLUSTER_CONFIG["mysql_nodes"], start=1):
+    # 1. QUÉT SONG SONG CẢ 4 NODE MYSQL (TỐC ĐỘ CAO <0.25s)
+    def _scan_mysql(idx_host):
+        idx, host = idx_host
         t0 = time.perf_counter()
         h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
         p_int = int(p_int)
-        if not is_port_open(h_str, p_int, timeout=0.45):
-            status["mysql"].append({
-                "node_name": f"Node {idx}",
-                "host": host,
-                "server_id": "-",
-                "hostname": "-",
-                "state": "OFFLINE",
-                "role": "UNREACHABLE",
-                "ping_ms": None,
-                "gtid": "-",
-                "counts": {"users": 0, "products": 0, "orders": 0, "order_items": 0, "payments": 0}
-            })
-            continue
+        if not is_port_open(h_str, p_int, timeout=0.25):
+            return {
+                "node_name": f"Node {idx}", "host": host, "server_id": "-", "hostname": "-",
+                "state": "OFFLINE", "role": "UNREACHABLE", "ping_ms": None, "gtid": "-",
+                "counts": {"users": 0, "products": 0, "orders": 0, "order_items": 0, "payments": 0},
+                "_uuid": None, "_primary_uuid": None, "_ro": 1
+            }
         try:
             conn = mysql.connector.connect(
-                host=h_str,
-                port=p_int,
+                host=h_str, port=p_int,
                 user=CLUSTER_CONFIG["mysql_user"],
                 password=CLUSTER_CONFIG["mysql_password"],
-                connection_timeout=2
+                connection_timeout=1.2
             )
             ping_ms = round((time.perf_counter() - t0) * 1000, 2)
             cur = conn.cursor(dictionary=True)
-
-            # Lấy thông tin Group Replication của tất cả thành viên đang ONLINE trong nhóm của Node này
-            cur.execute("""
-                SELECT MEMBER_ID, MEMBER_HOST, MEMBER_STATE, MEMBER_ROLE
-                FROM performance_schema.replication_group_members
-            """)
-            mgr_rows = cur.fetchall()
-            online_mgr_rows = [r for r in mgr_rows if r.get("MEMBER_STATE") == "ONLINE"]
-            unreachable_mgr_rows = [r for r in mgr_rows if r.get("MEMBER_STATE") == "UNREACHABLE"]
-
             cur.execute("SELECT @@server_uuid AS uuid, @@server_id AS sid, @@hostname AS hname, @@global.read_only AS ro, @@global.gtid_executed AS gtid")
             sys_info = cur.fetchone()
 
-            self_mgr = None
-            for r in mgr_rows:
-                if r.get("MEMBER_HOST") == host or r.get("MEMBER_ID") == sys_info["uuid"]:
-                    self_mgr = r
-                    break
+            cur.execute("SELECT MEMBER_ID, MEMBER_HOST, MEMBER_STATE, MEMBER_ROLE FROM performance_schema.replication_group_members")
+            mgr_rows = cur.fetchall()
 
-            # Tự động gỡ nghẽn Quorum khi bị mất Quorum (1 node sập trong cụm 2 node Group Replication):
+            cur.execute("SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME = 'group_replication_primary_member'")
+            p_row = cur.fetchone()
+            primary_uuid = p_row["VARIABLE_VALUE"] if p_row else None
+
+            online_mgr_rows = [r for r in mgr_rows if r.get("MEMBER_STATE") == "ONLINE"]
+            unreachable_mgr_rows = [r for r in mgr_rows if r.get("MEMBER_STATE") == "UNREACHABLE"]
+            self_mgr = next((r for r in mgr_rows if r.get("MEMBER_HOST") == host or r.get("MEMBER_ID") == sys_info["uuid"]), None)
+
+            # Tự động gỡ nghẽn Quorum khi 1 node sập trong cụm 2 node
             if len(online_mgr_rows) == 1 and len(unreachable_mgr_rows) >= 1 and self_mgr and self_mgr.get("MEMBER_ROLE") != "PRIMARY":
                 try:
                     cur.execute(f"SET GLOBAL group_replication_force_members = '{h_str}:33061'")
                     cur.execute("SET GLOBAL group_replication_force_members = ''")
-                    cur.execute("SELECT MEMBER_ID, MEMBER_HOST, MEMBER_STATE, MEMBER_ROLE FROM performance_schema.replication_group_members")
-                    mgr_rows = cur.fetchall()
-                    online_mgr_rows = [r for r in mgr_rows if r.get("MEMBER_STATE") == "ONLINE"]
-                    for r in mgr_rows:
-                        if r.get("MEMBER_HOST") == host or r.get("MEMBER_ID") == sys_info["uuid"]:
-                            self_mgr = r
-                            break
-                    cur.execute("SELECT @@global.read_only AS ro")
-                    sys_info["ro"] = cur.fetchone()["ro"]
                 except Exception:
                     pass
 
-            # Tự động trả quyền PRIMARY về cho Node 1 khi Node 1 mở lại (Auto-failback đồng bộ với MongoDB):
+            # Auto-failback về Node 1 ngay khi Node 1 online trở lại
             node1_ip = CLUSTER_CONFIG["mysql_nodes"][0].split(":")[0]
             node1_mgr = next((r for r in online_mgr_rows if r.get("MEMBER_HOST") == node1_ip and r.get("MEMBER_STATE") == "ONLINE"), None)
-            if node1_mgr and node1_mgr.get("MEMBER_ROLE") != "PRIMARY" and self_mgr and self_mgr.get("MEMBER_ROLE") == "PRIMARY":
+            if node1_mgr and node1_mgr.get("MEMBER_ID") != primary_uuid and self_mgr and self_mgr.get("MEMBER_ROLE") == "PRIMARY":
                 try:
                     cur.execute(f"SELECT group_replication_set_as_primary('{node1_mgr['MEMBER_ID']}')")
-                    cur.execute("SELECT MEMBER_ID, MEMBER_HOST, MEMBER_STATE, MEMBER_ROLE FROM performance_schema.replication_group_members")
-                    mgr_rows = cur.fetchall()
-                    for r in mgr_rows:
-                        if r.get("MEMBER_HOST") == host or r.get("MEMBER_ID") == sys_info["uuid"]:
-                            self_mgr = r
-                            break
-                    cur.execute("SELECT @@global.read_only AS ro")
-                    sys_info["ro"] = cur.fetchone()["ro"]
+                    primary_uuid = node1_mgr["MEMBER_ID"]
                 except Exception:
                     pass
 
-            # Đếm số bản ghi trên Node này để minh họa đồng bộ
             node_counts = {"users": 0, "products": 0, "orders": 0, "order_items": 0, "payments": 0}
             try:
                 cur.execute(f"USE {CLUSTER_CONFIG['mysql_db']}")
                 for tbl in ["users", "products", "orders", "order_items", "payments"]:
                     cur.execute(f"SELECT COUNT(*) AS c FROM {tbl}")
                     node_counts[tbl] = cur.fetchone()["c"]
-                if status["data_counts"]["orders"] == 0:
-                    for k, v in node_counts.items():
-                        status["data_counts"][k] = v
-                elif node_counts["orders"] < status["data_counts"]["orders"] and ":" in host:
-                    try:
-                        cur.execute("SET GLOBAL super_read_only = OFF")
-                        cur.execute("SET GLOBAL read_only = OFF")
-                        cur.execute("SELECT MAX(order_id) AS m FROM orders")
-                        max_ord = cur.fetchone()["m"] or 0
-                        p_conn, _ = get_mysql_connection("primary")
-                        p_cur = p_conn.cursor(dictionary=True)
-                        p_cur.execute("SELECT * FROM orders WHERE order_id > %s ORDER BY order_id", (max_ord,))
-                        for o in p_cur.fetchall():
-                            cur.execute("INSERT IGNORE INTO orders (order_id, user_id, total_amount, status, shipping_region, created_at) VALUES (%s, %s, %s, %s, %s, %s)",
-                                        (o["order_id"], o["user_id"], o["total_amount"], o["status"], o["shipping_region"], o["created_at"]))
-                            p_cur.execute("SELECT * FROM order_items WHERE order_id = %s", (o["order_id"],))
-                            for it in p_cur.fetchall():
-                                cur.execute("INSERT IGNORE INTO order_items (item_id, order_id, product_id, quantity, unit_price) VALUES (%s, %s, %s, %s, %s)",
-                                            (it["item_id"], it["order_id"], it["product_id"], it["quantity"], it["unit_price"]))
-                            p_cur.execute("SELECT * FROM payments WHERE order_id = %s", (o["order_id"],))
-                            for pm in p_cur.fetchall():
-                                cur.execute("INSERT IGNORE INTO payments (payment_id, order_id, amount, payment_method, transaction_status, created_at) VALUES (%s, %s, %s, %s, %s, %s)",
-                                            (pm["payment_id"], pm["order_id"], pm["amount"], pm["payment_method"], pm["transaction_status"], pm["created_at"]))
-                        cur.execute("SET GLOBAL read_only = ON")
-                        cur.execute("SET GLOBAL super_read_only = ON")
-                        p_cur.close()
-                        p_conn.close()
-                        for tbl in ["users", "products", "orders", "order_items", "payments"]:
-                            cur.execute(f"SELECT COUNT(*) AS c FROM {tbl}")
-                            node_counts[tbl] = cur.fetchone()["c"]
-                    except Exception:
-                        pass
             except Exception:
                 pass
 
-            mgr_role = self_mgr.get("MEMBER_ROLE") if self_mgr else ""
-            mgr_state = self_mgr.get("MEMBER_STATE") if self_mgr else "OFFLINE"
-            role = mgr_role if mgr_role else ("PRIMARY" if sys_info["ro"] == 0 else "SECONDARY")
-            state = mgr_state if (mgr_state and mgr_state != "OFFLINE") else "ONLINE"
-            gtid_short = (sys_info["gtid"][:42] + "...") if sys_info["gtid"] and len(sys_info["gtid"]) > 42 else (sys_info["gtid"] or "N/A")
-
-            status["mysql"].append({
-                "node_name": f"Node {idx}",
-                "host": host,
-                "server_id": sys_info["sid"],
-                "hostname": sys_info["hname"],
-                "state": state,
-                "role": role,
-                "ping_ms": ping_ms,
-                "gtid": gtid_short,
-                "counts": node_counts,
-                "_ro": sys_info["ro"],
-                "_mgr_state": mgr_state,
-                "_mgr_role": mgr_role,
-                "_mgr_group_size": len(online_mgr_rows)
-            })
-            any_lan_online = True
             cur.close()
             conn.close()
-        except Exception:
-            status["mysql"].append({
-                "node_name": f"Node {idx}",
-                "host": host,
-                "server_id": "-",
-                "hostname": "-",
-                "state": "OFFLINE",
-                "role": "UNREACHABLE",
-                "ping_ms": None,
-                "gtid": "-",
-                "counts": {"users": 0, "products": 0, "orders": 0, "order_items": 0, "payments": 0}
-            })
 
-    # Nếu chưa nối mạng LAN mà đang test Localhost, lấy thêm thông tin Localhost để hiển thị số liệu
-    if not any_lan_online:
-        try:
-            conn, meta = get_mysql_connection("primary")
-            cur = conn.cursor(dictionary=True)
-            for tbl in ["users", "products", "orders", "order_items", "payments"]:
-                cur.execute(f"SELECT COUNT(*) AS c FROM {tbl}")
-                status["data_counts"][tbl] = cur.fetchone()["c"]
-            cur.execute("SELECT @@global.gtid_executed AS gtid")
-            gtid_val = cur.fetchone()["gtid"] or "Local-Binlog"
-            status["mysql"][0].update({
-                "host": f"{CLUSTER_CONFIG['mysql_nodes'][0]} (Localhost Active)",
-                "server_id": meta["server_id"],
-                "hostname": meta["hostname"],
-                "state": "ONLINE (LOCAL)",
-                "role": "PRIMARY",
-                "ping_ms": 0.5,
-                "gtid": gtid_val[:40],
-                "counts": {k: status["data_counts"][k] for k in ["users", "products", "orders", "order_items", "payments"]}
-            })
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
+            gtid_str = sys_info["gtid"] or "N/A"
+            gtid_short = (gtid_str[:42] + "...") if len(gtid_str) > 42 else gtid_str
 
-    # Đảm bảo hiển thị chính xác vai trò PRIMARY / SECONDARY theo Group Replication:
-    for n in status["mysql"]:
-        if n.get("_mgr_role"):
-            n["role"] = n["_mgr_role"]
-        elif n.get("_ro") == 0:
-            n["role"] = "PRIMARY"
-        elif n.get("state") == "ONLINE":
-            n["role"] = "SECONDARY"
-        for k in ["_ro", "_mgr_state", "_mgr_role", "_mgr_group_size"]:
+            return {
+                "node_name": f"Node {idx}", "host": host, "server_id": sys_info["sid"], "hostname": sys_info["hname"],
+                "state": "ONLINE", "role": "SECONDARY", "ping_ms": ping_ms, "gtid": gtid_short,
+                "counts": node_counts, "_uuid": sys_info["uuid"], "_primary_uuid": primary_uuid, "_ro": sys_info["ro"]
+            }
+        except Exception:
+            return {
+                "node_name": f"Node {idx}", "host": host, "server_id": "-", "hostname": "-",
+                "state": "OFFLINE", "role": "UNREACHABLE", "ping_ms": None, "gtid": "-",
+                "counts": {"users": 0, "products": 0, "orders": 0, "order_items": 0, "payments": 0},
+                "_uuid": None, "_primary_uuid": None, "_ro": 1
+            }
+
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        mysql_results = list(ex.map(_scan_mysql, enumerate(CLUSTER_CONFIG["mysql_nodes"], start=1)))
+
+    # Chuẩn hóa Single-Primary Tuyệt Đối:
+    # 1. Tìm UUID của Primary thực sự trong cụm
+    group_primary_uuid = next((n["_primary_uuid"] for n in mysql_results if n.get("_primary_uuid")), None)
+    primary_assigned = False
+
+    for n in mysql_results:
+        if n["state"] == "ONLINE":
+            if group_primary_uuid and n["_uuid"] == group_primary_uuid and not primary_assigned:
+                n["role"] = "PRIMARY"
+                primary_assigned = True
+            else:
+                n["role"] = "SECONDARY"
+
+    # Nếu không tìm thấy group_primary_uuid (ví dụ standalone): chỉ cho phép duy nhất 1 node ro == 0 làm PRIMARY
+    if not primary_assigned:
+        for n in mysql_results:
+            if n["state"] == "ONLINE" and n.get("_ro") == 0:
+                n["role"] = "PRIMARY"
+                primary_assigned = True
+                break
+
+    for n in mysql_results:
+        for k in ["_uuid", "_primary_uuid", "_ro"]:
             n.pop(k, None)
+        if n["counts"]["orders"] > status["data_counts"]["orders"]:
+            for k, v in n["counts"].items():
+                status["data_counts"][k] = v
 
-    # 2. Quét từng Node MongoDB độc lập (chống lỗi sập toàn bộ danh sách khi 1 node đang bầu cử hoặc mất Quorum)
+    status["mysql"] = mysql_results
+
+    # 2. QUÉT SONG SONG CẢ 4 NODE MONGODB (TỐC ĐỘ CAO <0.15s)
     mongo_reviews_cnt = 0
     mongo_logs_cnt = 0
     rs_map = {}
 
-    # Bước A: Tìm và đếm số bản ghi từ bất kỳ Node MongoDB nào đang mở và phản hồi
     for probe_host in CLUSTER_CONFIG["mongo_nodes"]:
         h_mg, p_mg = (probe_host.split(":") if ":" in probe_host else (probe_host, 27017))
-        if is_port_open(h_mg, int(p_mg), timeout=0.35):
+        if is_port_open(h_mg, int(p_mg), timeout=0.2):
             try:
-                probe_c = MongoClient(f"mongodb://{probe_host}/?directConnection=true", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=800)
+                probe_c = MongoClient(f"mongodb://{probe_host}/?directConnection=true", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=400)
                 probe_db = probe_c[CLUSTER_CONFIG["mongo_db"]]
                 r_c = probe_db["product_reviews"].estimated_document_count()
                 l_c = probe_db["user_activity_logs"].estimated_document_count()
@@ -568,65 +486,37 @@ def get_cluster_status(request: Request):
             except Exception:
                 pass
 
-    # Bước B: Quét chi tiết từng Node trong cấu hình
-    for idx, cfg_host in enumerate(CLUSTER_CONFIG["mongo_nodes"], start=1):
+    def _scan_mongo(idx_host):
+        idx, cfg_host = idx_host
         h_mg, p_mg = (cfg_host.split(":") if ":" in cfg_host else (cfg_host, 27017))
-        if not is_port_open(h_mg, int(p_mg), timeout=0.45):
-            status["mongodb"].append({
-                "node_name": f"Node {idx}",
-                "host": cfg_host,
-                "state": "OFFLINE",
-                "health": 0,
-                "reviews_count": 0,
-                "logs_count": 0
-            })
-            continue
-
+        if not is_port_open(h_mg, int(p_mg), timeout=0.2):
+            return {
+                "node_name": f"Node {idx}", "host": cfg_host, "state": "OFFLINE", "health": 0,
+                "reviews_count": 0, "logs_count": 0
+            }
         try:
-            m_single = MongoClient(f"mongodb://{cfg_host}/?directConnection=true", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=800)
+            m_single = MongoClient(f"mongodb://{cfg_host}/?directConnection=true", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=400)
             hello_res = m_single.admin.command("hello")
             is_prim = hello_res.get("isWritablePrimary") or hello_res.get("ismaster")
             state_str = "PRIMARY" if is_prim else ("SECONDARY" if hello_res.get("secondary") else "ONLINE")
-
-            # Nếu trong rs_map có thông tin chi tiết hơn
             if cfg_host in rs_map:
                 state_str = rs_map[cfg_host].get("stateStr", state_str)
-
-            # Đếm số lượng thực tế trên chính Node này nếu có
-            node_r_cnt = mongo_reviews_cnt
-            node_l_cnt = mongo_logs_cnt
-            try:
-                s_db = m_single[CLUSTER_CONFIG["mongo_db"]]
-                this_r = s_db["product_reviews"].estimated_document_count()
-                this_l = s_db["user_activity_logs"].estimated_document_count()
-                if this_r > 0:
-                    node_r_cnt = this_r
-                if this_l > 0:
-                    node_l_cnt = this_l
-            except Exception:
-                pass
-
-            status["mongodb"].append({
-                "node_name": f"Node {idx}",
-                "host": cfg_host,
-                "state": state_str,
-                "health": 1,
-                "reviews_count": node_r_cnt,
-                "logs_count": node_l_cnt
-            })
             m_single.close()
+            return {
+                "node_name": f"Node {idx}", "host": cfg_host, "state": state_str, "health": 1,
+                "reviews_count": mongo_reviews_cnt, "logs_count": mongo_logs_cnt
+            }
         except Exception:
-            status["mongodb"].append({
-                "node_name": f"Node {idx}",
-                "host": cfg_host,
-                "state": "ONLINE (STANDALONE)",
-                "health": 1,
-                "reviews_count": mongo_reviews_cnt,
-                "logs_count": mongo_logs_cnt
-            })
+            return {
+                "node_name": f"Node {idx}", "host": cfg_host, "state": "OFFLINE", "health": 0,
+                "reviews_count": 0, "logs_count": 0
+            }
+
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        mongo_results = list(ex.map(_scan_mongo, enumerate(CLUSTER_CONFIG["mongo_nodes"], start=1)))
 
     # Đảm bảo danh sách Node MongoDB đang ONLINE luôn hiển thị đúng 1 PRIMARY
-    online_m = [m for m in status["mongodb"] if m["health"] == 1]
+    online_m = [m for m in mongo_results if m["health"] == 1]
     if online_m:
         primaries = [m for m in online_m if m["state"] == "PRIMARY"]
         if len(primaries) == 0:
@@ -636,6 +526,7 @@ def get_cluster_status(request: Request):
             for m in online_m:
                 m["state"] = "PRIMARY" if m["host"] == first_p["host"] else "SECONDARY"
 
+    status["mongodb"] = mongo_results
     return status
 
 
