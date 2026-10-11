@@ -1,0 +1,2518 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hệ thống Quản lý Bán hàng & CSDL Phân tán - Nhóm 2</title>
+    <!-- Phục vụ Offline 100% qua /static (hoạt động không cần Internet) -->
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css" />
+    <script src="/static/js/chart.umd.min.js"></script>
+    <style>
+      body {
+        background-color: #f2f4f7;
+        color: #212529;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        font-size: 13.5px;
+      }
+      .top-header {
+        background-color: #004b87;
+        color: #ffffff;
+        border-bottom: 3px solid #00335c;
+        padding: 10px 0;
+      }
+      .top-header .course-sub {
+        font-size: 12px;
+        color: #cfe2f3;
+      }
+      .nav-bar-sub {
+        background-color: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 6px 8px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+      }
+      .nav-tabs-custom {
+        border-bottom: none;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        width: 100%;
+      }
+      .nav-tabs-custom .nav-item {
+        flex: 1 1 auto;
+      }
+      .nav-tabs-custom .nav-link {
+        width: 100%;
+        text-align: center;
+        color: #334155;
+        font-weight: 600;
+        font-size: 13.5px;
+        padding: 9px 16px;
+        border: 1px solid transparent;
+        border-radius: 5px;
+        transition: all 0.15s ease-in-out;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+      .nav-tabs-custom .nav-link .tab-step {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background-color: #e2e8f0;
+        color: #334155;
+        font-size: 12px;
+        font-weight: 700;
+        transition: all 0.15s ease-in-out;
+      }
+      .nav-tabs-custom .nav-link:hover {
+        background-color: #f1f5f9;
+        color: #004b87;
+        border-color: #cbd5e1;
+      }
+      .nav-tabs-custom .nav-link:hover .tab-step {
+        background-color: #dbeafe;
+        color: #004b87;
+      }
+      .nav-tabs-custom .nav-link.active {
+        color: #ffffff;
+        background: linear-gradient(135deg, #004b87 0%, #0369a1 100%);
+        border-color: #003b6b;
+        box-shadow: 0 2px 5px rgba(0, 75, 135, 0.25);
+      }
+      .nav-tabs-custom .nav-link.active .tab-step {
+        background-color: rgba(255, 255, 255, 0.22);
+        color: #ffffff;
+      }
+      .panel-box {
+        background-color: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+        overflow: hidden;
+      }
+      .panel-header {
+        background-color: #f8fafc;
+        border-bottom: 1px solid #cbd5e1;
+        padding: 10px 15px;
+        font-weight: 600;
+        font-size: 14px;
+        color: #1e293b;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .panel-body {
+        padding: 14px;
+      }
+      .status-strip {
+        background-color: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-left: 4px solid #004b87;
+        border-radius: 6px;
+        padding: 12px 16px;
+        margin-bottom: 12px;
+        font-size: 14.5px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+      }
+      .node-ip {
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 15.5px;
+        font-weight: 600;
+        color: #0f172a;
+        letter-spacing: 0.2px;
+      }
+      .table-custom {
+        margin-bottom: 0;
+        font-size: 13px;
+      }
+      .table-custom thead th {
+        background-color: #eef2f6;
+        color: #1e293b;
+        font-weight: 600;
+        border-bottom: 1px solid #cbd5e1;
+        white-space: nowrap;
+      }
+      .status-dot {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        margin-right: 6px;
+      }
+      .dot-online {
+        background-color: #16a34a;
+      }
+      .dot-offline {
+        background-color: #dc2626;
+      }
+      .label-tag {
+        display: inline-block;
+        padding: 2px 8px;
+        font-size: 12.5px;
+        font-weight: 600;
+        border-radius: 3px;
+        border: 1px solid transparent;
+      }
+      .tag-primary {
+        background-color: #e0f2fe;
+        color: #0369a1;
+        border-color: #bae6fd;
+      }
+      .tag-secondary {
+        background-color: #f1f5f9;
+        color: #475569;
+        border-color: #cbd5e1;
+      }
+      .tag-online {
+        background-color: #dcfce7;
+        color: #15803d;
+        border-color: #bbf7d0;
+      }
+      .tag-offline {
+        background-color: #fee2e2;
+        color: #b91c1c;
+        border-color: #fecaca;
+      }
+      .form-label {
+        font-weight: 600;
+        font-size: 12.5px;
+        margin-bottom: 4px;
+        color: #334155;
+      }
+      .form-control,
+      .form-select {
+        font-size: 13px;
+        border-radius: 3px;
+        border-color: #cbd5e1;
+      }
+      .btn {
+        font-size: 13px;
+        border-radius: 3px;
+      }
+      .btn-navy {
+        background-color: #004b87;
+        color: #fff;
+        border-color: #003d6e;
+      }
+      .btn-navy:hover {
+        background-color: #003865;
+        color: #fff;
+      }
+      .review-item {
+        border-bottom: 1px solid #e2e8f0;
+        padding: 8px 0;
+      }
+      .review-item:last-child {
+        border-bottom: none;
+      }
+      .mono-text {
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 12px;
+      }
+      /* SEARCHABLE COMBOBOX (FILTERABLE SELECT) */
+      .scombo-wrapper {
+        position: relative;
+        width: 100%;
+      }
+      .scombo-trigger {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        min-height: 33px;
+        padding: 5px 28px 5px 10px;
+        font-size: 13px;
+        line-height: 1.4;
+        color: #1e293b;
+        background-color: #fff;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 8px center;
+        background-size: 12px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 3px;
+        cursor: pointer;
+        user-select: none;
+        transition:
+          border-color 0.15s ease-in-out,
+          box-shadow 0.15s ease-in-out;
+      }
+      .scombo-trigger:hover {
+        border-color: #94a3b8;
+      }
+      .scombo-wrapper.open .scombo-trigger {
+        border-color: #004b87;
+        box-shadow: 0 0 0 0.2rem rgba(0, 75, 135, 0.18);
+      }
+      .scombo-trigger-text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        width: 100%;
+      }
+      .scombo-dropdown {
+        display: none;
+        position: absolute;
+        top: calc(100% + 3px);
+        left: 0;
+        right: 0;
+        z-index: 1060;
+        background: #fff;
+        border: 1px solid #004b87;
+        border-radius: 4px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+        overflow: hidden;
+      }
+      .scombo-wrapper.open .scombo-dropdown {
+        display: block;
+      }
+      .scombo-search-box {
+        padding: 7px 8px 5px 8px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .scombo-search-input {
+        font-size: 12.5px !important;
+        padding: 4px 8px !important;
+      }
+      .scombo-meta {
+        font-size: 11px;
+        color: #64748b;
+        margin-top: 4px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .scombo-list {
+        max-height: 250px;
+        overflow-y: auto;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .scombo-item {
+        padding: 6px 10px;
+        font-size: 12.5px;
+        color: #1e293b;
+        border-bottom: 1px solid #f1f5f9;
+        cursor: pointer;
+        line-height: 1.35;
+      }
+      .scombo-item:last-child {
+        border-bottom: none;
+      }
+      .scombo-item:hover,
+      .scombo-item.active {
+        background-color: #e0f2fe;
+        color: #003865;
+      }
+      .scombo-item.selected {
+        background-color: #004b87;
+        color: #fff;
+        font-weight: 600;
+      }
+      .scombo-item.selected .text-muted {
+        color: #cbd5e1 !important;
+      }
+      .scombo-empty {
+        padding: 12px 10px;
+        text-align: center;
+        font-size: 12.5px;
+        color: #64748b;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- HEADER TRƯỜNG / HỌC PHẦN -->
+    <header class="top-header">
+      <div
+        class="container-fluid px-4 d-flex justify-content-between align-items-center">
+        <div>
+          <div class="fw-bold fs-6">
+            HỆ THỐNG THƯƠNG MẠI ĐIỆN TỬ PHÂN TÁN (MYSQL GROUP REPLICATION &
+            MONGODB)
+          </div>
+          <div class="course-sub">
+            Học phần: Cơ sở dữ liệu nâng cao (CTH574T) - Đề tài 2 - Nhóm thực
+            hiện: Nhóm 2
+          </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <button
+            class="btn btn-sm btn-outline-light"
+            data-bs-toggle="modal"
+            data-bs-target="#configModal">
+            Cấu hình IP mạng LAN
+          </button>
+          <button
+            class="btn btn-sm btn-light text-dark fw-semibold"
+            id="btn-refresh-all"
+            onclick="refreshAll(true)">
+            &#x21bb; Làm mới dữ liệu
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="container-fluid px-4 mt-3">
+      <!-- KHUNG TÓM TẮT TRẠNG THÁI NODE (NẰM TRÊN THANH TAB) -->
+      <div class="status-strip">
+        <div class="row g-3 align-items-start">
+          <div class="col-md-5 border-end">
+            <div class="fw-bold text-secondary mb-1">
+              Cụm MySQL Group Replication (Cổng 3306 / 33061):
+            </div>
+            <div id="summary-mysql-nodes" class="ps-1">Đang kiểm tra...</div>
+          </div>
+          <div class="col-md-5 border-end">
+            <div class="fw-bold text-secondary mb-1">
+              Cụm MongoDB Replica Set (Cổng 27017):
+            </div>
+            <div id="summary-mongo-nodes" class="ps-1">Đang kiểm tra...</div>
+          </div>
+          <div class="col-md-2">
+            <div class="fw-bold text-secondary mb-1">Tổng quy mô dữ liệu:</div>
+            <div class="mb-1">
+              MySQL: <strong id="summary-sql-rows">0</strong> dòng
+            </div>
+            <div class="mb-2">
+              MongoDB: <strong id="summary-mongo-docs">0</strong> docs
+            </div>
+            <div class="text-muted small pt-1 border-top">
+              Cập nhật lần cuối:
+              <span id="last-updated-time" class="fw-semibold text-dark"
+                >--:--:--</span
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- THANH MENU TAB (DẠNG CARD SEGMENTED HIỆN ĐẠI) -->
+      <div class="nav-bar-sub mb-3">
+        <ul class="nav nav-tabs nav-tabs-custom" id="mainTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link active"
+              id="tab-btn-orders"
+              data-bs-toggle="tab"
+              data-bs-target="#tab-orders"
+              type="button"
+              role="tab"
+              onclick="loadRecentOrders()">
+              <span class="tab-step">1</span>
+              <span>Đặt hàng & Danh sách Đơn hàng</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              id="tab-btn-reviews"
+              data-bs-toggle="tab"
+              data-bs-target="#tab-reviews"
+              type="button"
+              role="tab">
+              <span class="tab-step">2</span>
+              <span>Nhận xét & Hình ảnh thực tế</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              id="tab-btn-cluster"
+              data-bs-toggle="tab"
+              data-bs-target="#tab-cluster"
+              type="button"
+              role="tab"
+              onclick="fetchClusterStatus()">
+              <span class="tab-step">3</span>
+              <span>Trạng thái Cụm Server (LAN)</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              id="tab-btn-benchmark"
+              data-bs-toggle="tab"
+              data-bs-target="#tab-benchmark"
+              type="button"
+              role="tab">
+              <span class="tab-step">4</span>
+              <span>Đo kiểm Hiệu năng Truy vấn</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              id="tab-btn-catalog"
+              data-bs-toggle="tab"
+              data-bs-target="#tab-catalog"
+              type="button"
+              role="tab">
+              <span class="tab-step">5</span>
+              <span>Danh mục Hàng hóa</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="tab-content">
+        <!-- ========================================================================= -->
+        <!-- TAB 5: DANH MỤC HÀNG HÓA (TRUY VẤN KẾT HỢP MYSQL & MONGODB)               -->
+        <!-- ========================================================================= -->
+        <div class="tab-pane fade" id="tab-catalog" role="tabpanel">
+          <div class="panel-box">
+            <div class="panel-header">
+              <span>Danh mục Hàng hóa (Truy vấn kết hợp MySQL & MongoDB)</span>
+              <span class="text-muted fw-normal small" id="polyglot-route-info"
+                >Đang tải...</span
+              >
+            </div>
+            <div class="panel-body">
+              <!-- Bộ lọc tìm kiếm -->
+              <div class="row g-2 mb-3 align-items-end">
+                <div class="col-md-4">
+                  <label class="form-label"
+                    >Từ khóa tìm kiếm (Tên / Mã SKU)</label
+                  >
+                  <input
+                    type="text"
+                    id="filter-keyword"
+                    class="form-control"
+                    placeholder="Nhập tên sản phẩm hoặc SKU..." />
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Nhóm hàng</label>
+                  <select id="filter-category" class="form-select">
+                    <option value="ALL">-- Tất cả nhóm hàng --</option>
+                    <option value="Smartphone">Smartphone</option>
+                    <option value="Laptop">Laptop</option>
+                    <option value="Tablet">Tablet</option>
+                    <option value="Audio">Audio</option>
+                    <option value="Smartwatch">Smartwatch</option>
+                    <option value="Monitor">Monitor</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label"
+                    >Chế độ đọc dữ liệu (Read Routing)</label
+                  >
+                  <select id="filter-readmode" class="form-select">
+                    <option value="secondary_preferred">
+                      Ưu tiên đọc Node Phụ (Secondary)
+                    </option>
+                    <option value="round_robin">
+                      Phân tải xoay vòng (Round-Robin)
+                    </option>
+                    <option value="primary">
+                      Chỉ đọc từ Node Chính (Primary)
+                    </option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <button class="btn btn-navy w-100" onclick="loadProducts(1)">
+                    Lọc
+                  </button>
+                </div>
+              </div>
+
+              <!-- Bảng dữ liệu sản phẩm toàn chiều rộng -->
+              <div class="table-responsive" style="border: 1px solid #dee2e6">
+                <table
+                  class="table table-bordered table-hover table-sm table-custom align-middle">
+                  <thead class="sticky-top">
+                    <tr>
+                      <th>Mã SKU</th>
+                      <th>Tên sản phẩm</th>
+                      <th>Nhóm</th>
+                      <th class="text-end">Đơn giá (đ)</th>
+                      <th class="text-center">Tồn kho</th>
+                      <th class="text-center">Đã bán</th>
+                      <th class="text-center">Đánh giá (MongoDB)</th>
+                      <th class="text-center">Lượt xem</th>
+                      <th class="text-center">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody id="product-table-body">
+                    <tr>
+                      <td colspan="9" class="text-center py-3 text-muted">
+                        Đang tải danh sách sản phẩm...
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Thanh phân trang cho lưới Danh mục Hàng hóa -->
+              <div
+                class="d-flex flex-wrap justify-content-between align-items-center mt-3 pt-2 border-top gap-2">
+                <div class="d-flex align-items-center gap-3">
+                  <span class="text-muted small" id="catalog-page-info"
+                    >Đang tính tổng số mặt hàng...</span
+                  >
+                  <div class="d-flex align-items-center gap-1">
+                    <label class="small text-muted mb-0">Số dòng/trang:</label>
+                    <select
+                      id="catalog-page-size"
+                      class="form-select form-select-sm"
+                      style="width: 75px"
+                      onchange="loadProducts(1)">
+                      <option value="10">10</option>
+                      <option value="15" selected>15</option>
+                      <option value="20">20</option>
+                      <option value="50">50</option>
+                    </select>
+                  </div>
+                </div>
+                <nav aria-label="Phân trang danh mục hàng hóa">
+                  <ul
+                    class="pagination pagination-sm mb-0"
+                    id="catalog-pagination"></ul>
+                </nav>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 2: NHẬN XÉT & HÌNH ẢNH THỰC TẾ (LƯU TRỮ TRÊN MONGODB REPLICA SET)     -->
+        <!-- ========================================================================= -->
+        <div class="tab-pane fade" id="tab-reviews" role="tabpanel">
+          <div class="row">
+            <!-- Cột trái: Danh sách nhận xét & hình ảnh thực tế -->
+            <div class="col-lg-8">
+              <div class="panel-box">
+                <div class="panel-header flex-wrap gap-2">
+                  <span
+                    >Nhận xét & Hình ảnh thực tế từ Khách hàng (Lưu trữ trên
+                    MongoDB Replica Set)</span
+                  >
+                  <span
+                    class="small text-muted fw-normal"
+                    id="reviews-node-info"
+                    >Đang tải...</span
+                  >
+                </div>
+                <div class="panel-body">
+                  <div class="row g-2 align-items-end mb-2 pb-2 border-bottom">
+                    <div class="col-md-6">
+                      <label class="form-label"
+                        >Chọn sản phẩm cần xem nhận xét
+                        <span
+                          class="text-muted fw-normal"
+                          id="review-view-prod-count"></span
+                        >:</label
+                      >
+                      <select
+                        id="view-review-product-select"
+                        class="form-select"
+                        onchange="
+                          onChangeReviewProductSelect(this.value)
+                        "></select>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label"
+                        >Chế độ đọc MongoDB (Read Preference)</label
+                      >
+                      <select
+                        id="reviews-readmode"
+                        class="form-select"
+                        onchange="
+                          loadProductReviews(currentReviewProductId, 1)
+                        ">
+                        <option value="secondary_preferred">
+                          Ưu tiên đọc Node Phụ (Secondary)
+                        </option>
+                        <option value="nearest">
+                          Đọc Node gần nhất (Nearest)
+                        </option>
+                        <option value="primary">
+                          Chỉ đọc Node Chính (Primary)
+                        </option>
+                      </select>
+                    </div>
+                    <div class="col-md-2">
+                      <button
+                        class="btn btn-navy w-100"
+                        onclick="loadProductReviews(currentReviewProductId, 1)">
+                        Tải lại
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    class="d-flex flex-wrap justify-content-between align-items-center mb-2 pb-2 border-bottom small text-secondary"
+                    id="selected-review-product-label">
+                    Sản phẩm #1
+                  </div>
+
+                  <div id="product-reviews-container">
+                    <div class="text-muted">
+                      Đang tải nhận xét từ MongoDB...
+                    </div>
+                  </div>
+
+                  <!-- Thanh phân trang cho Nhận xét MongoDB -->
+                  <div
+                    class="d-flex flex-wrap justify-content-between align-items-center mt-3 pt-2 border-top gap-2">
+                    <div class="d-flex align-items-center gap-3">
+                      <span class="text-muted small" id="reviews-page-info"
+                        >Đang tải...</span
+                      >
+                      <div class="d-flex align-items-center gap-1">
+                        <label class="small text-muted mb-0"
+                          >Số đánh giá/trang:</label
+                        >
+                        <select
+                          id="reviews-page-size"
+                          class="form-select form-select-sm"
+                          style="width: 72px"
+                          onchange="
+                            loadProductReviews(currentReviewProductId, 1)
+                          ">
+                          <option value="5" selected>5</option>
+                          <option value="10">10</option>
+                          <option value="20">20</option>
+                        </select>
+                      </div>
+                    </div>
+                    <nav aria-label="Phân trang nhận xét">
+                      <ul
+                        class="pagination pagination-sm mb-0"
+                        id="reviews-pagination"></ul>
+                    </nav>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Cột phải: Form gửi đánh giá sản phẩm mới vào MongoDB -->
+            <div class="col-lg-4">
+              <div class="panel-box">
+                <div class="panel-header">
+                  <span>Gửi Đánh giá Sản phẩm (MongoDB Document)</span>
+                  <span class="label-tag tag-secondary">ecommerce_nosql</span>
+                </div>
+                <div class="panel-body">
+                  <div class="row g-2 mb-2">
+                    <div class="col-7">
+                      <label class="form-label">Sản phẩm đánh giá</label>
+                      <select
+                        id="review-product-id"
+                        class="form-select"></select>
+                    </div>
+                    <div class="col-5">
+                      <label class="form-label">Mức điểm</label>
+                      <select id="review-rating" class="form-select">
+                        <option value="5">5 sao (Rất tốt)</option>
+                        <option value="4">4 sao (Tốt)</option>
+                        <option value="3">3 sao (Khá)</option>
+                        <option value="2">2 sao (Trung bình)</option>
+                        <option value="1">1 sao (Kém)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label">Tiêu đề nhận xét</label>
+                    <input
+                      type="text"
+                      id="review-title"
+                      class="form-control"
+                      value="Sản phẩm đúng mô tả, dùng ổn định" />
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label">Nội dung chi tiết</label>
+                    <textarea id="review-comment" class="form-control" rows="3">
+Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
+                    >
+                  </div>
+                  <div class="row g-2 mb-3">
+                    <div class="col-6">
+                      <label class="form-label">Tình trạng đóng gói</label>
+                      <input
+                        type="text"
+                        id="review-packaging"
+                        class="form-control"
+                        value="Nguyên hộp, bọc chống sốc" />
+                    </div>
+                    <div class="col-6">
+                      <label class="form-label">Link hình ảnh đính kèm</label>
+                      <input
+                        type="text"
+                        id="review-img"
+                        class="form-control"
+                        value="https://picsum.photos/seed/ctu1/300/200" />
+                    </div>
+                  </div>
+                  <button
+                    class="btn btn-navy w-100 py-2 fw-semibold"
+                    onclick="submitReview()">
+                    Lưu Đánh giá vào MongoDB
+                  </button>
+                  <div id="review-feedback" class="mt-2"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 1: ĐẶT HÀNG & DANH SÁCH ĐƠN HÀNG (MYSQL GROUP REPLICATION)            -->
+        <!-- ========================================================================= -->
+        <div class="tab-pane fade show active" id="tab-orders" role="tabpanel">
+          <div class="row">
+            <!-- Cột trái: Bảng Danh sách Đơn hàng gần đây -->
+            <div class="col-lg-8">
+              <div class="panel-box">
+                <div class="panel-header flex-wrap gap-2">
+                  <span
+                    >Danh sách Đơn hàng & Giao dịch Thanh toán mới nhất (Truy
+                    vấn JOIN 5 bảng trên MySQL)</span
+                  >
+                  <span class="small text-muted fw-normal" id="orders-node-info"
+                    >Đang tải...</span
+                  >
+                </div>
+                <div class="panel-body">
+                  <!-- Bộ lọc tìm kiếm Đơn hàng (tương tự Danh mục Hàng hóa) -->
+                  <div class="row g-2 mb-3 align-items-end">
+                    <div class="col-md-4">
+                      <label class="form-label"
+                        >Từ khóa tìm kiếm (Mã ĐH / Khách hàng / Sản phẩm)</label
+                      >
+                      <input
+                        type="text"
+                        id="orders-filter-keyword"
+                        class="form-control"
+                        placeholder="Nhập mã ĐH, tên KH, sản phẩm, tỉnh/TP..."
+                        onkeydown="
+                          if (event.key === 'Enter') loadRecentOrders(1);
+                        " />
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label">Khu vực / Phương thức TT</label>
+                      <select
+                        id="orders-filter-group"
+                        class="form-select"
+                        onchange="loadRecentOrders(1)">
+                        <option value="ALL">-- Tất cả đơn hàng --</option>
+                        <optgroup label="Theo Khu vực giao hàng">
+                          <option value="REGION:MIEN_NAM">
+                            Khu vực: Miền Nam (MIEN_NAM)
+                          </option>
+                          <option value="REGION:MIEN_TRUNG">
+                            Khu vực: Miền Trung (MIEN_TRUNG)
+                          </option>
+                          <option value="REGION:MIEN_BAC">
+                            Khu vực: Miền Bắc (MIEN_BAC)
+                          </option>
+                        </optgroup>
+                        <optgroup label="Theo Phương thức thanh toán">
+                          <option value="PAY:E-WALLET">
+                            Thanh toán: Ví điện tử (E-WALLET)
+                          </option>
+                          <option value="PAY:BANK_TRANSFER">
+                            Thanh toán: Chuyển khoản (BANK_TRANSFER)
+                          </option>
+                          <option value="PAY:CREDIT_CARD">
+                            Thanh toán: Thẻ tín dụng (CREDIT_CARD)
+                          </option>
+                          <option value="PAY:COD">
+                            Thanh toán: Tiền mặt (COD)
+                          </option>
+                        </optgroup>
+                        <optgroup label="Theo Trạng thái đơn hàng">
+                          <option value="STATUS:COMPLETED">
+                            Trạng thái: Hoàn tất (COMPLETED)
+                          </option>
+                          <option value="STATUS:CANCELLED">
+                            Trạng thái: Đã hủy (CANCELLED)
+                          </option>
+                        </optgroup>
+                      </select>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label"
+                        >Chế độ đọc dữ liệu (Read Routing)</label
+                      >
+                      <select
+                        id="orders-readmode"
+                        class="form-select"
+                        onchange="loadRecentOrders(1)">
+                        <option value="secondary_preferred">
+                          Ưu tiên đọc Node Phụ (Secondary)
+                        </option>
+                        <option value="round_robin">
+                          Phân tải xoay vòng (Round-Robin)
+                        </option>
+                        <option value="primary">
+                          Chỉ đọc từ Node Chính (Primary)
+                        </option>
+                      </select>
+                    </div>
+                    <div class="col-md-2">
+                      <button
+                        class="btn btn-navy w-100"
+                        onclick="loadRecentOrders(1)">
+                        Lọc
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    class="table-responsive"
+                    style="border: 1px solid #dee2e6">
+                    <table
+                      class="table table-bordered table-hover table-sm table-custom align-middle">
+                      <thead class="sticky-top">
+                        <tr>
+                          <th>Mã ĐH</th>
+                          <th>Khách hàng</th>
+                          <th>Tỉnh / Thành phố</th>
+                          <th>Sản phẩm</th>
+                          <th class="text-center">SL</th>
+                          <th class="text-end">Tổng tiền (VNĐ)</th>
+                          <th class="text-center">Phương thức TT</th>
+                          <th class="text-center">Khu vực</th>
+                          <th class="text-center">Trạng thái</th>
+                          <th>Thời gian giao dịch</th>
+                        </tr>
+                      </thead>
+                      <tbody id="recent-orders-body">
+                        <tr>
+                          <td colspan="10" class="text-center py-3 text-muted">
+                            Đang tải lịch sử đơn hàng...
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <!-- Thanh phân trang cho Bảng Đơn hàng (Tab 1) -->
+                  <div
+                    class="d-flex flex-wrap justify-content-between align-items-center mt-3 pt-2 border-top gap-2">
+                    <div class="d-flex align-items-center gap-3">
+                      <span class="text-muted small" id="orders-page-info"
+                        >Đang tính tổng số đơn hàng...</span
+                      >
+                      <div class="d-flex align-items-center gap-1">
+                        <label class="small text-muted mb-0"
+                          >Số dòng/trang:</label
+                        >
+                        <select
+                          id="orders-page-size"
+                          class="form-select form-select-sm"
+                          style="width: 75px"
+                          onchange="loadRecentOrders(1)">
+                          <option value="10">10</option>
+                          <option value="15" selected>15</option>
+                          <option value="20">20</option>
+                          <option value="50">50</option>
+                        </select>
+                      </div>
+                    </div>
+                    <nav aria-label="Phân trang đơn hàng">
+                      <ul
+                        class="pagination pagination-sm mb-0"
+                        id="orders-pagination"></ul>
+                    </nav>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Cột phải: Form Lập Phiếu Đặt Hàng -->
+            <div class="col-lg-4">
+              <div class="panel-box">
+                <div class="panel-header">
+                  <span>Lập Phiếu Đặt Hàng (Giao dịch MySQL)</span>
+                  <span class="label-tag tag-primary">Ghi vào Primary</span>
+                </div>
+                <div class="panel-body">
+                  <div class="mb-2">
+                    <label
+                      class="form-label d-flex justify-content-between align-items-center">
+                      <span>Sản phẩm đặt mua</span>
+                      <span
+                        class="text-muted fw-normal small"
+                        id="order-product-count-label"></span>
+                    </label>
+                    <select
+                      id="order-product-id"
+                      class="form-select"
+                      onchange="updateOrderTotalPreview()"></select>
+                  </div>
+                  <div class="mb-2">
+                    <label
+                      class="form-label d-flex justify-content-between align-items-center">
+                      <span>Khách hàng (Dữ liệu từ bảng users)</span>
+                      <span
+                        class="text-muted fw-normal small"
+                        id="order-user-count-label"></span>
+                    </label>
+                    <select id="order-user-id" class="form-select"></select>
+                  </div>
+                  <div class="row g-2 mb-2">
+                    <div class="col-6">
+                      <label class="form-label">Số lượng</label>
+                      <input
+                        type="number"
+                        id="order-qty"
+                        class="form-control"
+                        value="1"
+                        min="1"
+                        max="20"
+                        oninput="updateOrderTotalPreview()" />
+                    </div>
+                    <div class="col-6">
+                      <label class="form-label">Hình thức thanh toán</label>
+                      <select id="order-payment-method" class="form-select">
+                        <option value="E-WALLET">Ví điện tử (E-Wallet)</option>
+                        <option value="BANK_TRANSFER">Chuyển khoản NH</option>
+                        <option value="CREDIT_CARD">Thẻ tín dụng</option>
+                        <option value="COD">Tiền mặt (COD)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div
+                    class="d-flex justify-content-between align-items-center bg-light border px-3 py-2 mb-3 rounded-1">
+                    <span class="text-muted">Tạm tính tổng tiền:</span>
+                    <strong class="fs-6 text-danger" id="order-total-preview"
+                      >0 đ</strong
+                    >
+                  </div>
+                  <button
+                    class="btn btn-navy w-100 py-2 fw-semibold"
+                    onclick="submitOrder()">
+                    Xác nhận Đặt hàng
+                  </button>
+                  <div id="order-feedback" class="mt-2"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 4: TRẠNG THÁI CỤM SERVER & ĐỐI CHIẾU ĐỒNG BỘ DỮ LIỆU                 -->
+        <!-- ========================================================================= -->
+        <div class="tab-pane fade" id="tab-cluster" role="tabpanel">
+          <div class="row">
+            <div class="col-lg-6">
+              <div class="panel-box">
+                <div class="panel-header">
+                  <span
+                    >1. Cụm MySQL Group Replication (Cổng 3306 / Paxos
+                    33061)</span
+                  >
+                  <button
+                    class="btn btn-sm btn-outline-secondary"
+                    onclick="refreshAll(true)">
+                    &#x21bb; Kiểm tra lại
+                  </button>
+                </div>
+                <div class="panel-body p-0">
+                  <div class="table-responsive">
+                    <table
+                      class="table table-bordered table-sm table-custom mb-0 align-middle">
+                      <thead>
+                        <tr>
+                          <th>Node</th>
+                          <th>Địa chỉ IP</th>
+                          <th class="text-center">Server ID</th>
+                          <th class="text-center">Vai trò</th>
+                          <th class="text-center">Trạng thái</th>
+                          <th class="text-end">Ping</th>
+                          <th>GTID Executed</th>
+                        </tr>
+                      </thead>
+                      <tbody id="cluster-mysql-table"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-lg-6">
+              <div class="panel-box">
+                <div class="panel-header">
+                  <span
+                    >2. Cụm MongoDB Replica Set (Cổng 27017 - rsEcomNhom2)</span
+                  >
+                  <span class="small text-muted fw-normal"
+                    >Tự động đồng bộ Oplog</span
+                  >
+                </div>
+                <div class="panel-body p-0">
+                  <div class="table-responsive">
+                    <table
+                      class="table table-bordered table-sm table-custom mb-0 align-middle">
+                      <thead>
+                        <tr>
+                          <th>Node</th>
+                          <th>Địa chỉ IP:Port</th>
+                          <th class="text-center">Vai trò</th>
+                          <th class="text-center">Trạng thái</th>
+                          <th class="text-end">Reviews (Docs)</th>
+                          <th class="text-end">Activity Logs</th>
+                        </tr>
+                      </thead>
+                      <tbody id="cluster-mongo-table"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bảng đối chiếu số lượng bản ghi giữa các Node -->
+          <div class="panel-box">
+            <div class="panel-header">
+              <span
+                >3. Bảng Đối chiếu Số lượng Bản ghi Thực tế giữa các Node trong
+                mạng LAN</span
+              >
+              <span class="small text-muted fw-normal"
+                >Kiểm chứng tính nhất quán dữ liệu giữa Primary và
+                Secondary</span
+              >
+            </div>
+            <div class="panel-body p-0">
+              <div class="table-responsive">
+                <table
+                  class="table table-bordered table-sm table-custom mb-0 align-middle">
+                  <thead>
+                    <tr>
+                      <th>Bảng / Collection</th>
+                      <th>Hệ quản trị</th>
+                      <th class="text-end">Node 1 (192.168.1.221)</th>
+                      <th class="text-end">Node 2 (192.168.1.222)</th>
+                      <th class="text-end">Node 3 (192.168.1.223)</th>
+                      <th class="text-end">Node 4 (192.168.1.224)</th>
+                      <th class="text-center">Đánh giá Đồng bộ</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sync-comparison-table"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 4: ĐO KIỂM HIỆU NĂNG TRUY VẤN (BENCHMARK CỤC BỘ VS PHÂN TÁN)         -->
+        <!-- ========================================================================= -->
+        <div class="tab-pane fade" id="tab-benchmark" role="tabpanel">
+          <div class="panel-box">
+            <div class="panel-header">
+              <span
+                >Thực nghiệm So sánh Thời gian Thực thi: Truy vấn Cục bộ vs Truy
+                vấn Phân tán & Đa mô hình</span
+              >
+              <div class="d-flex align-items-center gap-2">
+                <label class="small fw-normal mb-0">Số vòng lặp đo:</label>
+                <select
+                  id="bench-iterations"
+                  class="form-select form-select-sm"
+                  style="width: 110px">
+                  <option value="10">10 lần lặp</option>
+                  <option value="20" selected>20 lần lặp</option>
+                  <option value="50">50 lần lặp</option>
+                </select>
+                <button
+                  class="btn btn-sm btn-navy"
+                  id="btn-run-bench"
+                  onclick="runBenchmarkTest()">
+                  Bắt đầu chạy đo kiểm
+                </button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="row g-3">
+                <div class="col-lg-7">
+                  <table
+                    class="table table-bordered table-sm table-custom align-middle">
+                    <thead>
+                      <tr>
+                        <th>Kịch bản Truy vấn</th>
+                        <th class="text-end">Trung bình (ms)</th>
+                        <th class="text-end">Thấp nhất (ms)</th>
+                        <th class="text-end">Cao nhất (ms)</th>
+                        <th class="text-end">Tổng TG (ms)</th>
+                        <th class="text-end">Thông lượng (req/s)</th>
+                      </tr>
+                    </thead>
+                    <tbody id="benchmark-table-body">
+                      <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">
+                          Nhấn nút "Bắt đầu chạy đo kiểm" ở góc phải phía trên
+                          để thực hiện truy vấn thực tế và ghi nhận số liệu.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <div
+                    class="mt-3 p-3 bg-light border rounded-1"
+                    id="benchmark-notes"
+                    style="display: none">
+                    <div class="fw-bold mb-1">
+                      Nhận xét kết quả thực nghiệm:
+                    </div>
+                    <ul class="mb-0 ps-3 small" id="benchmark-notes-list"></ul>
+                  </div>
+                </div>
+                <div class="col-lg-5">
+                  <div class="border p-2 bg-white rounded-1">
+                    <canvas id="benchmarkChart" height="190"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL CẤU HÌNH IP MẠNG LAN -->
+    <div class="modal fade" id="configModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header py-2 bg-light">
+            <h6 class="modal-title fw-bold">
+              Cấu hình Địa chỉ IP Cụm 4 Máy chủ LAN
+            </h6>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <label class="form-label"
+                >Danh sách IP 4 Node MySQL (cách nhau dấu phẩy)</label
+              >
+              <input
+                type="text"
+                id="cfg-mysql-nodes"
+                class="form-control"
+                value="192.168.1.221, 192.168.1.222, 192.168.1.223, 192.168.1.224" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Danh sách IP:Port 4 Node MongoDB</label>
+              <input
+                type="text"
+                id="cfg-mongo-nodes"
+                class="form-control"
+                value="192.168.1.221:27017, 192.168.1.222:27017, 192.168.1.223:27017, 192.168.1.224:27017" />
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label"
+                  >IP Máy Client / Router (Node 4)</label
+                >
+                <input
+                  type="text"
+                  id="cfg-client-node"
+                  class="form-control"
+                  value="192.168.1.224" />
+              </div>
+              <div class="col-6">
+                <label class="form-label">Mật khẩu root MySQL</label>
+                <input
+                  type="password"
+                  id="cfg-mysql-pass"
+                  class="form-control"
+                  value="root" />
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer py-2">
+            <button
+              type="button"
+              class="btn btn-sm btn-secondary"
+              data-bs-dismiss="modal">
+              Đóng
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-navy"
+              onclick="saveClusterConfig()">
+              Lưu cấu hình
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phục vụ Offline 100% qua /static -->
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+    <script>
+      let cachedProducts = [];
+      let benchChartInstance = null;
+      function fmtMoney(v) {
+        return Number(v || 0).toLocaleString("vi-VN") + " đ";
+      }
+
+      // 1. TẢI TRẠNG THÁI CỤM SERVER
+      async function fetchClusterStatus() {
+        try {
+          const res = await fetch("/api/cluster/status?_t=" + Date.now(), {
+            cache: "no-store",
+          });
+          const data = await res.json();
+          document.getElementById("last-updated-time").innerText =
+            data.timestamp || "";
+
+          // Tóm tắt trên thanh status strip (mỗi node 1 hàng riêng biệt dễ nhìn)
+          const mysqlSummary = data.mysql
+            .map((n, idx) => {
+              const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
+              const dot = isOnline ? "dot-online" : "dot-offline";
+              const roleTxt = isOnline ? n.role : "OFFLINE";
+              const badgeClass = !isOnline
+                ? "tag-offline"
+                : n.role === "PRIMARY"
+                  ? "tag-primary"
+                  : "tag-secondary";
+              const nodeLabel = n.node_name || `Node ${idx + 1}`;
+              return `<div class="py-1 border-bottom border-light"><span class="status-dot ${dot}"></span><strong class="me-1">${nodeLabel}:</strong> <span class="node-ip">${n.host}</span> &mdash; <span class="label-tag ${badgeClass}">${roleTxt}</span></div>`;
+            })
+            .join("");
+          document.getElementById("summary-mysql-nodes").innerHTML =
+            mysqlSummary;
+
+          const mongoSummary = data.mongodb
+            .map((n, idx) => {
+              const isOnline = n.health === 1;
+              const dot = isOnline ? "dot-online" : "dot-offline";
+              const badgeClass = !isOnline
+                ? "tag-offline"
+                : n.state === "PRIMARY"
+                  ? "tag-primary"
+                  : "tag-secondary";
+              const nodeLabel = n.node_name || `Node ${idx + 1}`;
+              return `<div class="py-1 border-bottom border-light"><span class="status-dot ${dot}"></span><strong class="me-1">${nodeLabel}:</strong> <span class="node-ip">${n.host}</span> &mdash; <span class="label-tag ${badgeClass}">${n.state}</span></div>`;
+            })
+            .join("");
+          document.getElementById("summary-mongo-nodes").innerHTML =
+            mongoSummary;
+
+          const dc = data.data_counts || {};
+          const totalSql =
+            (dc.users || 0) +
+            (dc.products || 0) +
+            (dc.orders || 0) +
+            (dc.order_items || 0) +
+            (dc.payments || 0);
+          const totalMongo = (dc.reviews || 0) + (dc.logs || 0);
+          document.getElementById("summary-sql-rows").innerText =
+            totalSql.toLocaleString("vi-VN");
+          document.getElementById("summary-mongo-docs").innerText =
+            totalMongo.toLocaleString("vi-VN");
+
+          // Bảng chi tiết MySQL ở Tab 3
+          document.getElementById("cluster-mysql-table").innerHTML = data.mysql
+            .map((n) => {
+              const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
+              const stateBadge = isOnline
+                ? `<span class="label-tag tag-online">${n.state}</span>`
+                : `<span class="label-tag tag-offline">OFFLINE</span>`;
+              const roleBadge =
+                n.role === "PRIMARY"
+                  ? `<span class="label-tag tag-primary">PRIMARY</span>`
+                  : `<span class="label-tag tag-secondary">${n.role}</span>`;
+              return `
+            <tr>
+              <td class="fw-semibold">${n.node_name}</td>
+              <td class="mono-text">${n.host}</td>
+              <td class="text-center">${n.server_id}</td>
+              <td class="text-center">${roleBadge}</td>
+              <td class="text-center">${stateBadge}</td>
+              <td class="text-end">${n.ping_ms !== null ? n.ping_ms + " ms" : "-"}</td>
+              <td class="mono-text text-muted">${n.gtid}</td>
+            </tr>
+          `;
+            })
+            .join("");
+
+          // Bảng chi tiết MongoDB ở Tab 3
+          document.getElementById("cluster-mongo-table").innerHTML =
+            data.mongodb
+              .map((n) => {
+                const isOnline = n.health === 1;
+                const stateBadge = isOnline
+                  ? `<span class="label-tag tag-online">ONLINE</span>`
+                  : `<span class="label-tag tag-offline">OFFLINE</span>`;
+                const roleBadge =
+                  n.state.indexOf("PRIMARY") !== -1
+                    ? `<span class="label-tag tag-primary">${n.state}</span>`
+                    : `<span class="label-tag tag-secondary">${n.state}</span>`;
+                return `
+            <tr>
+              <td class="fw-semibold">${n.node_name}</td>
+              <td class="mono-text">${n.host}</td>
+              <td class="text-center">${roleBadge}</td>
+              <td class="text-center">${stateBadge}</td>
+              <td class="text-end">${(n.reviews_count || 0).toLocaleString("vi-VN")}</td>
+              <td class="text-end">${(n.logs_count || 0).toLocaleString("vi-VN")}</td>
+            </tr>
+          `;
+              })
+              .join("");
+
+          // Bảng đối chiếu đồng bộ giữa cả 4 Node
+          const m1 = data.mysql[0]?.counts || {};
+          const m2 = data.mysql[1]?.counts || {};
+          const m3 = data.mysql[2]?.counts || {};
+          const m4 = data.mysql[3]?.counts || {};
+          const mg1 = data.mongodb[0] || {};
+          const mg2 = data.mongodb[1] || {};
+          const mg3 = data.mongodb[2] || {};
+          const mg4 = data.mongodb[3] || {};
+
+          const syncRows = [
+            {
+              name: "users (Khách hàng)",
+              db: "MySQL",
+              v1: m1.users,
+              v2: m2.users,
+              v3: m3.users,
+              v4: m4.users,
+            },
+            {
+              name: "products (Sản phẩm)",
+              db: "MySQL",
+              v1: m1.products,
+              v2: m2.products,
+              v3: m3.products,
+              v4: m4.products,
+            },
+            {
+              name: "orders (Đơn hàng)",
+              db: "MySQL",
+              v1: m1.orders,
+              v2: m2.orders,
+              v3: m3.orders,
+              v4: m4.orders,
+            },
+            {
+              name: "order_items (Chi tiết ĐH)",
+              db: "MySQL",
+              v1: m1.order_items,
+              v2: m2.order_items,
+              v3: m3.order_items,
+              v4: m4.order_items,
+            },
+            {
+              name: "payments (Thanh toán)",
+              db: "MySQL",
+              v1: m1.payments,
+              v2: m2.payments,
+              v3: m3.payments,
+              v4: m4.payments,
+            },
+            {
+              name: "product_reviews (Đánh giá)",
+              db: "MongoDB",
+              v1: mg1.reviews_count,
+              v2: mg2.reviews_count,
+              v3: mg3.reviews_count,
+              v4: mg4.reviews_count,
+            },
+            {
+              name: "user_activity_logs (Nhật ký)",
+              db: "MongoDB",
+              v1: mg1.logs_count,
+              v2: mg2.logs_count,
+              v3: mg3.logs_count,
+              v4: mg4.logs_count,
+            },
+          ];
+
+          document.getElementById("sync-comparison-table").innerHTML = syncRows
+            .map((r) => {
+              const activeVals = [r.v1, r.v2, r.v3, r.v4].filter(
+                (v) => v && v > 0,
+              );
+              const isSynced =
+                activeVals.length >= 1 &&
+                activeVals.every((v) => v === activeVals[0]);
+              const syncLabel = isSynced
+                ? `<span class="label-tag tag-online">Đồng bộ (${activeVals.length} Node)</span>`
+                : `<span class="label-tag tag-secondary">Đang kiểm tra</span>`;
+              return `
+            <tr>
+              <td class="fw-semibold">${r.name}</td>
+              <td>${r.db}</td>
+              <td class="text-end mono-text">${r.v1 ? r.v1.toLocaleString("vi-VN") : "OFFLINE"}</td>
+              <td class="text-end mono-text">${r.v2 ? r.v2.toLocaleString("vi-VN") : "OFFLINE"}</td>
+              <td class="text-end mono-text">${r.v3 ? r.v3.toLocaleString("vi-VN") : "OFFLINE"}</td>
+              <td class="text-end mono-text">${r.v4 ? r.v4.toLocaleString("vi-VN") : "OFFLINE"}</td>
+              <td class="text-center">${syncLabel}</td>
+            </tr>
+          `;
+            })
+            .join("");
+        } catch (e) {
+          console.error("Cluster status error:", e);
+        }
+      }
+
+      let currentCatalogPage = 1;
+
+      // 2. TẢI DANH SÁCH SẢN PHẨM KẾT HỢP (MYSQL + MONGODB) CÓ PHÂN TRANG
+      async function loadProducts(page) {
+        if (typeof page === "number" && page >= 1) {
+          currentCatalogPage = page;
+        }
+        const kw = document.getElementById("filter-keyword").value.trim();
+        const cat = document.getElementById("filter-category").value;
+        const rm = document.getElementById("filter-readmode").value;
+        const sizeEl = document.getElementById("catalog-page-size");
+        const limit = sizeEl ? parseInt(sizeEl.value || "15", 10) : 15;
+
+        const params = new URLSearchParams({
+          read_mode: rm,
+          page: currentCatalogPage,
+          limit: limit,
+        });
+        if (cat && cat !== "ALL") params.append("category", cat);
+        if (kw) params.append("keyword", kw);
+
+        try {
+          const res = await fetch(
+            "/api/polyglot/products?" + params.toString(),
+          );
+          const data = await res.json();
+          cachedProducts = data.items || [];
+          const totalItems = data.total_items || cachedProducts.length;
+          const totalPages = data.total_pages || 1;
+          currentCatalogPage = data.page || currentCatalogPage;
+
+          const meta = data.execution_metadata || {};
+          const mNode = meta.mysql_node || {};
+          document.getElementById("polyglot-route-info").innerHTML =
+            `MySQL: <strong>${mNode.host || "N/A"}</strong> (${mNode.role || ""}) [${meta.mysql_latency_ms || 0} ms] &nbsp;|&nbsp; ` +
+            `MongoDB: <strong>${meta.mongo_node || "N/A"}</strong> (${meta.mongo_role || "PRIMARY"}) [${meta.mongo_latency_ms || 0} ms]`;
+
+          const tbody = document.getElementById("product-table-body");
+          if (cachedProducts.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center py-3 text-muted">Không tìm thấy sản phẩm phù hợp.</td></tr>`;
+            renderCatalogPagination(1, 1, 0, limit);
+            return;
+          }
+
+          tbody.innerHTML = cachedProducts
+            .map(
+              (p, idx) => `
+          <tr>
+            <td class="mono-text">${p.sku}</td>
+            <td class="fw-semibold">${p.product_name}</td>
+            <td>${p.category}</td>
+            <td class="text-end fw-semibold">${fmtMoney(p.price)}</td>
+            <td class="text-center">${p.stock_quantity}</td>
+            <td class="text-center">${p.total_units_sold}</td>
+            <td class="text-center">
+              <strong>${p.avg_rating.toFixed(1)}</strong>/5.0
+              <span class="text-muted">(${p.review_count})</span>
+            </td>
+            <td class="text-center text-muted">${p.activity_views}</td>
+            <td class="text-center text-nowrap">
+              <button class="btn btn-sm btn-navy py-0 px-2" onclick="selectProductForOrder(${p.product_id})">Chọn mua</button>
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="openProductReviewsById(${p.product_id})">Xem nhận xét</button>
+            </td>
+          </tr>
+        `,
+            )
+            .join("");
+
+          renderCatalogPagination(
+            currentCatalogPage,
+            totalPages,
+            totalItems,
+            limit,
+          );
+        } catch (e) {
+          console.error("Load products error:", e);
+        }
+      }
+
+      // =====================================================================
+      // BỘ COMBOBOX CÓ TÌM KIẾM / LỌC DỮ LIỆU NHANH (SEARCHABLE COMBOBOX)
+      // Hỗ trợ 2.000 Sản phẩm & 10.000 Khách hàng mượt mà (Virtual Scroll)
+      // =====================================================================
+      const comboRegistry = {};
+      let allProductsCatalog = [];
+
+      function removeVnAccents(str) {
+        if (!str) return "";
+        return String(str)
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/đ/g, "d")
+          .replace(/Đ/g, "D")
+          .toLowerCase();
+      }
+
+      function initSearchableCombo(selectId, config = {}) {
+        const selectEl = document.getElementById(selectId);
+        if (!selectEl) return;
+        if (comboRegistry[selectId]) return comboRegistry[selectId];
+
+        selectEl.style.display = "none";
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "scombo-wrapper";
+        wrapper.id = `scombo-${selectId}`;
+
+        const trigger = document.createElement("div");
+        trigger.className = "scombo-trigger";
+        const triggerText = document.createElement("span");
+        triggerText.className = "scombo-trigger-text";
+        triggerText.textContent = config.emptyText || "Đang tải dữ liệu...";
+        trigger.appendChild(triggerText);
+
+        const dropdown = document.createElement("div");
+        dropdown.className = "scombo-dropdown";
+
+        const searchBox = document.createElement("div");
+        searchBox.className = "scombo-search-box";
+
+        const searchInput = document.createElement("input");
+        searchInput.type = "text";
+        searchInput.className =
+          "form-control form-control-sm scombo-search-input";
+        searchInput.placeholder =
+          config.placeholder || "Gõ mã #ID, tên, từ khóa để lọc dữ liệu...";
+
+        const metaBar = document.createElement("div");
+        metaBar.className = "scombo-meta";
+
+        searchBox.appendChild(searchInput);
+        searchBox.appendChild(metaBar);
+
+        const listEl = document.createElement("ul");
+        listEl.className = "scombo-list";
+
+        dropdown.appendChild(searchBox);
+        dropdown.appendChild(listEl);
+        wrapper.appendChild(trigger);
+        wrapper.appendChild(dropdown);
+
+        selectEl.parentNode.insertBefore(wrapper, selectEl.nextSibling);
+
+        const state = {
+          selectId,
+          selectEl,
+          wrapper,
+          trigger,
+          triggerText,
+          dropdown,
+          searchInput,
+          metaBar,
+          listEl,
+          items: [],
+          filteredItems: [],
+          renderedCount: 0,
+          batchSize: 100,
+          selectedValue: null,
+          onSelect: config.onSelect || null,
+          unitLabel: config.unitLabel || "mục",
+        };
+
+        function renderMoreItems(reset = false) {
+          if (reset) {
+            listEl.innerHTML = "";
+            state.renderedCount = 0;
+            listEl.scrollTop = 0;
+          }
+          const total = state.filteredItems.length;
+          const allTotal = state.items.length;
+          metaBar.innerHTML =
+            `<span>Khớp <strong>${total.toLocaleString("vi-VN")}</strong> / ${allTotal.toLocaleString("vi-VN")} ${state.unitLabel}</span>` +
+            `<span>Cuộn hoặc gõ để lọc</span>`;
+
+          if (total === 0) {
+            listEl.innerHTML = `<li class="scombo-empty">Không tìm thấy ${state.unitLabel} phù hợp với từ khóa.</li>`;
+            return;
+          }
+
+          const nextEnd = Math.min(
+            state.renderedCount + state.batchSize,
+            total,
+          );
+          const fragment = document.createDocumentFragment();
+          for (let i = state.renderedCount; i < nextEnd; i++) {
+            const item = state.filteredItems[i];
+            const li = document.createElement("li");
+            li.className =
+              "scombo-item" +
+              (String(item.value) === String(state.selectedValue)
+                ? " selected"
+                : "");
+            li.dataset.val = String(item.value);
+            li.innerHTML = item.html || item.label;
+            li.addEventListener("click", (e) => {
+              e.stopPropagation();
+              selectComboItem(selectId, item.value, true);
+              closeAllCombos();
+            });
+            fragment.appendChild(li);
+          }
+          listEl.appendChild(fragment);
+          state.renderedCount = nextEnd;
+        }
+
+        function filterItems(keyword) {
+          const kw = removeVnAccents(keyword.trim());
+          if (!kw) {
+            state.filteredItems = state.items;
+          } else {
+            state.filteredItems = state.items.filter((it) =>
+              it.searchKey.includes(kw),
+            );
+          }
+          renderMoreItems(true);
+        }
+
+        trigger.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const isOpen = wrapper.classList.contains("open");
+          closeAllCombos();
+          if (!isOpen) {
+            wrapper.classList.add("open");
+            searchInput.value = "";
+            filterItems("");
+            setTimeout(() => searchInput.focus(), 20);
+          }
+        });
+
+        dropdown.addEventListener("click", (e) => {
+          e.stopPropagation();
+        });
+
+        searchInput.addEventListener("input", () => {
+          filterItems(searchInput.value);
+        });
+
+        searchInput.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            closeAllCombos();
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            if (state.filteredItems.length > 0) {
+              selectComboItem(selectId, state.filteredItems[0].value, true);
+              closeAllCombos();
+            }
+          }
+        });
+
+        listEl.addEventListener("scroll", () => {
+          if (
+            listEl.scrollTop + listEl.clientHeight >=
+            listEl.scrollHeight - 40
+          ) {
+            if (state.renderedCount < state.filteredItems.length) {
+              renderMoreItems(false);
+            }
+          }
+        });
+
+        state.filterItems = filterItems;
+        comboRegistry[selectId] = state;
+        return state;
+      }
+
+      function closeAllCombos() {
+        Object.values(comboRegistry).forEach((st) => {
+          st.wrapper.classList.remove("open");
+        });
+      }
+
+      document.addEventListener("click", () => {
+        closeAllCombos();
+      });
+
+      function setComboData(selectId, items, defaultVal = null) {
+        const st = comboRegistry[selectId];
+        if (!st) return;
+        st.items = items || [];
+        st.filteredItems = st.items;
+
+        let targetVal =
+          defaultVal !== null && defaultVal !== undefined
+            ? defaultVal
+            : st.selectedValue;
+        let found = st.items.find((x) => String(x.value) === String(targetVal));
+        if (!found && st.items.length > 0) {
+          found = st.items[0];
+        }
+        if (found) {
+          selectComboItem(selectId, found.value, false);
+        } else {
+          st.triggerText.textContent = "Không có dữ liệu";
+          st.selectEl.innerHTML = "";
+        }
+      }
+
+      function selectComboItem(selectId, value, triggerCallback = false) {
+        const st = comboRegistry[selectId];
+        if (!st) return;
+        const found = st.items.find((x) => String(x.value) === String(value));
+        if (!found) return;
+
+        st.selectedValue = found.value;
+        st.triggerText.textContent = found.label;
+
+        const priceAttr =
+          found.price !== undefined ? ` data-price="${found.price}"` : "";
+        st.selectEl.innerHTML = `<option value="${found.value}"${priceAttr} selected>${found.label}</option>`;
+        st.selectEl.value = String(found.value);
+
+        if (triggerCallback) {
+          if (typeof st.onSelect === "function") {
+            st.onSelect(found.value, found);
+          } else if (typeof st.selectEl.onchange === "function") {
+            st.selectEl.onchange();
+          }
+        }
+      }
+
+      // TẢI ĐẦY ĐỦ 2.000 SẢN PHẨM TỪ MYSQL ĐỂ ĐƯA VÀO CÁC COMBOBOX ĐẶT HÀNG & ĐÁNH GIÁ
+      async function loadProductOptions() {
+        initSearchableCombo("order-product-id", {
+          placeholder: "Gõ mã #ID, SKU, tên sản phẩm, hãng để lọc...",
+          unitLabel: "sản phẩm",
+          onSelect: () => updateOrderTotalPreview(),
+        });
+        initSearchableCombo("review-product-id", {
+          placeholder: "Gõ mã #ID, SKU, tên sản phẩm để lọc...",
+          unitLabel: "sản phẩm",
+        });
+        initSearchableCombo("view-review-product-select", {
+          placeholder: "Gõ mã #ID, SKU, tên sản phẩm cần xem đánh giá...",
+          unitLabel: "sản phẩm",
+          onSelect: (val) => onChangeReviewProductSelect(val),
+        });
+
+        try {
+          const res = await fetch("/api/products/options?limit=2000");
+          const data = await res.json();
+          const products = data.products || [];
+          allProductsCatalog = products;
+
+          const countLbl = document.getElementById("order-product-count-label");
+          if (countLbl) {
+            countLbl.textContent = `(${products.length.toLocaleString("vi-VN")} sản phẩm - có lọc nhanh)`;
+          }
+          const revCountLbl = document.getElementById("review-view-prod-count");
+          if (revCountLbl) {
+            revCountLbl.textContent = `(${products.length.toLocaleString("vi-VN")} SP)`;
+          }
+
+          const comboItems = products.map((p) => {
+            const label = `#${p.product_id} - ${p.product_name} (${fmtMoney(p.price)} | Tồn: ${p.stock_quantity})`;
+            const html = `
+              <div class="d-flex justify-content-between align-items-center">
+                <span><strong>#${p.product_id}</strong> [${p.sku}] - ${p.product_name}</span>
+                <span class="text-muted small ms-2 text-nowrap">${fmtMoney(p.price)} | Tồn: ${p.stock_quantity}</span>
+              </div>
+            `;
+            const searchKey = removeVnAccents(
+              `#${p.product_id} ${p.product_id} ${p.sku} ${p.product_name} ${p.brand} ${p.category}`,
+            );
+            return {
+              value: p.product_id,
+              label,
+              html,
+              searchKey,
+              price: p.price,
+              raw: p,
+            };
+          });
+
+          setComboData("order-product-id", comboItems);
+          setComboData("review-product-id", comboItems);
+          setComboData(
+            "view-review-product-select",
+            comboItems,
+            currentReviewProductId,
+          );
+
+          updateOrderTotalPreview();
+          loadProductReviews(
+            currentReviewProductId || 1,
+            currentReviewPage || 1,
+          );
+        } catch (e) {
+          console.error("Load product options error:", e);
+        }
+      }
+
+      function renderCatalogPagination(page, totalPages, totalItems, limit) {
+        const infoEl = document.getElementById("catalog-page-info");
+        const navEl = document.getElementById("catalog-pagination");
+        if (!infoEl || !navEl) return;
+
+        if (totalItems === 0) {
+          infoEl.innerHTML = `Hiển thị <strong>0</strong> mặt hàng`;
+          navEl.innerHTML = "";
+          return;
+        }
+
+        const startIdx = (page - 1) * limit + 1;
+        const endIdx = Math.min(page * limit, totalItems);
+        infoEl.innerHTML =
+          `Hiển thị <strong>${startIdx.toLocaleString("vi-VN")} &ndash; ${endIdx.toLocaleString("vi-VN")}</strong> ` +
+          `trên tổng số <strong>${totalItems.toLocaleString("vi-VN")}</strong> mặt hàng (Trang ${page}/${totalPages})`;
+
+        let html = "";
+        const prevDisabled = page <= 1 ? "disabled" : "";
+        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="loadProducts(1)">&laquo; Đầu</button></li>`;
+        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="loadProducts(${page - 1})">&lsaquo; Trước</button></li>`;
+
+        const startPage = Math.max(1, page - 2);
+        const endPage = Math.min(totalPages, page + 2);
+        if (startPage > 1) {
+          html += `<li class="page-item"><button class="page-link" onclick="loadProducts(1)">1</button></li>`;
+          if (startPage > 2) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+          }
+        }
+        for (let p = startPage; p <= endPage; p++) {
+          const activeCls = p === page ? "active" : "";
+          html += `<li class="page-item ${activeCls}"><button class="page-link" onclick="loadProducts(${p})">${p}</button></li>`;
+        }
+        if (endPage < totalPages) {
+          if (endPage < totalPages - 1) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+          }
+          html += `<li class="page-item"><button class="page-link" onclick="loadProducts(${totalPages})">${totalPages}</button></li>`;
+        }
+
+        const nextDisabled = page >= totalPages ? "disabled" : "";
+        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="loadProducts(${page + 1})">Sau &rsaquo;</button></li>`;
+        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="loadProducts(${totalPages})">Cuối &raquo;</button></li>`;
+
+        navEl.innerHTML = html;
+      }
+
+      let currentReviewProductId = 1;
+      let currentReviewPage = 1;
+      let currentOrdersPage = 1;
+
+      function openProductReviewsById(productId) {
+        showProductReviewsById(productId);
+        const tabBtn = document.getElementById("tab-btn-reviews");
+        if (tabBtn && window.bootstrap) {
+          new bootstrap.Tab(tabBtn).show();
+        }
+      }
+
+      function onChangeReviewProductSelect(prodIdVal) {
+        const pid = parseInt(prodIdVal || "1", 10);
+        showProductReviewsById(pid);
+      }
+
+      function showProductReviewsById(productId) {
+        const pid = parseInt(productId || "1", 10);
+        selectComboItem("view-review-product-select", pid, false);
+        selectComboItem("review-product-id", pid, false);
+        currentReviewProductId = pid;
+        loadProductReviews(pid, 1);
+      }
+
+      // TẢI ĐẦY ĐỦ DANH SÁCH NHẬN XÉT THEO SẢN PHẨM TỪ MONGODB KÈM PHÂN TRANG
+      async function loadProductReviews(productId, page) {
+        if (typeof productId === "number" && productId >= 1) {
+          currentReviewProductId = productId;
+        }
+        if (typeof page === "number" && page >= 1) {
+          currentReviewPage = page;
+        }
+        const sizeEl = document.getElementById("reviews-page-size");
+        const limit = sizeEl ? parseInt(sizeEl.value || "5", 10) : 5;
+        const rmEl = document.getElementById("reviews-readmode");
+        const readMode = rmEl ? rmEl.value : "secondary_preferred";
+
+        const container = document.getElementById("product-reviews-container");
+        try {
+          const params = new URLSearchParams({
+            product_id: currentReviewProductId,
+            page: currentReviewPage,
+            limit: limit,
+            read_mode: readMode,
+            _t: Date.now(),
+          });
+          const res = await fetch("/api/reviews/list?" + params.toString(), {
+            cache: "no-store",
+          });
+          const data = await res.json();
+          const revs = data.reviews || [];
+          const totalItems = data.total_items || 0;
+          const totalPages = data.total_pages || 1;
+          currentReviewPage = data.page || currentReviewPage;
+
+          const pObj =
+            allProductsCatalog.find(
+              (x) => x.product_id === currentReviewProductId,
+            ) ||
+            cachedProducts.find((x) => x.product_id === currentReviewProductId);
+          const pName = pObj
+            ? `${pObj.sku} - ${pObj.product_name}`
+            : `Sản phẩm #${currentReviewProductId}`;
+          const nodeInfoEl = document.getElementById("reviews-node-info");
+          if (nodeInfoEl) {
+            nodeInfoEl.innerHTML = `MongoDB: <strong>${data.mongo_node || "N/A"}</strong> (${data.mongo_role || "PRIMARY"}) [${data.latency_ms || 0} ms]`;
+          }
+          document.getElementById("selected-review-product-label").innerHTML =
+            `<span><strong class="text-dark">${pName}</strong></span>` +
+            `<span>Điểm TB: <strong class="text-dark">${data.avg_rating}/5</strong> (${totalItems} đánh giá)</span>`;
+
+          if (revs.length === 0) {
+            container.innerHTML = `<div class="text-muted py-3">Chưa có nhận xét nào cho sản phẩm này.</div>`;
+            renderReviewsPagination(1, 1, 0, limit);
+            return;
+          }
+
+          container.innerHTML = revs
+            .map((r) => {
+              const attr = r.attributes || {};
+              const imgHtml =
+                r.images && r.images.length > 0
+                  ? `<img src="${r.images[0]}" alt="review" style="width: 76px; height: 56px; object-fit: cover; border: 1px solid #ccc; margin-left: 12px;" />`
+                  : "";
+              const timeTxt = r.created_at
+                ? `<span class="ms-2">Thời gian: ${r.created_at}</span>`
+                : "";
+              return `
+          <div class="review-item d-flex justify-content-between align-items-start">
+            <div>
+              <div>
+                <span class="label-tag tag-primary me-1">${r.rating} / 5 sao</span>
+                <strong>${r.title || "Nhận xét khách hàng"}</strong>
+                <span class="text-muted small ms-1">(Khách hàng #${r.user_id || 1})</span>
+              </div>
+              <div class="mt-1">${r.comment || ""}</div>
+              <div class="text-muted small mt-1">
+                Đóng gói: ${attr.packaging || "Tiêu chuẩn"} &nbsp;|&nbsp;
+                Vận chuyển: ${attr.delivery_speed || "Đúng hẹn"} ${timeTxt}
+              </div>
+            </div>
+            ${imgHtml}
+          </div>
+        `;
+            })
+            .join("");
+
+          renderReviewsPagination(
+            currentReviewPage,
+            totalPages,
+            totalItems,
+            limit,
+          );
+        } catch (e) {
+          console.error("Load product reviews error:", e);
+        }
+      }
+
+      function renderReviewsPagination(page, totalPages, totalItems, limit) {
+        const infoEl = document.getElementById("reviews-page-info");
+        const navEl = document.getElementById("reviews-pagination");
+        if (!infoEl || !navEl) return;
+
+        if (totalItems === 0) {
+          infoEl.innerHTML = `Hiển thị <strong>0</strong> đánh giá`;
+          navEl.innerHTML = "";
+          return;
+        }
+        const startIdx = (page - 1) * limit + 1;
+        const endIdx = Math.min(page * limit, totalItems);
+        infoEl.innerHTML =
+          `Hiển thị <strong>${startIdx} &ndash; ${endIdx}</strong> ` +
+          `trên tổng số <strong>${totalItems.toLocaleString("vi-VN")}</strong> đánh giá (Trang ${page}/${totalPages})`;
+
+        let html = "";
+        const prevDisabled = page <= 1 ? "disabled" : "";
+        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="loadProductReviews(currentReviewProductId, 1)">&laquo; Đầu</button></li>`;
+        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="loadProductReviews(currentReviewProductId, ${page - 1})">&lsaquo; Trước</button></li>`;
+
+        const startPage = Math.max(1, page - 2);
+        const endPage = Math.min(totalPages, page + 2);
+        for (let p = startPage; p <= endPage; p++) {
+          const activeCls = p === page ? "active" : "";
+          html += `<li class="page-item ${activeCls}"><button class="page-link" onclick="loadProductReviews(currentReviewProductId, ${p})">${p}</button></li>`;
+        }
+
+        const nextDisabled = page >= totalPages ? "disabled" : "";
+        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="loadProductReviews(currentReviewProductId, ${page + 1})">Sau &rsaquo;</button></li>`;
+        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="loadProductReviews(currentReviewProductId, ${totalPages})">Cuối &raquo;</button></li>`;
+        navEl.innerHTML = html;
+      }
+
+      function selectProductForOrder(productId) {
+        selectComboItem("order-product-id", productId, false);
+        selectComboItem("review-product-id", productId, false);
+        updateOrderTotalPreview();
+        loadRecentOrders(1);
+        const tabBtn = document.getElementById("tab-btn-orders");
+        if (tabBtn && window.bootstrap) {
+          new bootstrap.Tab(tabBtn).show();
+        }
+      }
+
+      function updateOrderTotalPreview() {
+        const sel = document.getElementById("order-product-id");
+        const opt = sel.options[sel.selectedIndex];
+        const price = opt
+          ? parseFloat(opt.getAttribute("data-price") || "0")
+          : 0;
+        const qty = parseInt(
+          document.getElementById("order-qty").value || "1",
+          10,
+        );
+        document.getElementById("order-total-preview").innerText = fmtMoney(
+          price * qty,
+        );
+      }
+
+      // 3. TẢI ĐẦY ĐỦ 10.000 KHÁCH HÀNG TỪ BẢNG USERS VÀO COMBOBOX CÓ FILTER
+      async function loadUsersList() {
+        initSearchableCombo("order-user-id", {
+          placeholder: "Gõ mã #ID, họ tên, SĐT, tỉnh/thành phố để lọc KH...",
+          unitLabel: "khách hàng",
+        });
+        try {
+          const res = await fetch("/api/users/list?limit=10000");
+          const data = await res.json();
+          const users = data.users || [];
+
+          const countLbl = document.getElementById("order-user-count-label");
+          if (countLbl) {
+            countLbl.textContent = `(${users.length.toLocaleString("vi-VN")} KH - có lọc nhanh)`;
+          }
+
+          const userItems = users.map((u) => {
+            const label = `#${u.user_id} - ${u.full_name} (${u.city} - ${u.phone})`;
+            const html = `
+              <div class="d-flex justify-content-between align-items-center">
+                <span><strong>#${u.user_id}</strong> - ${u.full_name}</span>
+                <span class="text-muted small ms-2 text-nowrap">${u.city} | ${u.phone}</span>
+              </div>
+            `;
+            const searchKey = removeVnAccents(
+              `#${u.user_id} ${u.user_id} ${u.full_name} ${u.username || ""} ${u.phone || ""} ${u.city || ""} ${u.email || ""}`,
+            );
+            return {
+              value: u.user_id,
+              label,
+              html,
+              searchKey,
+              raw: u,
+            };
+          });
+
+          setComboData("order-user-id", userItems);
+        } catch (e) {
+          console.error("Load users error:", e);
+        }
+      }
+
+      // 4. THỰC HIỆN ĐẶT HÀNG (MYSQL TRANSACTION)
+      async function submitOrder() {
+        const fb = document.getElementById("order-feedback");
+        fb.innerHTML = `<div class="text-muted small">Đang xử lý giao dịch trên MySQL...</div>`;
+        const payload = {
+          user_id: parseInt(document.getElementById("order-user-id").value, 10),
+          product_id: parseInt(
+            document.getElementById("order-product-id").value,
+            10,
+          ),
+          quantity: parseInt(document.getElementById("order-qty").value, 10),
+          payment_method: document.getElementById("order-payment-method").value,
+        };
+        try {
+          const res = await fetch("/api/orders/checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            fb.innerHTML = `
+            <div class="alert alert-success py-2 px-3 mb-0 small">
+              <strong>Đặt hàng thành công!</strong> Mã đơn: <strong>#${data.order_id}</strong><br/>
+              Tổng thanh toán: <strong>${fmtMoney(data.total)}</strong><br/>
+              Xử lý tại Node: <code>${data.executed_on_node.host}</code> (${data.latency_ms} ms)
+            </div>
+          `;
+            loadProducts();
+            loadProductOptions();
+            loadRecentOrders(1);
+            fetchClusterStatus();
+          } else {
+            fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Lỗi: ${data.detail}</div>`;
+          }
+        } catch (e) {
+          fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Không thể kết nối máy chủ.</div>`;
+        }
+      }
+
+      // 5. GỬI ĐÁNH GIÁ SẢN PHẨM (MONGODB)
+      async function submitReview() {
+        const fb = document.getElementById("review-feedback");
+        fb.innerHTML = `<div class="text-muted small">Đang lưu document vào MongoDB...</div>`;
+        const selectedProdId = parseInt(
+          document.getElementById("review-product-id").value,
+          10,
+        );
+        const payload = {
+          product_id: selectedProdId,
+          user_id: parseInt(
+            document.getElementById("order-user-id").value || "1",
+            10,
+          ),
+          rating: parseInt(document.getElementById("review-rating").value, 10),
+          title: document.getElementById("review-title").value,
+          comment: document.getElementById("review-comment").value,
+          packaging: document.getElementById("review-packaging").value,
+          image_url: document.getElementById("review-img").value,
+        };
+        try {
+          const res = await fetch("/api/reviews/add", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            fb.innerHTML = `
+            <div class="alert alert-success py-2 px-3 mb-0 small">
+              <strong>Đã lưu đánh giá!</strong> ObjectID: <code>${data.review_id}</code><br/>
+              Ghi tại Node MongoDB: <code>${data.executed_on_mongo_node}</code> (${data.latency_ms} ms)
+            </div>
+          `;
+            await loadProducts();
+            selectComboItem(
+              "view-review-product-select",
+              selectedProdId,
+              false,
+            );
+            loadProductReviews(selectedProdId, 1);
+            fetchClusterStatus();
+          } else {
+            fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Lỗi: ${data.detail}</div>`;
+          }
+        } catch (e) {
+          fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Lỗi kết nối MongoDB.</div>`;
+        }
+      }
+
+      // 6. TẢI DANH SÁCH ĐƠN HÀNG (JOIN 5 BẢNG MYSQL + BỘ LỌC + PHÂN TRANG)
+      async function loadRecentOrders(page) {
+        if (typeof page === "number" && page >= 1) {
+          currentOrdersPage = page;
+        }
+        const sizeEl = document.getElementById("orders-page-size");
+        const limit = sizeEl ? parseInt(sizeEl.value || "15", 10) : 15;
+        const rmEl = document.getElementById("orders-readmode");
+        const readMode = rmEl ? rmEl.value : "secondary_preferred";
+        const kwEl = document.getElementById("orders-filter-keyword");
+        const keyword = kwEl ? kwEl.value.trim() : "";
+        const fgEl = document.getElementById("orders-filter-group");
+        const filterGroup = fgEl ? fgEl.value : "ALL";
+
+        try {
+          const params = new URLSearchParams({
+            page: currentOrdersPage,
+            limit: limit,
+            read_mode: readMode,
+            filter_group: filterGroup,
+            _t: Date.now(),
+          });
+          if (keyword) {
+            params.set("keyword", keyword);
+          }
+          const res = await fetch("/api/orders/recent?" + params.toString(), {
+            cache: "no-store",
+          });
+          const data = await res.json();
+          const node = data.node || {};
+          document.getElementById("orders-node-info").innerHTML =
+            `MySQL: <strong>${node.host || "N/A"}</strong> (${node.role || ""}) [${data.latency_ms || 0} ms]`;
+
+          const orders = data.orders || [];
+          const totalItems =
+            data.total_items !== undefined ? data.total_items : orders.length;
+          const totalPages = data.total_pages || 1;
+          currentOrdersPage = data.page || currentOrdersPage;
+
+          const tbody = document.getElementById("recent-orders-body");
+          if (orders.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center py-3 text-muted">Không tìm thấy đơn hàng phù hợp với điều kiện lọc.</td></tr>`;
+            renderOrdersPagination(1, 1, 0, limit);
+            return;
+          }
+
+          tbody.innerHTML = orders
+            .map((o) => {
+              const st = o.status || "COMPLETED";
+              const stTag = st === "CANCELLED" ? "tag-offline" : "tag-online";
+              return `
+          <tr>
+            <td class="mono-text fw-semibold">#${o.order_id}</td>
+            <td>${o.full_name || "Khách #" + o.user_id}</td>
+            <td>${o.city || "-"}</td>
+            <td>${o.product_name || "SP #" + o.product_id}</td>
+            <td class="text-center">${o.quantity || 1}</td>
+            <td class="text-end fw-semibold">${fmtMoney(o.total_amount)}</td>
+            <td class="text-center"><span class="label-tag tag-secondary">${o.payment_method || "E-WALLET"}</span></td>
+            <td class="text-center">${o.shipping_region || "MIEN_NAM"}</td>
+            <td class="text-center"><span class="label-tag ${stTag}">${st}</span></td>
+            <td class="mono-text text-muted">${o.created_at}</td>
+          </tr>
+        `;
+            })
+            .join("");
+
+          renderOrdersPagination(
+            currentOrdersPage,
+            totalPages,
+            totalItems,
+            limit,
+          );
+        } catch (e) {
+          console.error("Load orders error:", e);
+        }
+      }
+
+      function renderOrdersPagination(page, totalPages, totalItems, limit) {
+        const infoEl = document.getElementById("orders-page-info");
+        const navEl = document.getElementById("orders-pagination");
+        if (!infoEl || !navEl) return;
+
+        if (totalItems === 0) {
+          infoEl.innerHTML = `Hiển thị <strong>0</strong> dòng đơn hàng`;
+          navEl.innerHTML = "";
+          return;
+        }
+        const startIdx = (page - 1) * limit + 1;
+        const endIdx = Math.min(page * limit, totalItems);
+        infoEl.innerHTML =
+          `Hiển thị <strong>${startIdx.toLocaleString("vi-VN")} &ndash; ${endIdx.toLocaleString("vi-VN")}</strong> ` +
+          `trên tổng số <strong>${totalItems.toLocaleString("vi-VN")}</strong> dòng đơn hàng (Trang ${page.toLocaleString("vi-VN")}/${totalPages.toLocaleString("vi-VN")})`;
+
+        let html = "";
+        const prevDisabled = page <= 1 ? "disabled" : "";
+        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="loadRecentOrders(1)">&laquo; Đầu</button></li>`;
+        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="loadRecentOrders(${page - 1})">&lsaquo; Trước</button></li>`;
+
+        const startPage = Math.max(1, page - 2);
+        const endPage = Math.min(totalPages, page + 2);
+        if (startPage > 1) {
+          html += `<li class="page-item"><button class="page-link" onclick="loadRecentOrders(1)">1</button></li>`;
+          if (startPage > 2) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+          }
+        }
+        for (let p = startPage; p <= endPage; p++) {
+          const activeCls = p === page ? "active" : "";
+          html += `<li class="page-item ${activeCls}"><button class="page-link" onclick="loadRecentOrders(${p})">${p}</button></li>`;
+        }
+        if (endPage < totalPages) {
+          if (endPage < totalPages - 1) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+          }
+          html += `<li class="page-item"><button class="page-link" onclick="loadRecentOrders(${totalPages})">${totalPages}</button></li>`;
+        }
+
+        const nextDisabled = page >= totalPages ? "disabled" : "";
+        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="loadRecentOrders(${page + 1})">Sau &rsaquo;</button></li>`;
+        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="loadRecentOrders(${totalPages})">Cuối &raquo;</button></li>`;
+        navEl.innerHTML = html;
+      }
+
+      // 7. CHẠY BENCHMARK ĐO KIỂM HIỆU NĂNG
+      async function runBenchmarkTest() {
+        const btn = document.getElementById("btn-run-bench");
+        const iters = document.getElementById("bench-iterations").value;
+        btn.disabled = true;
+        btn.innerText = "Đang thực thi đo kiểm...";
+
+        try {
+          const res = await fetch(`/api/benchmark/run?iterations=${iters}`, {
+            method: "POST",
+          });
+          const data = await res.json();
+
+          const rows = [
+            {
+              label: "1. Truy vấn Cục bộ (1 Node MySQL Primary)",
+              d: data.local_query,
+            },
+            {
+              label: "2. Truy vấn Phân tán (Đọc phân tải qua mạng LAN)",
+              d: data.distributed_query,
+            },
+            {
+              label: "3. Truy vấn Hợp nhất Đa mô hình (MySQL + MongoDB)",
+              d: data.polyglot_query,
+            },
+          ];
+
+          document.getElementById("benchmark-table-body").innerHTML = rows
+            .map(
+              (r) => `
+          <tr>
+            <td class="fw-semibold">${r.label}</td>
+            <td class="text-end fw-bold text-primary">${r.d.avg_ms} ms</td>
+            <td class="text-end">${r.d.min_ms} ms</td>
+            <td class="text-end">${r.d.max_ms} ms</td>
+            <td class="text-end">${r.d.total_ms} ms</td>
+            <td class="text-end fw-semibold">${r.d.throughput_qps} req/s</td>
+          </tr>
+        `,
+            )
+            .join("");
+
+          const notesBox = document.getElementById("benchmark-notes");
+          notesBox.style.display = "block";
+          document.getElementById("benchmark-notes-list").innerHTML = (
+            data.technical_evaluation || []
+          )
+            .map((t) => `<li class="mb-1">${t}</li>`)
+            .join("");
+
+          const ctx = document
+            .getElementById("benchmarkChart")
+            .getContext("2d");
+          if (benchChartInstance) benchChartInstance.destroy();
+          benchChartInstance = new Chart(ctx, {
+            type: "bar",
+            data: {
+              labels: [
+                "Cục bộ (Local)",
+                "Phân tán (LAN)",
+                "Đa mô hình (Polyglot)",
+              ],
+              datasets: [
+                {
+                  label: "Thời gian phản hồi trung bình (ms)",
+                  data: [
+                    data.local_query.avg_ms,
+                    data.distributed_query.avg_ms,
+                    data.polyglot_query.avg_ms,
+                  ],
+                  backgroundColor: ["#004b87", "#2e7d32", "#ed6c02"],
+                  borderWidth: 1,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { display: true } },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  title: { display: true, text: "Thời gian (ms)" },
+                },
+              },
+            },
+          });
+        } catch (e) {
+          alert("Lỗi khi chạy đo kiểm: " + e);
+        } finally {
+          btn.disabled = false;
+          btn.innerText = "Bắt đầu chạy đo kiểm";
+        }
+      }
+
+      // 8. LƯU CẤU HÌNH IP MẠNG LAN
+      async function saveClusterConfig() {
+        const mysqlNodes = document
+          .getElementById("cfg-mysql-nodes")
+          .value.split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const mongoNodes = document
+          .getElementById("cfg-mongo-nodes")
+          .value.split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const clientNode = document
+          .getElementById("cfg-client-node")
+          .value.trim();
+        const mysqlPass = document.getElementById("cfg-mysql-pass").value;
+
+        await fetch("/api/cluster/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mysql_nodes: mysqlNodes,
+            mongo_nodes: mongoNodes,
+            client_node: clientNode,
+            mysql_password: mysqlPass,
+          }),
+        });
+        bootstrap.Modal.getInstance(
+          document.getElementById("configModal"),
+        ).hide();
+        refreshAll();
+      }
+
+      async function refreshAll(isManual = false) {
+        const btn = document.getElementById("btn-refresh-all");
+        const strip = document.querySelector(".status-strip");
+        if (isManual && btn) {
+          btn.disabled = true;
+          btn.innerHTML = "&#x23F3; Đang làm mới...";
+          if (strip) strip.style.opacity = "0.6";
+          const lastUpd = document.getElementById("last-updated-time");
+          if (lastUpd) lastUpd.innerText = "Đang tải...";
+          const ordInfo = document.getElementById("orders-node-info");
+          if (ordInfo) ordInfo.innerHTML = "<em>Đang làm mới dữ liệu...</em>";
+        }
+        try {
+          await Promise.all([
+            fetchClusterStatus(),
+            loadRecentOrders(isManual ? 1 : currentOrdersPage),
+            loadProductReviews(currentReviewProductId, currentReviewPage),
+            loadProducts(currentCatalogPage),
+            loadProductOptions(),
+            loadUsersList(),
+          ]);
+          if (strip) strip.style.opacity = "1";
+          if (isManual && btn) {
+            btn.classList.remove("btn-light", "text-dark");
+            btn.classList.add("btn-success", "text-white");
+            btn.innerHTML = "&#x2713; Đã làm mới!";
+            setTimeout(() => {
+              btn.classList.remove("btn-success", "text-white");
+              btn.classList.add("btn-light", "text-dark");
+              btn.innerHTML = "&#x21bb; Làm mới dữ liệu";
+              btn.disabled = false;
+            }, 1000);
+          }
+        } catch (err) {
+          console.error("Refresh error:", err);
+          if (isManual && btn) {
+            btn.innerHTML = "&#x21bb; Làm mới dữ liệu";
+            btn.disabled = false;
+          }
+        }
+      }
+
+      window.addEventListener("DOMContentLoaded", () => {
+        refreshAll(false);
+        setInterval(fetchClusterStatus, 5000);
+      });
+    </script>
+  </body>
+</html>
