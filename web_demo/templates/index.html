@@ -1650,26 +1650,32 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                     .join("")
                 : `<span class="text-muted small">Tự động phát tán cụm...</span>`;
 
-            const statusBadge = `<span class="label-tag tag-online">${l.status}</span>`;
+            const statusBadge =
+              l.status && l.status.indexOf("OK") !== -1
+                ? `<span class="label-tag tag-online">${l.status}</span>`
+                : `<span class="label-tag tag-secondary">${l.status || "SYNCED"}</span>`;
+
+            const latTxt = l.latency_ms ? ` (${l.latency_ms} ms)` : "";
 
             return `
             <tr>
               <td>
                 <span class="mono-text fw-semibold text-dark">${l.timestamp}</span><br/>
-                <span class="text-muted small">${l.date}</span>
+                <span class="text-muted small">${l.log_id || ""}</span>
               </td>
               <td class="text-center">${dbBadge}</td>
               <td>
-                <div><strong class="text-navy">${l.action}</strong>: <span class="badge bg-light text-dark border">${l.table_or_coll}</span></div>
-                <div class="small text-muted mt-1">${l.details || ""}</div>
-                <div class="mono-text small text-secondary mt-1">Mã: ${l.entity_id}</div>
+                <div class="fw-semibold text-navy">${l.title || l.action}</div>
+                <div class="small text-dark mt-1">${l.summary || ""}</div>
+                ${l.detail ? `<div class="small text-muted mt-1 fst-italic">${l.detail}</div>` : ""}
               </td>
               <td>
                 <div class="fw-semibold text-danger"><span class="status-dot dot-online me-1"></span>${l.source_node}</div>
               </td>
               <td>${targetsHtml}</td>
               <td>
-                <span class="small mono-text text-secondary">${l.sync_mechanism}</span>
+                <div class="small mono-text text-secondary">${l.mechanism || l.sync_mechanism || ""}</div>
+                <span class="badge bg-light text-dark border mt-1">${l.action}${latTxt}</span>
               </td>
               <td class="text-center">${statusBadge}</td>
             </tr>
