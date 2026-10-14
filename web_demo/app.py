@@ -452,13 +452,15 @@ def get_sync_logs(
     db_type: Optional[str] = Query(None, description="ALL | MYSQL_GR | MONGO_RS")
 ):
     """Lấy danh sách nhật ký đồng bộ & nhân bản dữ liệu giữa các Node trong cụm thời gian thực"""
+    limit_val = limit if isinstance(limit, int) else int(getattr(limit, "default", 50) or 50)
+    db_type_val = db_type if isinstance(db_type, str) else getattr(db_type, "default", None)
     logs = SYNC_AUDIT_LOGS
-    if db_type and db_type != "ALL":
-        logs = [item for item in logs if item.get("db_type") == db_type]
+    if db_type_val and db_type_val != "ALL":
+        logs = [item for item in logs if item.get("db_type") == db_type_val]
     return {
         "total": len(logs),
-        "limit": limit,
-        "logs": logs[:limit]
+        "limit": limit_val,
+        "logs": logs[:limit_val]
     }
 
 
