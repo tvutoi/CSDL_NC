@@ -382,7 +382,7 @@
             data-bs-toggle="modal"
             data-bs-target="#syncLogsModal"
             onclick="loadSyncLogs()">
-            Nhật ký đồng bộ <span class="badge bg-light text-dark ms-1" id="sync-log-badge">0</span>
+            Nhật ký đồng bộ <span class="badge rounded-pill bg-warning text-dark fw-bold ms-1 px-2" id="sync-log-badge">0</span>
           </button>
           <button
             class="btn btn-sm btn-outline-light"
@@ -1154,13 +1154,13 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               </div>
               <div class="d-flex align-items-center gap-2">
                 <div class="btn-group btn-group-sm" role="group">
-                  <button type="button" class="btn btn-outline-secondary active" id="btn-sync-all" onclick="filterSyncLogs('ALL')">Tất cả <span class="badge bg-secondary-subtle text-dark" id="tab-cnt-all">0</span></button>
-                  <button type="button" class="btn btn-outline-secondary" id="btn-sync-mysql" onclick="filterSyncLogs('MYSQL_GR')">MySQL <span class="badge bg-secondary-subtle text-dark" id="tab-cnt-mysql">0</span></button>
-                  <button type="button" class="btn btn-outline-secondary" id="btn-sync-mongo" onclick="filterSyncLogs('MONGO_RS')">MongoDB <span class="badge bg-secondary-subtle text-dark" id="tab-cnt-mongo">0</span></button>
+                  <button type="button" class="btn btn-outline-secondary active" id="btn-sync-all" onclick="filterSyncLogs('ALL')">Tất cả <span class="badge rounded-pill bg-primary text-white fw-bold ms-1 px-2" id="tab-cnt-all">0</span></button>
+                  <button type="button" class="btn btn-outline-secondary" id="btn-sync-mysql" onclick="filterSyncLogs('MYSQL_GR')">MySQL <span class="badge rounded-pill bg-info text-dark fw-bold ms-1 px-2" id="tab-cnt-mysql">0</span></button>
+                  <button type="button" class="btn btn-outline-secondary" id="btn-sync-mongo" onclick="filterSyncLogs('MONGO_RS')">MongoDB <span class="badge rounded-pill bg-success text-white fw-bold ms-1 px-2" id="tab-cnt-mongo">0</span></button>
                 </div>
                 <input type="text" id="tab-sync-search-input" class="form-control form-control-sm" placeholder="Tìm kiếm nhanh..." style="width: 170px;" oninput="renderSyncLogsUI()" />
-                <button class="btn btn-sm btn-outline-secondary" onclick="loadSyncLogs()">Làm mới</button>
-                <button class="btn btn-sm btn-link text-danger text-decoration-none p-0 ms-1 small" onclick="clearSyncLogs()">Xóa nhật ký</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadSyncLogs()"><i class="bi bi-arrow-clockwise me-1"></i>Làm mới</button>
+                <button class="btn btn-sm btn-link text-danger text-decoration-none p-0 ms-1 small" onclick="clearSyncLogs()"><i class="bi bi-trash3 me-1"></i>Xóa nhật ký</button>
               </div>
             </div>
             <div class="panel-body p-0">
@@ -1168,7 +1168,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                 <table class="table table-bordered table-sm table-custom mb-0 align-middle">
                   <thead class="table-light sticky-top">
                     <tr>
-                      <th style="width: 95px;">Giờ</th>
+                      <th style="width: 110px;">STT & Giờ</th>
                       <th style="width: 105px;" class="text-center">CSDL</th>
                       <th>Sự kiện & Dữ liệu Cập nhật</th>
                       <th style="width: 95px;" class="text-center">Nguồn</th>
@@ -1354,16 +1354,18 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
               <div class="d-flex align-items-center gap-2">
                 <div class="btn-group btn-group-sm" role="group">
-                  <button type="button" class="btn btn-outline-secondary active" id="modal-btn-sync-all" onclick="filterSyncLogs('ALL')">Tất cả <span class="badge bg-secondary-subtle text-dark" id="modal-cnt-all">0</span></button>
-                  <button type="button" class="btn btn-outline-secondary" id="modal-btn-sync-mysql" onclick="filterSyncLogs('MYSQL_GR')">MySQL <span class="badge bg-secondary-subtle text-dark" id="modal-cnt-mysql">0</span></button>
-                  <button type="button" class="btn btn-outline-secondary" id="modal-btn-sync-mongo" onclick="filterSyncLogs('MONGO_RS')">MongoDB <span class="badge bg-secondary-subtle text-dark" id="modal-cnt-mongo">0</span></button>
+                  <button type="button" class="btn btn-outline-secondary active" id="modal-btn-sync-all" onclick="filterSyncLogs('ALL')">Tất cả <span class="badge rounded-pill bg-primary text-white fw-bold ms-1 px-2" id="modal-cnt-all">0</span></button>
+                  <button type="button" class="btn btn-outline-secondary" id="modal-btn-sync-mysql" onclick="filterSyncLogs('MYSQL_GR')">MySQL <span class="badge rounded-pill bg-info text-dark fw-bold ms-1 px-2" id="modal-cnt-mysql">0</span></button>
+                  <button type="button" class="btn btn-outline-secondary" id="modal-btn-sync-mongo" onclick="filterSyncLogs('MONGO_RS')">MongoDB <span class="badge rounded-pill bg-success text-white fw-bold ms-1 px-2" id="modal-cnt-mongo">0</span></button>
                 </div>
                 <input type="text" id="sync-search-input" class="form-control form-control-sm" placeholder="Tìm kiếm theo mã, sự kiện..." style="width: 210px;" oninput="renderSyncLogsUI()" />
               </div>
               <div class="d-flex align-items-center gap-2">
-                <span class="small text-muted" id="sync-log-total-info">0 sự kiện</span>
-                <button class="btn btn-sm btn-outline-secondary" onclick="loadSyncLogs()">Làm mới</button>
-                <button class="btn btn-sm btn-link text-danger text-decoration-none p-0 ms-2 small" onclick="clearSyncLogs()">Xóa nhật ký</button>
+                <span class="badge bg-light text-secondary border px-2 py-1 fs-7 d-inline-flex align-items-center gap-1 shadow-sm">
+                  <i class="bi bi-collection-fill text-primary"></i>Tổng: <strong class="text-primary fs-6" id="sync-log-total-info">0</strong> mẫu tin
+                </span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadSyncLogs()"><i class="bi bi-arrow-clockwise me-1"></i>Làm mới</button>
+                <button class="btn btn-sm btn-link text-danger text-decoration-none p-0 ms-2 small" onclick="clearSyncLogs()"><i class="bi bi-trash3 me-1"></i>Xóa nhật ký</button>
               </div>
             </div>
 
@@ -1371,7 +1373,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               <table class="table table-bordered table-sm table-custom mb-0 align-middle">
                 <thead class="table-light sticky-top">
                   <tr>
-                    <th style="width: 95px;">Giờ</th>
+                    <th style="width: 110px;">STT & Giờ</th>
                     <th style="width: 105px;" class="text-center">CSDL</th>
                     <th>Sự kiện & Dữ liệu Cập nhật</th>
                     <th style="width: 95px;" class="text-center">Nguồn</th>
@@ -1713,16 +1715,25 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               ? `<div class="mt-1 small text-secondary"><strong>Bảng / Collection bị ghi:</strong> <code class="text-dark bg-white px-1 border rounded">${l.affected_tables}</code></div>`
               : '';
 
+            // Nổi bật các số / mã số trong tiêu đề (ví dụ #50009, SP #1, 28.000.000 đ)
+            const formattedTitle = (l.title || "")
+              .replace(/(#[0-9]+)/g, '<span class="badge bg-primary text-white font-monospace fw-bold px-1.5 py-0.5">$1</span>');
+
             return `
             <tr class="sync-row-clickable" onclick="toggleSyncRow('${detailId}')" title="Bấm để xem chi tiết dữ liệu cập nhật và cơ chế đồng bộ">
               <td>
-                <div class="fw-semibold text-dark">${l.time || l.timestamp}</div>
-                <div class="mono-text text-muted" style="font-size: 11px;">${l.log_id}</div>
+                <div class="d-flex align-items-center gap-1 mb-1">
+                  <span class="badge bg-dark text-white fw-bold px-1.5 py-0.5" style="font-size: 11px;" title="Mẫu tin số ${idx + 1}">#${idx + 1}</span>
+                  <span class="fw-bold text-dark">${l.time || l.timestamp}</span>
+                </div>
+                <div>
+                  <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle font-monospace px-1.5 py-0.5" style="font-size: 11px; font-weight: 600;" title="Mã đồng bộ mẫu tin">${l.log_id}</span>
+                </div>
               </td>
               <td class="text-center">${dbBadge}</td>
               <td>
                 <div class="d-flex align-items-center justify-content-between">
-                  <span class="fw-semibold text-dark">${l.title}</span>
+                  <span class="fw-semibold text-dark">${formattedTitle}</span>
                   <span class="text-muted small" style="font-size: 10px;">&#9662;</span>
                 </div>
                 <div class="text-secondary small mt-1" style="font-size: 11.5px; line-height: 1.4;">${l.summary}</div>
@@ -1730,7 +1741,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               <td class="text-center">${srcHtml}</td>
               <td class="text-center">${tgtHtml}</td>
               <td class="text-end">
-                <span class="mono-text">${l.latency_ms} ms</span>
+                <span class="mono-text fw-bold text-dark">${l.latency_ms} ms</span>
               </td>
               <td class="text-center">${statusHtml}</td>
             </tr>
@@ -1738,10 +1749,16 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               <td colspan="7" class="p-3 bg-light border-bottom">
                 <div class="sync-detail-box p-3 rounded">
                   <div class="p-2 mb-2 bg-white rounded border">
-                    <div class="fw-semibold text-dark small mb-1">
-                      <i class="bi bi-file-earmark-diff text-primary me-1"></i>Dữ liệu cập nhật:
+                    <div class="d-flex align-items-center justify-content-between mb-1 pb-1 border-bottom">
+                      <div class="fw-bold text-dark small">
+                        <i class="bi bi-file-earmark-diff text-primary me-1"></i>Dữ liệu cập nhật:
+                      </div>
+                      <div>
+                        <span class="badge bg-dark text-white font-monospace px-2 py-0.5 me-1">Mẫu tin #${idx + 1}</span>
+                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle font-monospace px-2 py-0.5">${l.log_id}</span>
+                      </div>
                     </div>
-                    <div class="small text-dark font-monospace ps-2" style="white-space: pre-wrap; word-break: break-word;">${payloadHtml}</div>
+                    <div class="small text-dark font-monospace ps-1" style="white-space: pre-wrap; word-break: break-word;">${payloadHtml}</div>
                     ${affectedTablesHtml}
                   </div>
                   <div class="row g-2">
@@ -1821,7 +1838,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
         const info = document.getElementById("sync-log-total-info");
         if (info) {
-          info.innerText = `${filteredModal.length} sự kiện`;
+          info.innerText = `${filteredModal.length}`;
         }
       }
 
@@ -2671,7 +2688,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               const stTag = st === "CANCELLED" ? "tag-offline" : "tag-online";
               return `
           <tr>
-            <td class="mono-text fw-semibold">#${o.order_id}</td>
+            <td class="text-nowrap"><span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace fw-bold px-2 py-1">#${o.order_id}</span></td>
             <td>${o.full_name || "Khách #" + o.user_id}</td>
             <td>${o.city || "-"}</td>
             <td>${o.product_name || "SP #" + o.product_id}</td>
