@@ -1122,15 +1122,21 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
           <!-- Bảng đối chiếu số lượng bản ghi giữa các Node -->
           <div class="panel-box">
-            <div class="panel-header">
-              <span
-                >3. Bảng Đối chiếu Số lượng Bản ghi Thực tế giữa các Node trong
-                mạng LAN</span
-              >
-              <span class="small text-muted fw-normal"
-                >Kiểm chứng tính nhất quán dữ liệu giữa Primary và
-                Secondary</span
-              >
+            <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div>
+                <span class="fw-bold">3. Bảng Đối chiếu Số lượng Bản ghi Thực tế giữa các Node trong mạng LAN</span>
+                <span class="small text-muted fw-normal ms-2 d-none d-lg-inline">Kiểm chứng tính nhất quán dữ liệu giữa Primary và Secondary</span>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-primary py-1 px-3 fw-semibold shadow-sm"
+                  id="btn-manual-sync"
+                  onclick="triggerManualSync()"
+                  title="Tự động kiểm tra và đồng bộ bù dữ liệu các bản ghi thiếu giữa Primary và các Node phụ">
+                  <i class="bi bi-arrow-repeat me-1" id="icon-manual-sync"></i>Đồng bộ dữ liệu
+                </button>
+              </div>
             </div>
             <div class="panel-body p-0">
               <div class="table-responsive">
@@ -2154,6 +2160,66 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         } catch (e) {
           console.error("Clear sync logs error:", e);
           alert("Lỗi kết nối khi xóa nhật ký: " + e);
+        }
+      }
+
+      // THÔNG BÁO TOAST NỔI GỌN GÀNG VÀ CHUYÊN NGHIỆP
+      function showToastNotification(msg, type = "success") {
+        let container = document.getElementById("toast-notification-container");
+        if (!container) {
+          container = document.createElement("div");
+          container.id = "toast-notification-container";
+          container.style.cssText = "position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 280px; max-width: 440px;";
+          document.body.appendChild(container);
+        }
+        const toastEl = document.createElement("div");
+        const bgClass = type === "success" ? "bg-success text-white" : "bg-danger text-white";
+        toastEl.className = `p-3 mb-2 rounded shadow-lg d-flex align-items-center justify-content-between ${bgClass}`;
+        toastEl.innerHTML = `
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi ${type === "success" ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill"} fs-5"></i>
+            <span class="small fw-semibold">${msg}</span>
+          </div>
+          <button type="button" class="btn-close btn-close-white ms-2" onclick="this.parentElement.remove()"></button>
+        `;
+        container.appendChild(toastEl);
+        setTimeout(() => {
+          if (toastEl.parentElement) toastEl.remove();
+        }, 4000);
+      }
+
+      // KÍCH HOẠT ĐỒNG BỘ DỮ LIỆU THỦ CÔNG GIỮA PRIMARY VÀ CÁC NODE SECONDARY
+      async function triggerManualSync() {
+        const btn = document.getElementById("btn-manual-sync");
+        const originalHtml = btn ? btn.innerHTML : '<i class="bi bi-arrow-repeat me-1"></i>Đồng bộ dữ liệu';
+
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Đang đồng bộ...';
+        }
+
+        try {
+          const res = await fetch("/api/cluster/sync-data", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" }
+          });
+          const data = await res.json();
+          if (data.status === "SUCCESS") {
+            showToastNotification(data.message || "✓ Đã kiểm tra và đồng bộ dữ liệu thành công giữa các Node!", "success");
+            // Cập nhật lại ngay bảng đối chiếu số lượng và nhật ký đồng bộ
+            await fetchClusterStatus();
+            await loadSyncLogs();
+          } else {
+            showToastNotification("Lỗi đồng bộ: " + (data.detail || data.message || "Không xác định"), "danger");
+          }
+        } catch (err) {
+          console.error("Manual sync error:", err);
+          showToastNotification("Lỗi kết nối khi đồng bộ: " + err.message, "danger");
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+          }
         }
       }
 
