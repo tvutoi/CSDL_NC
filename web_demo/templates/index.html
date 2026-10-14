@@ -1782,12 +1782,18 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               const activeVals = [r.v1, r.v2, r.v3, r.v4].filter(
                 (v, i) => onlineStates[i] && v !== undefined && v !== null
               );
-              const isSynced =
-                activeVals.length >= 1 &&
-                activeVals.every((v) => v === activeVals[0]);
-              const syncLabel = isSynced
-                ? `<span class="label-tag tag-online">Đồng bộ (${activeVals.length} Node)</span>`
-                : `<span class="label-tag tag-secondary">Đang kiểm tra</span>`;
+              const minVal = activeVals.length > 0 ? Math.min(...activeVals) : 0;
+              const maxVal = activeVals.length > 0 ? Math.max(...activeVals) : 0;
+              const isSynced = activeVals.length >= 1 && minVal === maxVal;
+              let syncLabel = '';
+              if (isSynced) {
+                syncLabel = `<span class="label-tag tag-online">Đồng bộ (${activeVals.length} Node)</span>`;
+              } else if (activeVals.length > 1) {
+                const diff = maxVal - minVal;
+                syncLabel = `<span class="label-tag tag-warning" title="Chênh lệch ${diff} bản ghi giữa các Node. Hệ thống đang tự động đối chiếu bù ngầm...">Lệch ${diff.toLocaleString("vi-VN")} bản ghi</span>`;
+              } else {
+                syncLabel = `<span class="label-tag tag-secondary">Đang kiểm tra</span>`;
+              }
               return `
             <tr>
               <td class="fw-semibold">${r.name}</td>
