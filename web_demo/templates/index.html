@@ -1614,15 +1614,16 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
           const mongoSummary = data.mongodb
             .map((n, idx) => {
-              const isOnline = n.health === 1;
+              const isOnline = n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1;
               const dot = isOnline ? "dot-online" : "dot-offline";
+              const displayState = !isOnline ? "OFFLINE" : (n.state === "PRIMARY" ? "PRIMARY" : "SECONDARY");
               const badgeClass = !isOnline
                 ? "tag-offline"
-                : n.state === "PRIMARY"
+                : displayState === "PRIMARY"
                   ? "tag-primary"
                   : "tag-secondary";
               const nodeLabel = n.node_name || `Node ${idx + 1}`;
-              return `<div class="py-1 border-bottom border-light"><span class="status-dot ${dot}"></span><strong class="me-1">${nodeLabel}:</strong> <span class="node-ip">${n.host}</span> &mdash; <span class="label-tag ${badgeClass}">${n.state}</span></div>`;
+              return `<div class="py-1 border-bottom border-light"><span class="status-dot ${dot}"></span><strong class="me-1">${nodeLabel}:</strong> <span class="node-ip">${n.host}</span> &mdash; <span class="label-tag ${badgeClass}">${displayState}</span></div>`;
             })
             .join("");
           document.getElementById("summary-mongo-nodes").innerHTML =
@@ -1670,14 +1671,15 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           document.getElementById("cluster-mongo-table").innerHTML =
             data.mongodb
               .map((n) => {
-                const isOnline = n.health === 1;
+                const isOnline = n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1;
                 const stateBadge = isOnline
                   ? `<span class="label-tag tag-online">ONLINE</span>`
                   : `<span class="label-tag tag-offline">OFFLINE</span>`;
+                const displayRole = !isOnline ? "OFFLINE" : (n.state === "PRIMARY" ? "PRIMARY" : "SECONDARY");
                 const roleBadge =
-                  n.state.indexOf("PRIMARY") !== -1
-                    ? `<span class="label-tag tag-primary">${n.state}</span>`
-                    : `<span class="label-tag tag-secondary">${n.state}</span>`;
+                  displayRole === "PRIMARY"
+                    ? `<span class="label-tag tag-primary">PRIMARY</span>`
+                    : `<span class="label-tag tag-secondary">${displayRole}</span>`;
                 return `
             <tr>
               <td class="fw-semibold">${n.node_name}</td>

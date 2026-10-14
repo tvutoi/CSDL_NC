@@ -1335,7 +1335,9 @@ def get_cluster_status(request: Request):
             is_prim = hello_res.get("isWritablePrimary") or hello_res.get("ismaster")
             state_str = "PRIMARY" if is_prim else ("SECONDARY" if hello_res.get("secondary") else "ONLINE")
             if cfg_host in rs_map:
-                state_str = rs_map[cfg_host].get("stateStr", state_str)
+                raw_st = rs_map[cfg_host].get("stateStr", "")
+                if raw_st and raw_st not in ("(not reachable/healthy)", "DOWN", "UNKNOWN"):
+                    state_str = raw_st
             m_single.close()
             return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": state_str, "health": 1,
