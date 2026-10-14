@@ -1674,11 +1674,29 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         renderSyncLogsUI();
       }
 
-      function toggleSyncRow(detailId) {
+      function toggleSyncRow(detailId, prefix) {
         const el = document.getElementById(detailId);
         if (!el) return;
-        const isHidden = el.style.display === "none";
-        el.style.display = isHidden ? "table-row" : "none";
+        const isCurrentlyHidden = (el.style.display === "none" || !el.style.display);
+
+        // Tự động đóng tất cả các dòng chi tiết khác trong cùng bảng (Accordion behavior)
+        const allDetailRows = document.querySelectorAll(`.sync-detail-row-${prefix}`);
+        allDetailRows.forEach((row) => {
+          row.style.display = "none";
+        });
+
+        // Đặt lại tất cả các icon chevron về hướng xuống
+        const allChevrons = document.querySelectorAll(`.sync-chevron-${prefix}`);
+        allChevrons.forEach((ch) => {
+          ch.innerHTML = "&#9662;";
+        });
+
+        // Nếu dòng được click đang đóng -> tự chuyển mở dòng này ra
+        if (isCurrentlyHidden) {
+          el.style.display = "table-row";
+          const myChevron = document.getElementById(`chevron-${detailId}`);
+          if (myChevron) myChevron.innerHTML = "&#9652;";
+        }
       }
 
       function renderSyncRowsHTML(logs, prefix) {
@@ -1709,7 +1727,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             // Trạng thái: "Đã đồng bộ" (badge xanh lá)
             const statusHtml = `<span class="badge bg-success-subtle text-success border border-success-subtle fw-medium">Đã đồng bộ</span>`;
 
-            const detailId = `detail-${prefix}-${l.log_id}`;
+            const detailId = `detail-${prefix}-${idx}-${l.log_id}`;
 
             const payloadHtml = l.data_payload || l.summary || '';
             const affectedTablesHtml = l.affected_tables
@@ -1721,7 +1739,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               .replace(/(#[0-9]+)/g, '<span class="badge bg-primary text-white font-monospace fw-bold px-1.5 py-0.5">$1</span>');
 
             return `
-            <tr class="sync-row-clickable" onclick="toggleSyncRow('${detailId}')" title="Bấm để xem chi tiết dữ liệu cập nhật và cơ chế đồng bộ">
+            <tr class="sync-row-clickable" onclick="toggleSyncRow('${detailId}', '${prefix}')" title="Bấm để xem chi tiết dữ liệu cập nhật và cơ chế đồng bộ">
               <td>
                 <div class="d-flex align-items-center gap-1 mb-1">
                   <span class="badge bg-dark text-white fw-bold px-1.5 py-0.5" style="font-size: 11px;" title="Mẫu tin số ${idx + 1}">#${idx + 1}</span>
@@ -1735,7 +1753,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               <td>
                 <div class="d-flex align-items-center justify-content-between">
                   <span class="fw-semibold text-dark">${formattedTitle}</span>
-                  <span class="text-muted small" style="font-size: 10px;">&#9662;</span>
+                  <span class="text-muted small sync-chevron-${prefix}" id="chevron-${detailId}" style="font-size: 10px;">&#9662;</span>
                 </div>
                 <div class="text-secondary small mt-1" style="font-size: 11.5px; line-height: 1.4;">${l.summary}</div>
               </td>
@@ -1746,7 +1764,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               </td>
               <td class="text-center">${statusHtml}</td>
             </tr>
-            <tr id="${detailId}" class="sync-detail-row bg-light" style="display: none;">
+            <tr id="${detailId}" class="sync-detail-row sync-detail-row-${prefix} bg-light" style="display: none;">
               <td colspan="7" class="p-3 bg-light border-bottom">
                 <div class="sync-detail-box p-3 rounded">
                   <div class="p-2 mb-2 bg-white rounded border">

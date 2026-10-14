@@ -115,6 +115,9 @@ def get_node_label(host_str: str, db_type: str = "mysql") -> str:
     return clean_host
 
 
+SYNC_LOG_COUNTER = 0
+
+
 def record_sync_log(
     db_type: str,
     action: str,
@@ -130,9 +133,10 @@ def record_sync_log(
     affected_tables: str = ""
 ) -> Dict[str, Any]:
     """Ghi nhận sự kiện nhân bản và đồng bộ dữ liệu giữa các Node trong cụm thời gian thực"""
-    global SYNC_AUDIT_LOGS
+    global SYNC_AUDIT_LOGS, SYNC_LOG_COUNTER
+    SYNC_LOG_COUNTER += 1
     now = datetime.now()
-    log_id = f"SYNC-{int(time.time()*1000) % 1000000:06d}"
+    log_id = f"SYNC-{(int(time.time()*1000) * 10 + (SYNC_LOG_COUNTER % 10)) % 1000000:06d}"
 
     db_key = "mysql" if db_type == "MYSQL_GR" else "mongo"
     src_label = get_node_label(source_node, db_key)
