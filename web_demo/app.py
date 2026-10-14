@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import mysql.connector
-from pymongo import MongoClient, ReadPreference
+from pymongo import MongoClient, ReadPreference, WriteConcern
 
 
 def is_port_open(host_or_addr: str, default_port: int = 3306, timeout: float = 0.25) -> bool:
@@ -385,7 +385,13 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
         if not is_port_open(h_mg, int(p_mg), timeout=0.45):
             continue
         try:
-            c = MongoClient(f"mongodb://{h}/?directConnection=true", read_preference=rp, serverSelectionTimeoutMS=800)
+            c = MongoClient(
+                f"mongodb://{h}/?directConnection=true&w=1",
+                read_preference=rp,
+                serverSelectionTimeoutMS=800,
+                connectTimeoutMS=800,
+                socketTimeoutMS=2000
+            )
             hello = c.admin.command("hello")
             online_lan_hosts.append((c, h, hello))
             if hello.get("isWritablePrimary") or hello.get("ismaster"):
@@ -394,10 +400,62 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
         except Exception:
             continue
 
+    # TỰ ĐỘNG HỒI PHỤC QUORUM CHO MONGODB KHI MẤT ĐA SỐ (Tương tự MySQL group_replication_force_members):
+    # Nếu không có node nào đang là PRIMARY (do các node khác bị tắt, mất Quorum nên node sống tự hạ cấp về SECONDARY)
+    # và chỉ có đúng 1 node LAN trực tuyến:
+    if not primary_client and len(online_lan_hosts) == 1:
+        try:
+            c_u, h_u, _ = online_lan_hosts[0]
+            cfg = c_u.admin.command("replSetGetConfig")["config"]
+            cfg["version"] += 1
+            for m in cfg["members"]:
+                if m["host"] == h_u:
+                    m["votes"] = 1
+                    m["priority"] = 1.0
+                else:
+                    m["votes"] = 0
+                    m["priority"] = 0.0
+            c_u.admin.command("replSetReconfig", cfg, force=True)
+            time.sleep(0.5)
+            hello = c_u.admin.command("hello")
+            if hello.get("isWritablePrimary") or hello.get("ismaster"):
+                primary_client, primary_host = c_u, h_u
+            try:
+                c_u.admin.command("setDefaultRWConcern", defaultWriteConcern={"w": 1})
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"[MONGO_QUORUM_RECOVERY] {e}")
+
+    # Nếu có từ 2 node LAN trực tuyến trở lên và có primary_client:
+    # Tự động kiểm tra và khôi phục lại quyền bầu cử (votes=1, priority=1.0) cho các node vừa trực tuyến lại
+    if primary_client and len(online_lan_hosts) >= 2:
+        try:
+            online_host_set = {h for _, h, _ in online_lan_hosts}
+            cfg = primary_client.admin.command("replSetGetConfig")["config"]
+            changed = False
+            for m in cfg["members"]:
+                if m["host"] in online_host_set and (m.get("votes", 1) == 0 or m.get("priority", 1.0) == 0.0):
+                    m["votes"] = 1
+                    m["priority"] = 2.0 if "221" in m["host"] else 1.0
+                    changed = True
+            if changed:
+                cfg["version"] += 1
+                primary_client.admin.command("replSetReconfig", cfg)
+        except Exception:
+            pass
+
     if not primary_client and online_lan_hosts:
         primary_client, primary_host = online_lan_hosts[0][0], online_lan_hosts[0][1]
 
     def _ret(client_obj, host_str, role_str):
+        # Đóng các client còn lại không được chọn để tránh rò rỉ socket pool
+        for c_item, h_item, _ in online_lan_hosts:
+            if c_item is not client_obj:
+                try:
+                    c_item.close()
+                except Exception:
+                    pass
         if with_meta:
             return client_obj, {"host": host_str, "role": role_str}
         return client_obj, host_str
@@ -420,7 +478,7 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
             return _ret(online_lan_hosts[0][0], online_lan_hosts[0][1], "PRIMARY")
 
     # Chỉ khi không có bất kỳ Node LAN nào mở cổng 27017 thì mới fallback về 127.0.0.1:27017
-    local_client = MongoClient("mongodb://127.0.0.1:27017/?directConnection=true", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=1000)
+    local_client = MongoClient("mongodb://127.0.0.1:27017/?directConnection=true&w=1", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=1000)
     return _ret(local_client, "127.0.0.1:27017", "LOCAL")
 
 
@@ -1371,7 +1429,9 @@ def checkout(req: OrderRequest):
         # Ghi thêm nhật ký hành vi mua hàng vào MongoDB
         try:
             m_client, _ = get_mongo_client("primary")
-            m_client[CLUSTER_CONFIG["mongo_db"]]["user_activity_logs"].insert_one({
+            m_client[CLUSTER_CONFIG["mongo_db"]]["user_activity_logs"].with_options(
+                write_concern=WriteConcern(w=1, wtimeout=3000)
+            ).insert_one({
                 "user_id": req.user_id,
                 "product_id": req.product_id,
                 "action": "CHECKOUT_ORDER_SUCCESS",
@@ -1441,58 +1501,71 @@ class ReviewRequest(BaseModel):
 def add_review(req: ReviewRequest):
     """Ghi đánh giá phi cấu trúc có thuộc tính động và hình ảnh vào MongoDB Replica Set"""
     t0 = time.perf_counter()
-    try:
-        m_client, active_host = get_mongo_client("primary")
-        mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
-        doc = {
-            "product_id": req.product_id,
-            "user_id": req.user_id,
-            "rating": req.rating,
-            "title": req.title,
-            "comment": req.comment,
-            "images": [req.image_url] if req.image_url else [],
-            "sentiment_attributes": {
-                "packaging": req.packaging,
-                "delivery_speed": req.delivery_speed,
-                "verified_purchase": True,
-                "helpful_votes": 1
-            },
-            "created_at": datetime.utcnow()
-        }
-        res = mdb["product_reviews"].insert_one(doc)
-        m_client.close()
-        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+    doc = {
+        "product_id": req.product_id,
+        "user_id": req.user_id,
+        "rating": req.rating,
+        "title": req.title,
+        "comment": req.comment,
+        "images": [req.image_url] if req.image_url else [],
+        "sentiment_attributes": {
+            "packaging": req.packaging,
+            "delivery_speed": req.delivery_speed,
+            "verified_purchase": True,
+            "helpful_votes": 1
+        },
+        "created_at": datetime.utcnow()
+    }
 
-        # Ghi nhận vào Nhật ký Đồng bộ Cụm (Replication & Sync Audit Log)
-        sync_entry = None
+    last_err = None
+    res = None
+    active_host = None
+
+    for attempt in range(2):
         try:
-            mongo_secondaries = [h for h in CLUSTER_CONFIG["mongo_nodes"] if h != active_host]
-            stars = "★" * req.rating
-            sync_entry = record_sync_log(
-                db_type="MONGO_RS",
-                action="INSERT_REVIEW",
-                title=f"Đánh giá & Nhận xét SP #{req.product_id}",
-                summary=f"Tiêu đề: '{req.title}' | Bình luận: '{req.comment[:40]}...' | Đóng gói: {req.packaging}",
-                data_payload=f"Sản phẩm ID: #{req.product_id} | Đánh giá: {req.rating} sao ({stars}) | Tiêu đề: '{req.title}' | Bình luận: '{req.comment}' | Đóng gói: {req.packaging}",
-                affected_tables="product_reviews (1 BSON Document)",
-                source_node=active_host,
-                target_nodes=mongo_secondaries,
-                mechanism="MongoDB Oplog Streaming (local.oplog.rs)",
-                detail=f"Ghi BSON Document kèm thuộc tính cảm xúc động và mảng ảnh vào collection product_reviews tại Primary ({active_host}). Tự động phát tán luồng Oplog tới các Node Secondary trong Replica Set.",
-                latency_ms=elapsed_ms
-            )
-        except Exception as log_ex:
-            print(f"[SYNC_LOG_ERROR] {log_ex}")
+            m_client, active_host = get_mongo_client("primary")
+            mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
+            col = mdb["product_reviews"].with_options(write_concern=WriteConcern(w=1, wtimeout=3000))
+            res = col.insert_one(doc)
+            m_client.close()
+            break
+        except Exception as e:
+            last_err = e
+            time.sleep(0.5)
 
-        return {
-            "status": "SUCCESS",
-            "review_id": str(res.inserted_id),
-            "executed_on_mongo_node": active_host,
-            "latency_ms": elapsed_ms,
-            "sync_log": sync_entry
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi ghi MongoDB: {str(e)}")
+    if not res:
+        raise HTTPException(status_code=500, detail=f"Lỗi ghi MongoDB: {str(last_err)}")
+
+    elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+    # Ghi nhận vào Nhật ký Đồng bộ Cụm (Replication & Sync Audit Log)
+    sync_entry = None
+    try:
+        mongo_secondaries = [h for h in CLUSTER_CONFIG["mongo_nodes"] if h != active_host]
+        stars = "★" * req.rating
+        sync_entry = record_sync_log(
+            db_type="MONGO_RS",
+            action="INSERT_REVIEW",
+            title=f"Đánh giá & Nhận xét SP #{req.product_id}",
+            summary=f"Tiêu đề: '{req.title}' | Bình luận: '{req.comment[:40]}...' | Đóng gói: {req.packaging}",
+            data_payload=f"Sản phẩm ID: #{req.product_id} | Đánh giá: {req.rating} sao ({stars}) | Tiêu đề: '{req.title}' | Bình luận: '{req.comment}' | Đóng gói: {req.packaging}",
+            affected_tables="product_reviews (1 BSON Document)",
+            source_node=active_host,
+            target_nodes=mongo_secondaries,
+            mechanism="MongoDB Oplog Streaming (local.oplog.rs)",
+            detail=f"Ghi BSON Document kèm thuộc tính cảm xúc động và mảng ảnh vào collection product_reviews tại Primary ({active_host}). Tự động phát tán luồng Oplog tới các Node Secondary trong Replica Set.",
+            latency_ms=elapsed_ms
+        )
+    except Exception as log_ex:
+        print(f"[SYNC_LOG_ERROR] {log_ex}")
+
+    return {
+        "status": "SUCCESS",
+        "review_id": str(res.inserted_id),
+        "executed_on_mongo_node": active_host,
+        "latency_ms": elapsed_ms,
+        "sync_log": sync_entry
+    }
 
 
 @app.get("/api/reviews/list")
@@ -1956,7 +2029,7 @@ def seed_large_database_api(scale: str = Query("standard", description="standard
                 },
                 "created_at": now
             })
-        mdb["product_reviews"].insert_many(batch_docs, ordered=False)
+        mdb["product_reviews"].with_options(write_concern=WriteConcern(w=1)).insert_many(batch_docs, ordered=False)
 
     mdb["product_reviews"].create_index([("product_id", 1), ("created_at", -1)])
     mdb["product_reviews"].create_index([("user_id", 1)])
@@ -1975,7 +2048,7 @@ def seed_large_database_api(scale: str = Query("standard", description="standard
                 "metadata": {"device": "Desktop Chrome", "duration_sec": (idx % 120) + 10},
                 "created_at": now
             })
-        mdb["user_activity_logs"].insert_many(batch_logs, ordered=False)
+        mdb["user_activity_logs"].with_options(write_concern=WriteConcern(w=1)).insert_many(batch_logs, ordered=False)
 
     mdb["user_activity_logs"].create_index([("product_id", 1), ("action", 1)])
     m_client.close()
