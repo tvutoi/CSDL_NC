@@ -366,6 +366,87 @@ def record_sync_log(
 
 
 
+def ensure_mongo_primary_priority():
+    """
+    Đảm bảo cơ chế phân cấp Primary & Auto-Failback cho cụm MongoDB Replica Set:
+    - Node 1 (192.168.1.221:27017): Priority = 2.0 (PRIMARY ưu tiên cao nhất khi mở).
+    - Node 2 (192.168.1.222:27017): Priority = 1.0 (SECONDARY / Ứng viên kế nhiệm khi Node 1 tắt).
+    - Node 3, 4 (192.168.1.222:27018, :27019): Priority = 0.5, Votes = 1.
+    - Khi Node 1 mở lại (ONLINE), nếu Node 2 vẫn đang là PRIMARY:
+      Tự động gọi replSetStepDown trên Node 2 để cụm chuyển giao quyền PRIMARY ngay lập tức về Node 1!
+    """
+    node1_host = CLUSTER_CONFIG["mongo_nodes"][0]  # "192.168.1.221:27017"
+    h1, p1 = node1_host.split(":") if ":" in node1_host else (node1_host, 27017)
+    node1_online = is_port_open(h1, int(p1), timeout=0.2)
+
+    candidates = [node1_host] + [h for h in CLUSTER_CONFIG["mongo_nodes"] if h != node1_host]
+    client = None
+    for cand in candidates:
+        hc, pc = cand.split(":") if ":" in cand else (cand, 27017)
+        if not is_port_open(hc, int(pc), timeout=0.2):
+            continue
+        try:
+            c = MongoClient(f"mongodb://{cand}/?directConnection=true&w=1", serverSelectionTimeoutMS=500)
+            c.admin.command("ping")
+            client = c
+            break
+        except Exception:
+            continue
+
+    if not client:
+        return
+
+    try:
+        cfg = client.admin.command("replSetGetConfig")["config"]
+        changed = False
+
+        if node1_online:
+            # Node 1 đang mở: Phải đảm bảo Node 1 có priority=2.0, votes=1; Node 2 priority=1.0, votes=1; Node 3,4 priority=0.5, votes=1
+            for m in cfg["members"]:
+                m_h = m["host"]
+                if "221" in m_h:
+                    if m.get("priority") != 2.0 or m.get("votes") != 1:
+                        m["priority"] = 2.0
+                        m["votes"] = 1
+                        changed = True
+                elif m_h == "192.168.1.222:27017":
+                    if m.get("priority") != 1.0 or m.get("votes") != 1:
+                        m["priority"] = 1.0
+                        m["votes"] = 1
+                        changed = True
+                else:
+                    if m.get("priority") != 0.5 or m.get("votes") != 1:
+                        m["priority"] = 0.5
+                        m["votes"] = 1
+                        changed = True
+
+            if changed:
+                cfg["version"] += 1
+                try:
+                    client.admin.command("replSetReconfig", cfg, force=True)
+                except Exception as ex_reconf:
+                    print(f"[MONGO_RECONFIG_FORCE_ERR] {ex_reconf}")
+
+            # Kiểm tra xem ai đang là Primary
+            try:
+                hello = client.admin.command("hello")
+                current_primary = hello.get("primary")
+                if current_primary and current_primary != node1_host:
+                    # Node 1 đã online nhưng Node khác (Node 2) vẫn đang giữ Primary:
+                    # Kích hoạt stepDown trên node đó để chuyển giao Primary về Node 1 ngay lập tức!
+                    c_prim = MongoClient(f"mongodb://{current_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=500)
+                    c_prim.admin.command("replSetStepDown", 5)
+                    c_prim.close()
+            except Exception:
+                pass
+        client.close()
+    except Exception:
+        try:
+            client.close()
+        except Exception:
+            pass
+
+
 def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
     """Khởi tạo kết nối MongoDB với Read Preference linh hoạt, tự động điều chỉnh Quorum khi bật 1, 2, 3 hoặc 4 Node"""
     rp_map = {
@@ -427,21 +508,11 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
         except Exception as e:
             print(f"[MONGO_QUORUM_RECOVERY] {e}")
 
-    # Nếu có từ 2 node LAN trực tuyến trở lên và có primary_client:
-    # Tự động kiểm tra và khôi phục lại quyền bầu cử (votes=1, priority=1.0) cho các node vừa trực tuyến lại
-    if primary_client and len(online_lan_hosts) >= 2:
+    # Nếu có từ 2 node LAN trực tuyến trở lên:
+    # Tự động đảm bảo Node 1 (192.168.1.221) có priority=2.0 nếu Node 1 online, và khôi phục votes=1 cho toàn bộ node online
+    if len(online_lan_hosts) >= 2:
         try:
-            online_host_set = {h for _, h, _ in online_lan_hosts}
-            cfg = primary_client.admin.command("replSetGetConfig")["config"]
-            changed = False
-            for m in cfg["members"]:
-                if m["host"] in online_host_set and (m.get("votes", 1) == 0 or m.get("priority", 1.0) == 0.0):
-                    m["votes"] = 1
-                    m["priority"] = 2.0 if "221" in m["host"] else 1.0
-                    changed = True
-            if changed:
-                cfg["version"] += 1
-                primary_client.admin.command("replSetReconfig", cfg)
+            ensure_mongo_primary_priority()
         except Exception:
             pass
 
@@ -641,7 +712,7 @@ def detect_active_primaries():
                 break
 
     if not mysql_p:
-        mysql_p = CLUSTER_CONFIG["mysql_nodes"][1] if len(CLUSTER_CONFIG["mysql_nodes"]) > 1 else "192.168.1.222"
+        mysql_p = CLUSTER_CONFIG["mysql_nodes"][0] if CLUSTER_CONFIG["mysql_nodes"] else "192.168.1.221"
 
     # 1. Toàn bộ các Node còn lại trong cụm MySQL là Replicas (Node 1, 3, 4)
     mysql_secs = [n for n in CLUSTER_CONFIG["mysql_nodes"] if n != mysql_p]
@@ -664,7 +735,7 @@ def detect_active_primaries():
                 break
 
     if not mongo_p:
-        mongo_p = CLUSTER_CONFIG["mongo_nodes"][1] if len(CLUSTER_CONFIG["mongo_nodes"]) > 1 else "192.168.1.222:27017"
+        mongo_p = CLUSTER_CONFIG["mongo_nodes"][0] if CLUSTER_CONFIG["mongo_nodes"] else "192.168.1.221:27017"
 
     # Toàn bộ các Node còn lại trong cụm MongoDB là Replicas (Node 1, 3, 4)
     mongo_secs = [n for n in CLUSTER_CONFIG["mongo_nodes"] if n != mongo_p]
@@ -1081,6 +1152,11 @@ def get_cluster_status(request: Request):
     status["mysql"] = mysql_results
 
     # 2. QUÉT SONG SONG CẢ 4 NODE MONGODB (TỐC ĐỘ CAO <0.15s)
+    try:
+        ensure_mongo_primary_priority()
+    except Exception:
+        pass
+
     mongo_reviews_cnt = 0
     mongo_logs_cnt = 0
     rs_map = {}

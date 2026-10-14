@@ -1,20 +1,74 @@
 [
   {
-    "log_id": "SYNC-015341",
-    "time": "13:38:21",
+    "log_id": "SYNC-016591",
+    "time": "13:53:21",
     "date": "14/10/2026",
-    "timestamp": "13:38:21",
-    "start_time": "13:38:20.114",
-    "end_time": "13:38:21.534",
+    "timestamp": "13:53:21",
+    "start_time": "13:53:21.380",
+    "end_time": "13:53:21.659",
+    "db_type": "MONGO_RS",
+    "action": "INSERT_REVIEW",
+    "title": "Đánh giá & Nhận xét SP #2",
+    "summary": "Tiêu đề: 'Đồng bộ xuất sắc' | Bình luận: 'Node 1 MongoDB đã là PRIMARY, kiểm thử g...' | Đóng gói: Nguyên seal, hộp cứng cáp",
+    "data_payload": "Sản phẩm ID: #2 | Đánh giá: 5 sao (★★★★★) | Tiêu đề: 'Đồng bộ xuất sắc' | Bình luận: 'Node 1 MongoDB đã là PRIMARY, kiểm thử ghi thành công!' | Đóng gói: Nguyên seal, hộp cứng cáp",
+    "affected_tables": "product_reviews (1 BSON Document)",
+    "source_label": "Node 1",
+    "source_node": "192.168.1.221:27017",
+    "target_display": "Node 2, 3, 4",
+    "target_nodes": [
+      "Node 2",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.222:27017",
+      "192.168.1.222:27018",
+      "192.168.1.222:27019"
+    ],
+    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
+    "detail": "Ghi BSON Document kèm thuộc tính cảm xúc động và mảng ảnh vào collection product_reviews tại Primary (192.168.1.221:27017). Tự động phát tán luồng Oplog tới các Node Secondary trong Replica Set.",
+    "latency_ms": 279.8,
+    "status": "SYNCED",
+    "status_text": "Đã đồng bộ",
+    "target_statuses": [
+      {
+        "label": "Node 2",
+        "host": "192.168.1.222:27017",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:27018",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:27019",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 3,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-845026",
+    "time": "13:41:24",
+    "date": "14/10/2026",
+    "timestamp": "13:41:24",
+    "start_time": "13:41:23.091",
+    "end_time": "13:41:24.502",
     "db_type": "MONGO_RS",
     "action": "INSERT_REVIEW",
     "title": "Đánh giá & Nhận xét SP #1",
-    "summary": "Tiêu đề: 'Sản phẩm tuyệt vời' | Bình luận: 'Đóng gói rất kỹ, hàng chính hãng dùng rấ...' | Đóng gói: Nguyên seal, hộp cứng cáp",
-    "data_payload": "Sản phẩm ID: #1 | Đánh giá: 5 sao (★★★★★) | Tiêu đề: 'Sản phẩm tuyệt vời' | Bình luận: 'Đóng gói rất kỹ, hàng chính hãng dùng rất mượt mà!' | Đóng gói: Nguyên seal, hộp cứng cáp",
+    "summary": "Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy hoạ...' | Đóng gói: Nguyên hộp, bọc chống sốc",
+    "data_payload": "Sản phẩm ID: #1 | Đánh giá: 5 sao (★★★★★) | Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt. test ' | Đóng gói: Nguyên hộp, bọc chống sốc",
     "affected_tables": "product_reviews (1 BSON Document)",
     "source_label": "Node 2",
     "source_node": "192.168.1.222:27017",
-    "target_display": "Chờ Node 1, Node 3, Node 4",
+    "target_display": "Node 1, 3, 4",
     "target_nodes": [
       "Node 1",
       "Node 3",
@@ -27,147 +81,39 @@
     ],
     "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
     "detail": "Ghi BSON Document thành công tại Node 2 (192.168.1.222:27017). Toàn bộ Node Secondary (Node 1, Node 3, Node 4) hiện đang NGOẠI TUYẾN. Dữ liệu được bảo toàn trong local.oplog.rs và sẽ tự động streaming bù (Oplog Replay) ngay khi các Node Secondary khởi động lại.",
-    "latency_ms": 1419.4,
-    "status": "PENDING",
-    "status_text": "Chờ nhân bản",
+    "latency_ms": 1410.9,
+    "status": "SYNCED",
+    "status_text": "Đã đồng bộ",
     "target_statuses": [
       {
         "label": "Node 1",
         "host": "192.168.1.221:27017",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
       },
       {
         "label": "Node 3",
         "host": "192.168.1.222:27018",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
       },
       {
         "label": "Node 4",
         "host": "192.168.1.222:27019",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
       }
     ],
-    "online_count": 0,
+    "online_count": 3,
     "total_targets": 3
   },
   {
-    "log_id": "SYNC-349932",
-    "time": "13:28:54",
+    "log_id": "SYNC-577365",
+    "time": "13:40:57",
     "date": "14/10/2026",
-    "timestamp": "13:28:54",
-    "start_time": "13:28:45.094",
-    "end_time": "13:28:54.993",
-    "db_type": "MYSQL_GR",
-    "action": "MANUAL_SYNC",
-    "title": "Đồng bộ thủ công qua Quản trị viên",
-    "summary": "Quản trị viên kích hoạt đối chiếu và đồng bộ dữ liệu | 18 bản ghi bù | Toàn cụm LAN",
-    "data_payload": "Thao tác: Kích hoạt đồng bộ dữ liệu thủ công toàn cụm | Node chính: 192.168.1.222 | Số bản ghi bù mới: 18 dòng | Các Node nhận: Node 3 (192.168.1.222:3307), Node 4 (192.168.1.222:3308)",
-    "affected_tables": "orders, order_items, payments (Đối chiếu & Kiểm tra toàn vẹn)",
-    "source_label": "Node 2",
-    "source_node": "192.168.1.222",
-    "target_display": "Chờ Node 1, Node 3, Node 4",
-    "target_nodes": [
-      "Node 1",
-      "Node 3",
-      "Node 4"
-    ],
-    "target_hosts": [
-      "192.168.1.221",
-      "192.168.1.222:3307",
-      "192.168.1.222:3308"
-    ],
-    "mechanism": "Admin Force Distributed Sync + Paxos Verification",
-    "detail": "Giao dịch đã Commit thành công tại Node 2 (192.168.1.222). Toàn bộ Node Secondary (Node 1, Node 3, Node 4) hiện đang NGOẠI TUYẾN. Dữ liệu được lưu trữ an toàn trong Binary Log GTID trên Primary và sẽ tự động gửi bù (Catch-up Replication) ngay khi các Node Secondary khởi động lại.",
-    "latency_ms": 9899.8,
-    "status": "PENDING",
-    "status_text": "Chờ nhân bản",
-    "target_statuses": [
-      {
-        "label": "Node 1",
-        "host": "192.168.1.221",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
-      },
-      {
-        "label": "Node 3",
-        "host": "192.168.1.222:3307",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
-      },
-      {
-        "label": "Node 4",
-        "host": "192.168.1.222:3308",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
-      }
-    ],
-    "online_count": 0,
-    "total_targets": 3
-  },
-  {
-    "log_id": "SYNC-418061",
-    "time": "13:27:21",
-    "date": "14/10/2026",
-    "timestamp": "13:27:21",
-    "start_time": "13:27:21.220",
-    "end_time": "13:27:21.806",
-    "db_type": "MYSQL_GR",
-    "action": "CHECKOUT_ORDER",
-    "title": "Đặt hàng #50014",
-    "summary": "Sản phẩm: iPhone 15 Pro Max 256GB Titan Tự Nhiên (SL: 1) | KH #1002 | PT: COD | 3 bảng",
-    "data_payload": "Mã đơn: #50014 | Sản phẩm: iPhone 15 Pro Max 256GB Titan Tự Nhiên (ID #1, SL: 1, Đơn giá: 28.000.000 đ) | Khách hàng: #1002 | Tổng tiền: 28.000.000 đ | Hình thức: COD",
-    "affected_tables": "orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
-    "source_label": "Node 2",
-    "source_node": "192.168.1.222",
-    "target_display": "Chờ Node 1, Node 3, Node 4",
-    "target_nodes": [
-      "Node 1",
-      "Node 3",
-      "Node 4"
-    ],
-    "target_hosts": [
-      "192.168.1.221",
-      "192.168.1.222:3307",
-      "192.168.1.222:3308"
-    ],
-    "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
-    "detail": "Giao dịch đã Commit thành công tại Node 2 (192.168.1.222). Toàn bộ Node Secondary (Node 1, Node 3, Node 4) hiện đang NGOẠI TUYẾN. Dữ liệu được lưu trữ an toàn trong Binary Log GTID trên Primary và sẽ tự động gửi bù (Catch-up Replication) ngay khi các Node Secondary khởi động lại.",
-    "latency_ms": 586.2,
-    "status": "PENDING",
-    "status_text": "Chờ nhân bản",
-    "target_statuses": [
-      {
-        "label": "Node 1",
-        "host": "192.168.1.221",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
-      },
-      {
-        "label": "Node 3",
-        "host": "192.168.1.222:3307",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
-      },
-      {
-        "label": "Node 4",
-        "host": "192.168.1.222:3308",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
-      }
-    ],
-    "online_count": 0,
-    "total_targets": 3
-  },
-  {
-    "log_id": "SYNC-657682",
-    "time": "13:26:05",
-    "date": "14/10/2026",
-    "timestamp": "13:26:05",
-    "start_time": "13:26:05.126",
-    "end_time": "13:26:05.768",
+    "timestamp": "13:40:57",
+    "start_time": "13:40:57.094",
+    "end_time": "13:40:57.736",
     "db_type": "MYSQL_GR",
     "action": "CHECKOUT_ORDER",
     "title": "Đặt hàng #50009",
@@ -176,7 +122,7 @@
     "affected_tables": "orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
     "source_label": "Node 2",
     "source_node": "192.168.1.222",
-    "target_display": "Chờ Node 1, Node 3, Node 4",
+    "target_display": "Node 1, 3, 4",
     "target_nodes": [
       "Node 1",
       "Node 3",
@@ -190,38 +136,38 @@
     "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
     "detail": "Giao dịch đã Commit thành công tại Node 2 (192.168.1.222). Toàn bộ Node Secondary (Node 1, Node 3, Node 4) hiện đang NGOẠI TUYẾN. Dữ liệu được lưu trữ an toàn trong Binary Log GTID trên Primary và sẽ tự động gửi bù (Catch-up Replication) ngay khi các Node Secondary khởi động lại.",
     "latency_ms": 642.0,
-    "status": "PENDING",
-    "status_text": "Chờ nhân bản",
+    "status": "SYNCED",
+    "status_text": "Đã đồng bộ",
     "target_statuses": [
       {
         "label": "Node 1",
         "host": "192.168.1.221",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
       },
       {
         "label": "Node 3",
         "host": "192.168.1.222:3307",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
       },
       {
         "label": "Node 4",
         "host": "192.168.1.222:3308",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
       }
     ],
-    "online_count": 0,
+    "online_count": 3,
     "total_targets": 3
   },
   {
-    "log_id": "SYNC-656561",
-    "time": "13:26:05",
+    "log_id": "SYNC-574134",
+    "time": "13:40:57",
     "date": "14/10/2026",
-    "timestamp": "13:26:05",
-    "start_time": "13:26:05.097",
-    "end_time": "13:26:05.656",
+    "timestamp": "13:40:57",
+    "start_time": "13:40:56.854",
+    "end_time": "13:40:57.413",
     "db_type": "MONGO_RS",
     "action": "INSERT_REVIEW",
     "title": "Đánh giá & Nhận xét SP #1",
@@ -230,7 +176,7 @@
     "affected_tables": "product_reviews (1 BSON Document)",
     "source_label": "Node 2",
     "source_node": "192.168.1.222:27017",
-    "target_display": "Chờ Node 1, Node 3, Node 4",
+    "target_display": "Node 1, 3, 4",
     "target_nodes": [
       "Node 1",
       "Node 3",
@@ -244,29 +190,29 @@
     "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
     "detail": "Ghi BSON Document thành công tại Node 2 (192.168.1.222:27017). Toàn bộ Node Secondary (Node 1, Node 3, Node 4) hiện đang NGOẠI TUYẾN. Dữ liệu được bảo toàn trong local.oplog.rs và sẽ tự động streaming bù (Oplog Replay) ngay khi các Node Secondary khởi động lại.",
     "latency_ms": 559.0,
-    "status": "PENDING",
-    "status_text": "Chờ nhân bản",
+    "status": "SYNCED",
+    "status_text": "Đã đồng bộ",
     "target_statuses": [
       {
         "label": "Node 1",
         "host": "192.168.1.221:27017",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
       },
       {
         "label": "Node 3",
         "host": "192.168.1.222:27018",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
       },
       {
         "label": "Node 4",
         "host": "192.168.1.222:27019",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
       }
     ],
-    "online_count": 0,
+    "online_count": 3,
     "total_targets": 3
   }
 ]
