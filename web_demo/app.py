@@ -3,7 +3,7 @@ import json
 import time
 import random
 import socket
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException, Request, Query
@@ -130,13 +130,19 @@ def record_sync_log(
     latency_ms: float = 0.0,
     status: str = "SYNCED",
     data_payload: str = "",
-    affected_tables: str = ""
+    affected_tables: str = "",
+    start_time: str = "",
+    end_time: str = ""
 ) -> Dict[str, Any]:
     """Ghi nhận sự kiện nhân bản và đồng bộ dữ liệu giữa các Node trong cụm thời gian thực"""
     global SYNC_AUDIT_LOGS, SYNC_LOG_COUNTER
     SYNC_LOG_COUNTER += 1
     now = datetime.now()
     log_id = f"SYNC-{(int(time.time()*1000) * 10 + (SYNC_LOG_COUNTER % 10)) % 1000000:06d}"
+
+    start_dt = now - timedelta(milliseconds=latency_ms)
+    start_time_val = start_time or (start_dt.strftime("%H:%M:%S") + f".{start_dt.microsecond // 1000:03d}")
+    end_time_val = end_time or (now.strftime("%H:%M:%S") + f".{now.microsecond // 1000:03d}")
 
     db_key = "mysql" if db_type == "MYSQL_GR" else "mongo"
     src_label = get_node_label(source_node, db_key)
@@ -148,7 +154,7 @@ def record_sync_log(
         tgt_labels.append(lbl)
         tgt_hosts.append(t)
 
-    # Rút gọn danh sách đích: ví dụ "Node 2, 3" hoặc "Node 2, 3, 4"
+    # Rút gọn danh sách đích: ví dụ "Node 2, 3" hoặc "Node 1, 3, 4"
     if tgt_labels:
         node_nums = [lbl.replace("Node ", "") for lbl in tgt_labels if lbl.startswith("Node ")]
         if len(node_nums) == len(tgt_labels):
@@ -163,6 +169,8 @@ def record_sync_log(
         "time": now.strftime("%H:%M:%S"),
         "date": now.strftime("%d/%m/%Y"),
         "timestamp": now.strftime("%H:%M:%S"),
+        "start_time": start_time_val,
+        "end_time": end_time_val,
         "db_type": db_type,  # "MYSQL_GR" hoặc "MONGO_RS"
         "action": action,
         "title": title,

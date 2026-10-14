@@ -1937,6 +1937,25 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                 }).join("")
               : `<code>${l.target_display || "Replicas"}</code>`;
 
+            // Tính toán thời gian bắt đầu và kết thúc với độ chính xác mili-giây
+            let startTimeStr = l.start_time;
+            let endTimeStr = l.end_time;
+            if (!startTimeStr || !endTimeStr) {
+              const baseTime = l.time || l.timestamp || "11:05:56";
+              const parts = baseTime.split(":");
+              if (parts.length === 3) {
+                const d = new Date();
+                d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), parseInt(parts[2], 10), 0);
+                const startD = new Date(d.getTime() - Math.round(l.latency_ms || 0));
+                const pad = (n, w = 2) => String(n).padStart(w, "0");
+                startTimeStr = `${pad(startD.getHours())}:${pad(startD.getMinutes())}:${pad(startD.getSeconds())}.${pad(startD.getMilliseconds(), 3)}`;
+                endTimeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.000`;
+              } else {
+                startTimeStr = baseTime;
+                endTimeStr = baseTime;
+              }
+            }
+
             return `
             <tr class="sync-row-clickable" onclick="toggleSyncRow('${detailId}', '${prefix}')" title="Bấm để xem chi tiết dữ liệu cập nhật và cơ chế đồng bộ">
               <td>
@@ -1994,7 +2013,19 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         <div class="mb-1"><strong>Node Nhận (Replicas):</strong></div>
                         <div class="d-flex flex-wrap align-items-center">${replicaBadges}</div>
                       </div>
-                      <div class="mt-2 text-muted small">Thời gian: ${l.time || l.timestamp} ngày ${l.date || ""} · Độ trễ: ${l.latency_ms} ms</div>
+                      <div class="mt-2 pt-2 border-top text-secondary small" style="font-size: 11.5px;">
+                        <div class="mb-1">
+                          <strong>Thời gian bắt đầu:</strong> 
+                          <span class="font-monospace text-primary fw-semibold bg-white px-1.5 py-0.5 border rounded">${startTimeStr}</span>
+                          <span class="text-muted ms-1">ngày ${l.date || ""}</span>
+                        </div>
+                        <div>
+                          <strong>Thời gian kết thúc:</strong> 
+                          <span class="font-monospace text-success fw-semibold bg-white px-1.5 py-0.5 border rounded">${endTimeStr}</span>
+                          <span class="text-muted ms-1">ngày ${l.date || ""}</span>
+                          <span class="badge bg-light text-dark border ms-1 font-monospace">(Độ trễ: ${l.latency_ms} ms)</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
