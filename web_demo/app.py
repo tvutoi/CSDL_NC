@@ -1246,14 +1246,14 @@ def run_benchmark(iterations: int = Query(20, ge=5, le=100)):
     diff_ms = round(abs(l_avg - d_avg), 2)
 
     if l_avg < d_avg:
-        comp_str = f"Truy vấn Cục bộ nhanh hơn Đọc Phân tải ~{diff_ms} ms (do không tốn phụ phí chuyển đổi context giữa các kết nối)."
+        comp_str = f"Truy vấn Cục bộ nhanh hơn Truy vấn Phân tán ~{diff_ms} ms (do không tốn phụ phí chuyển đổi context giữa các kết nối)."
     elif d_avg < l_avg:
-        comp_str = f"Đọc Phân tải nhanh hơn Truy vấn Cục bộ ~{diff_ms} ms (nhờ chia sẻ tải đọc qua các Node Replicas)."
+        comp_str = f"Truy vấn Phân tán nhanh hơn Truy vấn Cục bộ ~{diff_ms} ms (nhờ phân tải đọc song song qua các Node Replicas)."
     else:
         comp_str = "Tốc độ hai bên tương đương hoàn toàn."
 
     results["technical_evaluation"] = [
-        f"1. So sánh Truy vấn Cục bộ ({l_avg} ms) vs Đọc Phân tải ({d_avg} ms): Cả 2 phép đo đều được chuẩn hóa đo thuần túy thời gian thực thi SQL trên kết nối sẵn sàng. {comp_str} Cơ chế Đọc Phân tải qua các Node ({', '.join(nodes_hit)}) giúp giải tỏa 100% áp lực CPU/RAM cho Node Primary khi hệ thống chịu tải cao.",
+        f"1. So sánh Truy vấn Cục bộ ({l_avg} ms) vs Truy vấn Phân tán ({d_avg} ms): Cả 2 phép đo đều được chuẩn hóa đo thuần túy thời gian thực thi SQL trên kết nối sẵn sàng. {comp_str} Cơ chế Truy vấn Phân tán theo Đọc Phân tải qua các Node ({', '.join(nodes_hit)}) giúp giải tỏa 100% áp lực CPU/RAM cho Node Primary khi hệ thống chịu tải cao.",
         f"2. Đánh giá Truy vấn Hợp nhất Polyglot ({p_avg} ms, đạt ~{results['polyglot_query']['throughput_qps']} req/s): Kết hợp dữ liệu quan hệ từ MySQL và Aggregation Pipeline từ MongoDB đạt độ trễ cực thấp nhờ đánh chỉ mục (Index) trên khóa liên kết product_id ở cả 2 hệ CSDL.",
         "3. Cơ chế Đồng thuận & Toàn vẹn dữ liệu: Mọi giao dịch đặt hàng (Ghi) trên MySQL đều đảm bảo ACID thông qua khóa dòng FOR UPDATE và đồng thuận Paxos (Group Replication), trong khi MongoDB đảm nhận lưu trữ linh hoạt luồng đánh giá & log phi cấu trúc khối lượng lớn."
     ]
