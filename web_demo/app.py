@@ -844,9 +844,9 @@ def init_sample_sync_logs(force: bool = False):
     record_sync_log(
         db_type="MONGO_RS",
         action="INSERT_REVIEW",
-        title="Đánh giá & Nhận xét SP #1",
+        title="Đánh giá & Nhận xét SP 1",
         summary="Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy...' | Đóng gói: Nguyên hộp, bọc chống sốc",
-        data_payload="Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy chạy rất mượt' | Đánh giá: 5 sao | Đóng gói: Nguyên hộp, bọc chống sốc",
+        data_payload="Sản phẩm ID: 1 | Đánh giá: 5 sao | Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy chạy rất mượt' | Đánh giá: 5 sao | Đóng gói: Nguyên hộp, bọc chống sốc",
         affected_tables="product_reviews (1 BSON Document)",
         source_node=mongo_p,
         target_nodes=mongo_secs,
@@ -859,14 +859,14 @@ def init_sample_sync_logs(force: bool = False):
     record_sync_log(
         db_type="MYSQL_GR",
         action="CHECKOUT_ORDER",
-        title="Đặt hàng #50009",
-        summary="Sản phẩm: iPhone 15 Pro Max (SL: 1) | Khách hàng: Nguyễn Văn A (#1002) | Phương thức: COD | 3 bảng",
-        data_payload="Mã đơn: #50009 | Sản phẩm: iPhone 15 Pro Max 256GB (ID #1, SL: 1, Đơn giá: 28.000.000 đ) | Khách hàng: Nguyễn Văn A (ID #1002) | Tổng tiền: 28.000.000 đ | Thanh toán: COD (Tiền mặt khi nhận hàng)",
+        title="Đặt hàng 50009",
+        summary="Sản phẩm: iPhone 15 Pro Max (SL: 1) | Khách hàng: Nguyễn Văn A (ID 1002) | Phương thức: COD | 3 bảng",
+        data_payload="Mã đơn: 50009 | Sản phẩm: iPhone 15 Pro Max 256GB (ID 1, SL: 1, Đơn giá: 28.000.000 đ) | Khách hàng: Nguyễn Văn A (ID 1002) | Tổng tiền: 28.000.000 đ | Thanh toán: COD (Tiền mặt khi nhận hàng)",
         affected_tables="orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
         source_node=mysql_p,
         target_nodes=mysql_secs,
         mechanism="Paxos Consensus (XCom 33061) + Binary Log GTID",
-        detail=f"Mở Transaction ACID trên Primary ({mysql_p}): Khóa dòng FOR UPDATE SP #1, trừ tồn kho, INSERT orders, order_items, payments. Kênh Paxos XCom đồng thuận Write-Set toàn cụm trước khi Commit.",
+        detail=f"Mở Transaction ACID trên Primary ({mysql_p}): Khóa dòng FOR UPDATE SP 1, trừ tồn kho, INSERT orders, order_items, payments. Kênh Paxos XCom đồng thuận Write-Set toàn cụm trước khi Commit.",
         latency_ms=642.0
     )
 
@@ -951,6 +951,11 @@ def get_sync_logs(
             l["title"] = re.sub(r"\s*·\s*[0-9.,]+\s*đ", "", l["title"])
             l["title"] = re.sub(r"\s*\([0-9]+\s*sao\)", "", l["title"])
             l["title"] = re.sub(r"\s*·\s*[0-9]+\s*bản ghi bù", "", l["title"])
+            l["title"] = re.sub(r"#([0-9]+)", r"\1", l["title"])
+        if l.get("summary"):
+            l["summary"] = re.sub(r"#([0-9]+)", r"\1", l["summary"])
+        if l.get("data_payload"):
+            l["data_payload"] = re.sub(r"#([0-9]+)", r"\1", l["data_payload"])
 
     # Lưu lại file để cập nhật trạng thái kết nối thực tế mới nhất
     save_sync_logs_to_file(SYNC_AUDIT_LOGS)
@@ -1713,14 +1718,14 @@ def checkout(req: OrderRequest):
             sync_entry = record_sync_log(
                 db_type="MYSQL_GR",
                 action="CHECKOUT_ORDER",
-                title=f"Đặt hàng #{order_id}",
-                summary=f"Sản phẩm: {prod['product_name']} (SL: {req.quantity}) | KH #{req.user_id} | PT: {req.payment_method} | 3 bảng",
-                data_payload=f"Mã đơn: #{order_id} | Sản phẩm: {prod['product_name']} (ID #{req.product_id}, SL: {req.quantity}, Đơn giá: {unit_price_fmt}) | Khách hàng: #{req.user_id} | Tổng tiền: {total_fmt} | Hình thức: {req.payment_method}",
+                title=f"Đặt hàng {order_id}",
+                summary=f"Sản phẩm: {prod['product_name']} (SL: {req.quantity}) | KH {req.user_id} | PT: {req.payment_method} | 3 bảng",
+                data_payload=f"Mã đơn: {order_id} | Sản phẩm: {prod['product_name']} (ID {req.product_id}, SL: {req.quantity}, Đơn giá: {unit_price_fmt}) | Khách hàng: {req.user_id} | Tổng tiền: {total_fmt} | Hình thức: {req.payment_method}",
                 affected_tables="orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
                 source_node=mysql_meta.get("host", "192.168.1.222"),
                 target_nodes=mysql_secondaries,
                 mechanism="Paxos Consensus (XCom 33061) + Binary Log GTID",
-                detail=f"Mở Transaction ACID trên Primary ({mysql_meta.get('host')}): Khóa dòng FOR UPDATE SP #{req.product_id}, trừ tồn kho {req.quantity}, INSERT orders, order_items, payments. Kênh Paxos XCom đồng thuận Write-Set toàn cụm trước khi Commit.",
+                detail=f"Mở Transaction ACID trên Primary ({mysql_meta.get('host')}): Khóa dòng FOR UPDATE SP {req.product_id}, trừ tồn kho {req.quantity}, INSERT orders, order_items, payments. Kênh Paxos XCom đồng thuận Write-Set toàn cụm trước khi Commit.",
                 latency_ms=tx_ms
             )
         except Exception as log_ex:
@@ -1811,9 +1816,9 @@ def add_review(req: ReviewRequest):
         sync_entry = record_sync_log(
             db_type="MONGO_RS",
             action="INSERT_REVIEW",
-            title=f"Đánh giá & Nhận xét SP #{req.product_id}",
+            title=f"Đánh giá & Nhận xét SP {req.product_id}",
             summary=f"Tiêu đề: '{req.title}' | Bình luận: '{req.comment[:40]}...' | Đóng gói: {req.packaging}",
-            data_payload=f"Sản phẩm ID: #{req.product_id} | Đánh giá: {req.rating} sao ({stars}) | Tiêu đề: '{req.title}' | Bình luận: '{req.comment}' | Đóng gói: {req.packaging}",
+            data_payload=f"Sản phẩm ID: {req.product_id} | Đánh giá: {req.rating} sao ({stars}) | Tiêu đề: '{req.title}' | Bình luận: '{req.comment}' | Đóng gói: {req.packaging}",
             affected_tables="product_reviews (1 BSON Document)",
             source_node=active_host,
             target_nodes=mongo_secondaries,

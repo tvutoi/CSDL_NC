@@ -1217,7 +1217,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                   class="form-control form-control-sm"
                   placeholder="Tìm kiếm nhanh..."
                   style="width: 170px"
-                  oninput="renderSyncLogsUI()" />
+                  oninput="currentSyncPage = 1; renderSyncLogsUI()" />
                 <button
                   class="btn btn-sm btn-outline-secondary"
                   onclick="loadSyncLogs()">
@@ -1255,6 +1255,23 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                     </tr>
                   </tbody>
                 </table>
+              </div>
+            </div>
+            <!-- PHÂN TRANG CHO DÒNG SỰ KIỆN ĐỒNG BỘ DỮ LIỆU -->
+            <div class="panel-footer bg-light py-2 px-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div class="small text-muted" id="sync-page-info">
+                Hiển thị <strong>0</strong> sự kiện đồng bộ
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <select id="sync-page-size" class="form-select form-select-sm" style="width: 120px;" onchange="changeSyncPageSize(this.value)">
+                  <option value="5">5 / trang</option>
+                  <option value="10" selected>10 / trang</option>
+                  <option value="20">20 / trang</option>
+                  <option value="50">50 / trang</option>
+                </select>
+                <nav aria-label="Phân trang sự kiện đồng bộ">
+                  <ul class="pagination pagination-sm mb-0" id="sync-pagination"></ul>
+                </nav>
               </div>
             </div>
           </div>
@@ -1859,9 +1876,12 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       // =========================================================================
       let currentSyncFilter = "ALL";
       let cachedSyncLogs = [];
+      let currentSyncPage = 1;
+      let currentSyncPageSize = 10;
 
       function filterSyncLogs(type) {
         currentSyncFilter = type;
+        currentSyncPage = 1;
         ["btn-sync-all", "btn-sync-mysql", "btn-sync-mongo"].forEach((id) => {
           const el = document.getElementById(id);
           if (el) el.classList.remove("active");
@@ -1925,7 +1945,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         }
       }
 
-      function renderSyncRowsHTML(logs, prefix) {
+      function renderSyncRowsHTML(logs, prefix, offset = 0) {
         if (!logs || logs.length === 0) {
           return `
             <tr>
@@ -1938,6 +1958,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         }
         return logs
           .map((l, idx) => {
+            const itemNum = (offset || 0) + idx + 1;
             const isMySQL = l.db_type === "MYSQL_GR";
             const dbBadge = isMySQL
               ? `<span class="badge-db-mysql">● MySQL</span>`
@@ -1970,9 +1991,10 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               statusHtml = `<span class="badge bg-success-subtle text-success border border-success-subtle fw-medium" title="Tất cả các node Replicas đã nhận dữ liệu"><i class="bi bi-check-circle me-1"></i>${l.status_text || "Đã đồng bộ"}</span>`;
             }
 
-            const detailId = `detail-${prefix}-${idx}-${l.log_id}`;
+            const detailId = `detail-${prefix}-${itemNum}-${l.log_id}`;
 
-            const payloadHtml = l.data_payload || l.summary || "";
+            const payloadHtml = (l.data_payload || l.summary || "").replace(/#([0-9]+)/g, "$1");
+            const cleanSummary = (l.summary || "").replace(/#([0-9]+)/g, "$1");
             const affectedTablesHtml = l.affected_tables
               ? `<div class="mt-1 small text-secondary"><strong>Bảng / Collection bị ghi:</strong> <code class="text-dark bg-white px-1 border rounded">${l.affected_tables}</code></div>`
               : "";
@@ -1984,15 +2006,16 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                  </div>`
               : "";
 
-            // Chuẩn hóa tiêu đề sự kiện ngắn gọn, nhận diện rõ mã ID (không cần lặp lại thông tin vì đã có chi tiết bên dưới)
+            // Chuẩn hóa tiêu đề sự kiện: Bỏ dấu # trước ID và hiển thị mã ID số trong badge nổi bật
             let cleanTitle = (l.title || "")
               .replace(/\s*·\s*[0-9.,]+\s*đ/gi, "")
               .replace(/\s*\([0-9]+\s*sao\)/gi, "")
               .replace(/\s*·\s*[0-9]+\s*bản ghi bù/gi, "")
+              .replace(/#([0-9]+)/g, "$1")
               .trim();
 
             const formattedTitle = cleanTitle.replace(
-              /(#[0-9]+)/g,
+              /(\b[0-9]{1,7}\b)/g,
               '<span class="badge bg-primary text-white font-monospace fw-bold px-1.5 py-0.5">$1</span>',
             );
 
@@ -2044,7 +2067,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             <tr class="sync-row-clickable" onclick="toggleSyncRow('${detailId}', '${prefix}')" title="Bấm để xem chi tiết dữ liệu cập nhật và cơ chế đồng bộ">
               <td class="text-center">
                 <div class="d-flex align-items-center justify-content-center gap-1 mb-1">
-                  <span class="badge bg-dark text-white fw-bold px-1.5 py-0.5" style="font-size: 11px;" title="Mẫu tin số ${idx + 1}">#${idx + 1}</span>
+                  <span class="badge bg-dark text-white fw-bold px-1.5 py-0.5" style="font-size: 11px;" title="Mẫu tin số ${itemNum}">${itemNum}</span>
                   <span class="fw-bold text-dark">${l.time || l.timestamp}</span>
                 </div>
                 <div class="text-center">
@@ -2057,7 +2080,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                   <span class="fw-semibold text-dark">${formattedTitle}</span>
                   <span class="text-muted small sync-chevron-${prefix}" id="chevron-${detailId}" style="font-size: 10px;">&#9662;</span>
                 </div>
-                <div class="text-secondary small mt-1" style="font-size: 11.5px; line-height: 1.4;">${l.summary}</div>
+                <div class="text-secondary small mt-1" style="font-size: 11.5px; line-height: 1.4;">${cleanSummary}</div>
               </td>
               <td class="text-center">${srcHtml}</td>
               <td class="text-center">${tgtHtml}</td>
@@ -2075,7 +2098,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         <i class="bi bi-file-earmark-diff text-primary me-1"></i>Dữ liệu cập nhật:
                       </div>
                       <div>
-                        <span class="badge bg-dark text-white font-monospace px-2 py-0.5 me-1">Mẫu tin #${idx + 1}</span>
+                        <span class="badge bg-dark text-white font-monospace px-2 py-0.5 me-1">Mẫu tin ${itemNum}</span>
                         <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle font-monospace px-2 py-0.5">${l.log_id}</span>
                       </div>
                     </div>
@@ -2186,16 +2209,84 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           );
         }
 
+        // ÁP DỤNG PHÂN TRANG CHO SECTION 4 (TAB 3)
+        const totalSyncItems = filteredTab.length;
+        const totalSyncPages = Math.max(1, Math.ceil(totalSyncItems / currentSyncPageSize));
+        if (currentSyncPage > totalSyncPages) currentSyncPage = totalSyncPages;
+        if (currentSyncPage < 1) currentSyncPage = 1;
+
+        const startIdx = (currentSyncPage - 1) * currentSyncPageSize;
+        const pageTab = filteredTab.slice(startIdx, startIdx + currentSyncPageSize);
+
         const t1 = document.getElementById("sync-audit-stream-table");
-        if (t1) t1.innerHTML = renderSyncRowsHTML(filteredTab, "tab");
+        if (t1) t1.innerHTML = renderSyncRowsHTML(pageTab, "tab", startIdx);
+
+        renderSyncPagination(currentSyncPage, totalSyncPages, totalSyncItems, currentSyncPageSize);
 
         const t2 = document.getElementById("modal-sync-audit-table");
-        if (t2) t2.innerHTML = renderSyncRowsHTML(filteredModal, "modal");
+        if (t2) t2.innerHTML = renderSyncRowsHTML(filteredModal, "modal", 0);
 
         const info = document.getElementById("sync-log-total-info");
         if (info) {
           info.innerText = `${filteredModal.length}`;
         }
+      }
+
+      function changeSyncPage(p) {
+        currentSyncPage = p;
+        renderSyncLogsUI();
+      }
+
+      function changeSyncPageSize(sz) {
+        currentSyncPageSize = parseInt(sz, 10) || 10;
+        currentSyncPage = 1;
+        renderSyncLogsUI();
+      }
+
+      function renderSyncPagination(page, totalPages, totalItems, limit) {
+        const infoEl = document.getElementById("sync-page-info");
+        const navEl = document.getElementById("sync-pagination");
+        if (!infoEl || !navEl) return;
+
+        if (totalItems === 0) {
+          infoEl.innerHTML = `Hiển thị <strong>0</strong> sự kiện`;
+          navEl.innerHTML = "";
+          return;
+        }
+        const startIdx = (page - 1) * limit + 1;
+        const endIdx = Math.min(page * limit, totalItems);
+        infoEl.innerHTML =
+          `Hiển thị <strong>${startIdx.toLocaleString("vi-VN")} &ndash; ${endIdx.toLocaleString("vi-VN")}</strong> ` +
+          `trên tổng số <strong>${totalItems.toLocaleString("vi-VN")}</strong> sự kiện (Trang ${page.toLocaleString("vi-VN")}/${totalPages.toLocaleString("vi-VN")})`;
+
+        let html = "";
+        const prevDisabled = page <= 1 ? "disabled" : "";
+        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="changeSyncPage(1)">&laquo; Đầu</button></li>`;
+        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="changeSyncPage(${page - 1})">&lsaquo; Trước</button></li>`;
+
+        const startPage = Math.max(1, page - 2);
+        const endPage = Math.min(totalPages, page + 2);
+        if (startPage > 1) {
+          html += `<li class="page-item"><button class="page-link" onclick="changeSyncPage(1)">1</button></li>`;
+          if (startPage > 2) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+          }
+        }
+        for (let p = startPage; p <= endPage; p++) {
+          const activeCls = p === page ? "active" : "";
+          html += `<li class="page-item ${activeCls}"><button class="page-link" onclick="changeSyncPage(${p})">${p}</button></li>`;
+        }
+        if (endPage < totalPages) {
+          if (endPage < totalPages - 1) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+          }
+          html += `<li class="page-item"><button class="page-link" onclick="changeSyncPage(${totalPages})">${totalPages}</button></li>`;
+        }
+
+        const nextDisabled = page >= totalPages ? "disabled" : "";
+        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="changeSyncPage(${page + 1})">Sau &rsaquo;</button></li>`;
+        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="changeSyncPage(${totalPages})">Cuối &raquo;</button></li>`;
+        navEl.innerHTML = html;
       }
 
       async function loadSyncLogs() {
