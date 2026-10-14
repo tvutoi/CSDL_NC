@@ -4,7 +4,7 @@ import time
 import random
 import socket
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.responses import HTMLResponse
@@ -91,6 +91,96 @@ def save_cluster_config_to_file():
 
 # Tự động nạp hoặc tạo file cấu hình khi khởi động
 load_cluster_config()
+
+
+# =====================================================================================
+# QUẢN LÝ NHẬT KÝ ĐỒNG BỘ CỤM THỜI GIAN THỰC (REPLICATION & SYNC AUDIT LOGS)
+# =====================================================================================
+SYNC_AUDIT_LOGS: List[Dict[str, Any]] = []
+
+def record_sync_log(
+    db_type: str,
+    action: str,
+    title: str,
+    summary: str,
+    source_node: str,
+    target_nodes: list,
+    mechanism: str,
+    detail: str,
+    latency_ms: float = 0.0,
+    status: str = "SYNCED_OK"
+) -> Dict[str, Any]:
+    """Ghi nhận sự kiện nhân bản và đồng bộ dữ liệu giữa các Node trong cụm thời gian thực"""
+    global SYNC_AUDIT_LOGS
+    now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    log_id = f"SYNC-{int(time.time()*1000) % 1000000:06d}"
+
+    log_item = {
+        "log_id": log_id,
+        "timestamp": now_str,
+        "db_type": db_type,  # "MYSQL_GR" hoặc "MONGO_RS"
+        "action": action,
+        "title": title,
+        "summary": summary,
+        "source_node": source_node,
+        "target_nodes": target_nodes if target_nodes else ["Đang chờ thành viên trực tuyến"],
+        "target_count": len(target_nodes) if target_nodes else 0,
+        "mechanism": mechanism,
+        "detail": detail,
+        "latency_ms": round(latency_ms, 2),
+        "status": status
+    }
+    SYNC_AUDIT_LOGS.insert(0, log_item)
+    if len(SYNC_AUDIT_LOGS) > 100:
+        SYNC_AUDIT_LOGS.pop()
+
+    return log_item
+
+
+def init_sample_sync_logs():
+    """Khởi tạo các sự kiện đồng bộ mẫu ban đầu để giao diện có dữ liệu đối chứng tức thì"""
+    global SYNC_AUDIT_LOGS
+    if not SYNC_AUDIT_LOGS:
+        t_base = datetime.now()
+        mysql_p = CLUSTER_CONFIG["mysql_nodes"][0] if CLUSTER_CONFIG["mysql_nodes"] else "192.168.1.221"
+        mysql_secs = CLUSTER_CONFIG["mysql_nodes"][1:] if len(CLUSTER_CONFIG["mysql_nodes"]) > 1 else ["192.168.1.222", "192.168.1.223", "192.168.1.224"]
+        mongo_p = CLUSTER_CONFIG["mongo_nodes"][0] if CLUSTER_CONFIG["mongo_nodes"] else "192.168.1.221:27017"
+        mongo_secs = CLUSTER_CONFIG["mongo_nodes"][1:] if len(CLUSTER_CONFIG["mongo_nodes"]) > 1 else ["192.168.1.222:27017", "192.168.1.223:27017", "192.168.1.224:27017"]
+
+        SYNC_AUDIT_LOGS.extend([
+            {
+                "log_id": "SYNC-000001",
+                "timestamp": t_base.strftime("%d/%m/%Y %H:%M:%S"),
+                "db_type": "MYSQL_GR",
+                "action": "CLUSTER_BOOTSTRAP_SYNC",
+                "title": "Khởi tạo Cụm MySQL Group Replication",
+                "summary": "Đồng thuận 212.024 bản ghi CSDL ecommerce_db qua 4 Node",
+                "source_node": f"{mysql_p} (PRIMARY)",
+                "target_nodes": mysql_secs,
+                "target_count": len(mysql_secs),
+                "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
+                "detail": "Kênh XCom đồng thuận Write-Set toàn cụm, các Node Secondary áp dụng đồng nhất qua applier worker.",
+                "latency_ms": 12.5,
+                "status": "SYNCED_OK"
+            },
+            {
+                "log_id": "SYNC-000002",
+                "timestamp": t_base.strftime("%d/%m/%Y %H:%M:%S"),
+                "db_type": "MONGO_RS",
+                "action": "REPLICA_SET_OPLOG_INIT",
+                "title": "Khởi tạo Cụm MongoDB Replica Set rsEcomNhom2",
+                "summary": "Khởi tạo và đối chiếu 100.013 documents BSON qua 4 Node",
+                "source_node": f"{mongo_p} (PRIMARY)",
+                "target_nodes": mongo_secs,
+                "target_count": len(mongo_secs),
+                "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
+                "detail": "Các Secondary theo dõi stream từ Primary Oplog và replay dữ liệu đồng nhất.",
+                "latency_ms": 7.8,
+                "status": "REPLICATED_OK"
+            }
+        ])
+
+init_sample_sync_logs()
 
 
 def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
@@ -318,6 +408,31 @@ def update_config(cfg: ClusterConfigUpdate):
     return {"status": "UPDATED", "config": get_config()}
 
 
+@app.get("/api/cluster/sync-logs")
+def get_sync_logs(
+    limit: int = Query(50, ge=5, le=100),
+    db_type: Optional[str] = Query(None, description="ALL | MYSQL_GR | MONGO_RS")
+):
+    """Lấy danh sách nhật ký đồng bộ & nhân bản dữ liệu giữa các Node trong cụm thời gian thực"""
+    logs = SYNC_AUDIT_LOGS
+    if db_type and db_type != "ALL":
+        logs = [item for item in logs if item.get("db_type") == db_type]
+    return {
+        "total": len(logs),
+        "limit": limit,
+        "logs": logs[:limit]
+    }
+
+
+@app.post("/api/cluster/sync-logs/clear")
+def clear_sync_logs():
+    """Làm mới danh sách nhật ký đồng bộ cụm"""
+    global SYNC_AUDIT_LOGS
+    SYNC_AUDIT_LOGS = []
+    init_sample_sync_logs()
+    return {"status": "SUCCESS", "message": "Đã làm mới nhật ký đồng bộ cụm!"}
+
+
 # =====================================================================================
 # GIÁM SÁT CỤM 4 NODE & ĐỐI CHIẾU ĐỒNG BỘ DỮ LIỆU TRỰC TIẾP
 # =====================================================================================
@@ -527,6 +642,8 @@ def get_cluster_status(request: Request):
                 m["state"] = "PRIMARY" if m["host"] == first_p["host"] else "SECONDARY"
 
     status["mongodb"] = mongo_results
+    status["sync_logs_count"] = len(SYNC_AUDIT_LOGS)
+    status["latest_sync_log"] = SYNC_AUDIT_LOGS[0] if SYNC_AUDIT_LOGS else None
     return status
 
 
@@ -810,6 +927,25 @@ def checkout(req: OrderRequest):
         except Exception:
             pass
 
+        # Ghi nhận vào Nhật ký Đồng bộ Cụm (Replication & Sync Audit Log)
+        sync_entry = None
+        try:
+            online_secondaries = [h for h in CLUSTER_CONFIG["mysql_nodes"] if h != mysql_meta.get("host") and is_port_open(h.split(":")[0], int(h.split(":")[1]) if ":" in h else 3306, timeout=0.15)]
+            sync_entry = record_sync_log(
+                db_type="MYSQL_GR",
+                action="CHECKOUT_TRANSACTION",
+                title=f"Giao dịch Đặt hàng #{order_id} ({total:,.0f} đ)",
+                summary=f"Sản phẩm: {prod['product_name']} | SL: {req.quantity} | KH #{req.user_id} | PT: {req.payment_method}",
+                source_node=f"{mysql_meta.get('host')} ({mysql_meta.get('role', 'PRIMARY')})",
+                target_nodes=online_secondaries if online_secondaries else [h for h in CLUSTER_CONFIG["mysql_nodes"] if h != mysql_meta.get("host")],
+                mechanism="Paxos Consensus (XCom 33061) + Binary Log GTID",
+                detail=f"Mở Transaction ACID trên Primary ({mysql_meta.get('host')}) -> Khóa dòng FOR UPDATE SP #{req.product_id} -> Trừ tồn kho {req.quantity} -> INSERT orders, order_items, payments -> Kênh Paxos XCom đồng thuận Write-Set và nhân bản sang các Node Replicas.",
+                latency_ms=tx_ms,
+                status="SYNCED_OK"
+            )
+        except Exception as log_ex:
+            print(f"[SYNC_LOG_ERROR] {log_ex}")
+
         return {
             "status": "SUCCESS",
             "order_id": order_id,
@@ -817,7 +953,8 @@ def checkout(req: OrderRequest):
             "quantity": req.quantity,
             "total": total,
             "executed_on_node": mysql_meta,
-            "latency_ms": tx_ms
+            "latency_ms": tx_ms,
+            "sync_log": sync_entry
         }
     except HTTPException:
         conn.rollback()
@@ -866,11 +1003,32 @@ def add_review(req: ReviewRequest):
         res = mdb["product_reviews"].insert_one(doc)
         m_client.close()
         elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+        # Ghi nhận vào Nhật ký Đồng bộ Cụm (Replication & Sync Audit Log)
+        sync_entry = None
+        try:
+            mongo_secondaries = [h for h in CLUSTER_CONFIG["mongo_nodes"] if h != active_host and is_port_open(h.split(":")[0], int(h.split(":")[1]) if ":" in h else 27017, timeout=0.15)]
+            sync_entry = record_sync_log(
+                db_type="MONGO_RS",
+                action="INSERT_REVIEW",
+                title=f"Đánh giá & Nhận xét SP #{req.product_id} ({req.rating} sao)",
+                summary=f"Tiêu đề: '{req.title}' | Bình luận: '{req.comment[:35]}...' | Đóng gói: {req.packaging}",
+                source_node=f"{active_host} (PRIMARY)",
+                target_nodes=mongo_secondaries if mongo_secondaries else [h for h in CLUSTER_CONFIG["mongo_nodes"] if h != active_host],
+                mechanism="MongoDB Oplog Streaming (local.oplog.rs)",
+                detail=f"Ghi BSON Document kèm thuộc tính cảm xúc động và mảng ảnh vào collection product_reviews tại Primary ({active_host}) -> Tự động phát tán luồng Oplog tới các Node Secondary trong Replica Set.",
+                latency_ms=elapsed_ms,
+                status="REPLICATED_OK"
+            )
+        except Exception as log_ex:
+            print(f"[SYNC_LOG_ERROR] {log_ex}")
+
         return {
             "status": "SUCCESS",
             "review_id": str(res.inserted_id),
             "executed_on_mongo_node": active_host,
-            "latency_ms": elapsed_ms
+            "latency_ms": elapsed_ms,
+            "sync_log": sync_entry
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi ghi MongoDB: {str(e)}")

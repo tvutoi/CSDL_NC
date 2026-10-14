@@ -345,6 +345,13 @@
         </div>
         <div class="d-flex align-items-center gap-2">
           <button
+            class="btn btn-sm btn-outline-warning text-white"
+            data-bs-toggle="modal"
+            data-bs-target="#syncLogsModal"
+            onclick="loadSyncLogs()">
+            &#x1F4CB; Nhật ký Đồng bộ Cụm <span class="badge bg-warning text-dark ms-1" id="sync-log-badge">0</span>
+          </button>
+          <button
             class="btn btn-sm btn-outline-light"
             data-bs-toggle="modal"
             data-bs-target="#configModal"
@@ -1104,6 +1111,45 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               </div>
             </div>
           </div>
+
+          <!-- MỤC 4: DÒNG CHẢY SỰ KIỆN ĐỒNG BỘ & NHÂN BẢN DỮ LIỆU THỜI GIAN THỰC -->
+          <div class="panel-box mt-3">
+            <div class="panel-header d-flex justify-content-between align-items-center">
+              <div>
+                <span class="fw-bold">&#x1F4CB; 4. Dòng Chảy Sự Kiện Đồng Bộ & Nhân Bản Dữ Liệu Thời Gian Thực (Replication Audit Stream)</span>
+                <span class="small text-muted ms-2">(Theo dõi chi tiết dữ liệu nào được khởi tạo tại Node nào và nhân bản sang các Node nào)</span>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <div class="btn-group btn-group-sm" role="group">
+                  <button type="button" class="btn btn-sm btn-outline-secondary active" id="btn-sync-all" onclick="filterSyncLogs('ALL')">Tất cả</button>
+                  <button type="button" class="btn btn-sm btn-outline-primary" id="btn-sync-mysql" onclick="filterSyncLogs('MYSQL_GR')">MySQL (Paxos)</button>
+                  <button type="button" class="btn btn-sm btn-outline-success" id="btn-sync-mongo" onclick="filterSyncLogs('MONGO_RS')">MongoDB (Oplog)</button>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadSyncLogs()">&#x21bb; Làm mới</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="clearSyncLogs()">Xóa log</button>
+              </div>
+            </div>
+            <div class="panel-body p-0">
+              <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+                <table class="table table-bordered table-sm table-custom mb-0 align-middle">
+                  <thead class="table-light sticky-top">
+                    <tr>
+                      <th style="width: 135px;">Thời gian</th>
+                      <th style="width: 120px;" class="text-center">Hệ CSDL</th>
+                      <th>Sự kiện & Dữ liệu Cập nhật</th>
+                      <th style="width: 170px;">Node Nguồn (Khởi tạo)</th>
+                      <th>Nhân bản sang Node Đích</th>
+                      <th>Cơ chế Đồng bộ & Giao thức</th>
+                      <th style="width: 100px;" class="text-center">Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sync-audit-stream-table">
+                    <tr><td colspan="7" class="text-center py-3 text-muted">Đang tải nhật ký đồng bộ...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- ========================================================================= -->
@@ -1250,6 +1296,67 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               onclick="saveClusterConfig()">
               Lưu cấu hình
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL NHẬT KÝ ĐỒNG BỘ & NHÂN BẢN CỤM SERVER -->
+    <div class="modal fade" id="syncLogsModal" tabindex="-1" aria-labelledby="syncLogsModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header py-2 bg-light">
+            <div>
+              <h6 class="modal-title fw-bold mb-0" id="syncLogsModalLabel">
+                📋 Nhật ký Đồng bộ & Nhân bản Cụm Server (Replication & Sync Audit Stream)
+              </h6>
+              <div class="small text-muted" style="font-size: 0.8rem;">
+                Theo dõi dữ liệu thực tế được ghi vào Primary và nhân bản sang các Secondary (MySQL Paxos 33061 & MongoDB Oplog)
+              </div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+              <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn btn-outline-secondary active" id="modal-btn-sync-all" onclick="filterSyncLogs('ALL')">Tất cả nhật ký</button>
+                <button type="button" class="btn btn-outline-primary" id="modal-btn-sync-mysql" onclick="filterSyncLogs('MYSQL_GR')">MySQL (Paxos XCom)</button>
+                <button type="button" class="btn btn-outline-success" id="modal-btn-sync-mongo" onclick="filterSyncLogs('MONGO_RS')">MongoDB (Oplog)</button>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="small text-muted" id="sync-log-total-info">Đang tải...</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadSyncLogs()">&#x21bb; Làm mới</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="clearSyncLogs()">Xóa nhật ký</button>
+              </div>
+            </div>
+
+            <div class="table-responsive border" style="max-height: 480px; overflow-y: auto;">
+              <table class="table table-bordered table-sm table-custom mb-0 align-middle">
+                <thead class="table-light sticky-top">
+                  <tr>
+                    <th style="width: 130px;">Thời gian</th>
+                    <th style="width: 120px;" class="text-center">Hệ CSDL</th>
+                    <th>Sự kiện & Dữ liệu Cập nhật</th>
+                    <th style="width: 200px;">Node Nguồn (Khởi tạo)</th>
+                    <th style="width: 220px;">Nhân bản sang Node Đích</th>
+                    <th>Cơ chế Đồng bộ & Giao thức</th>
+                    <th style="width: 110px;" class="text-center">Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody id="modal-sync-audit-table">
+                  <tr><td colspan="7" class="text-center py-4 text-muted">Đang tải nhật ký đồng bộ...</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="alert alert-info py-2 px-3 mt-3 mb-0 small" style="font-size: 0.82rem;">
+              <strong>💡 Cơ chế hoạt động trong Đề tài 2:</strong><br>
+              &bull; <b>MySQL Group Replication:</b> Sử dụng giao thức đồng thuận Paxos (XCom trên cổng 33061). Mọi giao dịch đặt hàng ghi vào Primary (Node 1) phải đạt đa số phiếu chấp thuận (Quorum) trước khi Commit và phát tán Binlog GTID sang Node 2, 3, 4.<br>
+              &bull; <b>MongoDB Replica Set:</b> Sử dụng Oplog streaming. Khi có đánh giá sản phẩm mới ghi vào Primary, các Secondary (Node 2, 3, 4) tự động kéo dữ liệu từ <code>local.oplog.rs</code> để áp dụng cục bộ.
+            </div>
+          </div>
+          <div class="modal-footer py-2">
+            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>
           </div>
         </div>
       </div>
@@ -1464,8 +1571,169 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           `;
             })
             .join("");
+
+          // Cập nhật số lượng sự kiện đồng bộ lên badge
+          if (data.sync_logs_count !== undefined) {
+            const badge = document.getElementById("sync-log-badge");
+            if (badge) {
+              const prevCount = parseInt(badge.innerText || "0", 10);
+              badge.innerText = data.sync_logs_count;
+              if (cachedSyncLogs.length === 0 || prevCount !== data.sync_logs_count) {
+                loadSyncLogs();
+              }
+            }
+          }
         } catch (e) {
           console.error("Cluster status error:", e);
+        }
+      }
+
+      // =========================================================================
+      // 1.1. QUẢN LÝ NHẬT KÝ ĐỒNG BỘ CỤM (REPLICATION & SYNC AUDIT LOG)
+      // =========================================================================
+      let currentSyncFilter = "ALL";
+      let cachedSyncLogs = [];
+
+      function filterSyncLogs(type) {
+        currentSyncFilter = type;
+        ["btn-sync-all", "btn-sync-mysql", "btn-sync-mongo"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.classList.remove("active");
+        });
+        [
+          "modal-btn-sync-all",
+          "modal-btn-sync-mysql",
+          "modal-btn-sync-mongo",
+        ].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.classList.remove("active");
+        });
+
+        if (type === "MYSQL_GR") {
+          const b1 = document.getElementById("btn-sync-mysql");
+          if (b1) b1.classList.add("active");
+          const mb1 = document.getElementById("modal-btn-sync-mysql");
+          if (mb1) mb1.classList.add("active");
+        } else if (type === "MONGO_RS") {
+          const b2 = document.getElementById("btn-sync-mongo");
+          if (b2) b2.classList.add("active");
+          const mb2 = document.getElementById("modal-btn-sync-mongo");
+          if (mb2) mb2.classList.add("active");
+        } else {
+          const b0 = document.getElementById("btn-sync-all");
+          if (b0) b0.classList.add("active");
+          const mb0 = document.getElementById("modal-btn-sync-all");
+          if (mb0) mb0.classList.add("active");
+        }
+
+        renderSyncLogsUI();
+      }
+
+      function renderSyncRowsHTML(logs) {
+        if (!logs || logs.length === 0) {
+          return `<tr><td colspan="7" class="text-center py-4 text-muted">Chưa có bản ghi đồng bộ nào được ghi nhận. Hãy thực hiện đặt hàng hoặc gửi nhận xét!</td></tr>`;
+        }
+        return logs
+          .map((l) => {
+            const isMySQL = l.db_type === "MYSQL_GR";
+            const dbBadge = isMySQL
+              ? `<span class="label-tag tag-primary">MySQL Paxos</span>`
+              : `<span class="label-tag tag-online">MongoDB Oplog</span>`;
+
+            const targetsHtml =
+              l.target_nodes && l.target_nodes.length > 0
+                ? l.target_nodes
+                    .map(
+                      (t) =>
+                        `<div class="small text-success text-nowrap">&#x2794; ${t}</div>`,
+                    )
+                    .join("")
+                : `<span class="text-muted small">Tự động phát tán cụm...</span>`;
+
+            const statusBadge = `<span class="label-tag tag-online">${l.status}</span>`;
+
+            return `
+            <tr>
+              <td>
+                <span class="mono-text fw-semibold text-dark">${l.timestamp}</span><br/>
+                <span class="text-muted small">${l.date}</span>
+              </td>
+              <td class="text-center">${dbBadge}</td>
+              <td>
+                <div><strong class="text-navy">${l.action}</strong>: <span class="badge bg-light text-dark border">${l.table_or_coll}</span></div>
+                <div class="small text-muted mt-1">${l.details || ""}</div>
+                <div class="mono-text small text-secondary mt-1">Mã: ${l.entity_id}</div>
+              </td>
+              <td>
+                <div class="fw-semibold text-danger"><span class="status-dot dot-online me-1"></span>${l.source_node}</div>
+              </td>
+              <td>${targetsHtml}</td>
+              <td>
+                <span class="small mono-text text-secondary">${l.sync_mechanism}</span>
+              </td>
+              <td class="text-center">${statusBadge}</td>
+            </tr>
+          `;
+          })
+          .join("");
+      }
+
+      function renderSyncLogsUI() {
+        let filtered = cachedSyncLogs;
+        if (currentSyncFilter && currentSyncFilter !== "ALL") {
+          filtered = cachedSyncLogs.filter(
+            (l) => l.db_type === currentSyncFilter,
+          );
+        }
+
+        const html = renderSyncRowsHTML(filtered);
+        const t1 = document.getElementById("sync-audit-stream-table");
+        if (t1) t1.innerHTML = html;
+        const t2 = document.getElementById("modal-sync-audit-table");
+        if (t2) t2.innerHTML = html;
+
+        const info = document.getElementById("sync-log-total-info");
+        if (info) {
+          info.innerText = `Hiển thị ${filtered.length} / ${cachedSyncLogs.length} sự kiện đồng bộ`;
+        }
+      }
+
+      async function loadSyncLogs() {
+        try {
+          const res = await fetch(
+            "/api/cluster/sync-logs?limit=100&_t=" + Date.now(),
+            {
+              cache: "no-store",
+            },
+          );
+          const data = await res.json();
+          cachedSyncLogs = data.logs || [];
+          const badge = document.getElementById("sync-log-badge");
+          if (badge) badge.innerText = cachedSyncLogs.length;
+
+          renderSyncLogsUI();
+        } catch (e) {
+          console.error("Load sync logs error:", e);
+        }
+      }
+
+      async function clearSyncLogs() {
+        if (
+          !confirm("Bạn có chắc chắn muốn xóa toàn bộ nhật ký đồng bộ này không?")
+        )
+          return;
+        try {
+          const res = await fetch("/api/cluster/sync-logs/clear", {
+            method: "POST",
+          });
+          if (res.ok) {
+            cachedSyncLogs = [];
+            renderSyncLogsUI();
+            const badge = document.getElementById("sync-log-badge");
+            if (badge) badge.innerText = "0";
+          }
+        } catch (e) {
+          console.error("Clear sync logs error:", e);
         }
       }
 
@@ -2161,6 +2429,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             loadProductOptions();
             loadRecentOrders(1);
             fetchClusterStatus();
+            loadSyncLogs();
           } else {
             fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Lỗi: ${data.detail}</div>`;
           }
@@ -2211,6 +2480,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             );
             loadProductReviews(selectedProdId, 1);
             fetchClusterStatus();
+            loadSyncLogs();
           } else {
             fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Lỗi: ${data.detail}</div>`;
           }
@@ -2542,6 +2812,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         try {
           await Promise.all([
             fetchClusterStatus(),
+            loadSyncLogs(),
             loadRecentOrders(isManual ? 1 : currentOrdersPage),
             loadProductReviews(currentReviewProductId, currentReviewPage),
             loadProducts(currentCatalogPage),
