@@ -278,6 +278,9 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
                 user=CLUSTER_CONFIG["mysql_user"],
                 password=CLUSTER_CONFIG["mysql_password"],
                 database=CLUSTER_CONFIG["mysql_db"],
+                charset="utf8mb4",
+                use_unicode=True,
+                collation="utf8mb4_unicode_ci",
                 connection_timeout=2
             )
             cur = conn.cursor(dictionary=True)
@@ -344,6 +347,9 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
             user=CLUSTER_CONFIG["mysql_user"],
             password=CLUSTER_CONFIG["mysql_password"],
             database=CLUSTER_CONFIG["mysql_db"],
+            charset="utf8mb4",
+            use_unicode=True,
+            collation="utf8mb4_unicode_ci",
             connection_timeout=2
         )
         cur = conn.cursor(dictionary=True)
@@ -883,6 +889,9 @@ def checkout(req: OrderRequest):
                     user=CLUSTER_CONFIG["mysql_user"],
                     password=CLUSTER_CONFIG["mysql_password"],
                     database=CLUSTER_CONFIG["mysql_db"],
+                    charset="utf8mb4",
+                    use_unicode=True,
+                    collation="utf8mb4_unicode_ci",
                     autocommit=True,
                     connection_timeout=2
                 )
@@ -1320,6 +1329,9 @@ def run_benchmark(iterations: int = Query(20, ge=5, le=100)):
                     user=CLUSTER_CONFIG["mysql_user"],
                     password=CLUSTER_CONFIG["mysql_password"],
                     database=CLUSTER_CONFIG["mysql_db"],
+                    charset="utf8mb4",
+                    use_unicode=True,
+                    collation="utf8mb4_unicode_ci",
                     connection_timeout=2
                 )
                 online_pools.append((c, host))
