@@ -186,49 +186,6 @@ def record_sync_log(
     return log_item
 
 
-def init_sample_sync_logs():
-    """Khởi tạo các sự kiện đồng bộ mẫu ban đầu với đầy đủ Dữ liệu Cập nhật và chi tiết kỹ thuật"""
-    global SYNC_AUDIT_LOGS
-    if not SYNC_AUDIT_LOGS:
-        mysql_p = CLUSTER_CONFIG["mysql_nodes"][0] if CLUSTER_CONFIG["mysql_nodes"] else "192.168.1.221"
-        mysql_secs = CLUSTER_CONFIG["mysql_nodes"][1:] if len(CLUSTER_CONFIG["mysql_nodes"]) > 1 else ["192.168.1.222", "192.168.1.222:3307", "192.168.1.222:3308"]
-        mongo_p = CLUSTER_CONFIG["mongo_nodes"][0] if CLUSTER_CONFIG["mongo_nodes"] else "192.168.1.221:27017"
-        mongo_secs = CLUSTER_CONFIG["mongo_nodes"][1:] if len(CLUSTER_CONFIG["mongo_nodes"]) > 1 else ["192.168.1.222:27017", "192.168.1.222:27018", "192.168.1.222:27019"]
-
-        # 1. Sự kiện MongoDB (Khớp dữ liệu cập nhật như hình mẫu)
-        record_sync_log(
-            db_type="MONGO_RS",
-            action="INSERT_REVIEW",
-            title="Đánh giá & Nhận xét SP #1 (5 sao)",
-            summary="Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy...' | Đóng gói: Nguyên hộp, bọc chống sốc",
-            data_payload="Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy chạy rất mượt' | Đánh giá: 5 sao | Đóng gói: Nguyên hộp, bọc chống sốc",
-            affected_tables="product_reviews (1 BSON Document)",
-            source_node=mongo_p,
-            target_nodes=mongo_secs,
-            mechanism="MongoDB Oplog Streaming (local.oplog.rs)",
-            detail=f"Ghi BSON Document kèm thuộc tính cảm xúc động và mảng ảnh vào collection product_reviews tại Primary ({mongo_p}). Tự động phát tán luồng Oplog tới các Node Secondary trong Replica Set.",
-            latency_ms=559.0,
-            status="SYNCED"
-        )
-
-        # 2. Sự kiện MySQL (Đặt hàng giao dịch thực tế)
-        record_sync_log(
-            db_type="MYSQL_GR",
-            action="CHECKOUT_ORDER",
-            title="Đặt hàng #50009 · 28.000.000 đ",
-            summary="Sản phẩm: iPhone 15 Pro Max (SL: 1) | Khách hàng: Nguyễn Văn A (#1002) | Phương thức: COD | 3 bảng",
-            data_payload="Mã đơn: #50009 | Sản phẩm: iPhone 15 Pro Max 256GB (ID #1, SL: 1, Đơn giá: 28.000.000 đ) | Khách hàng: Nguyễn Văn A (ID #1002) | Tổng tiền: 28.000.000 đ | Thanh toán: COD (Tiền mặt khi nhận hàng)",
-            affected_tables="orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
-            source_node=mysql_p,
-            target_nodes=mysql_secs,
-            mechanism="Paxos Consensus (XCom 33061) + Binary Log GTID",
-            detail=f"Mở Transaction ACID trên Primary ({mysql_p}): Khóa dòng FOR UPDATE SP #1, trừ tồn kho, INSERT orders, order_items, payments. Kênh Paxos XCom đồng thuận Write-Set toàn cụm trước khi Commit.",
-            latency_ms=642.0,
-            status="SYNCED"
-        )
-
-
-init_sample_sync_logs()
 
 
 def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
@@ -423,6 +380,121 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
         )
 
 
+def detect_active_primaries():
+    """
+    Tự động phát hiện Node Primary thực tế đang hoạt động (ONLINE) của cả MySQL và MongoDB.
+    Đảm bảo nếu Node 1 (192.168.1.221) OFFLINE thì sẽ tự động nhận diện Node 2 (192.168.1.222) làm Primary,
+    và các node còn lại (Node 3, 4) làm Replicas.
+    """
+    # 1. Phát hiện MySQL Primary
+    mysql_p = None
+    mysql_secs = []
+    try:
+        conn, meta = get_mysql_connection(mode="primary")
+        mysql_p = meta.get("host")
+        conn.close()
+    except Exception:
+        pass
+
+    if not mysql_p:
+        for node in CLUSTER_CONFIG["mysql_nodes"]:
+            h = node.split(":")[0]
+            p = int(node.split(":")[1]) if ":" in node else 3306
+            if is_port_open(h, p, timeout=0.25):
+                mysql_p = node
+                break
+
+    if not mysql_p:
+        mysql_p = CLUSTER_CONFIG["mysql_nodes"][1] if len(CLUSTER_CONFIG["mysql_nodes"]) > 1 else "192.168.1.222"
+
+    for node in CLUSTER_CONFIG["mysql_nodes"]:
+        if node != mysql_p:
+            h = node.split(":")[0]
+            p = int(node.split(":")[1]) if ":" in node else 3306
+            if is_port_open(h, p, timeout=0.15):
+                mysql_secs.append(node)
+    if not mysql_secs:
+        mysql_secs = [n for n in CLUSTER_CONFIG["mysql_nodes"] if n != mysql_p]
+
+    # 2. Phát hiện MongoDB Primary
+    mongo_p = None
+    mongo_secs = []
+    try:
+        c, meta = get_mongo_client(read_mode="primary", with_meta=True)
+        mongo_p = meta.get("host") if isinstance(meta, dict) else meta
+        c.close()
+    except Exception:
+        pass
+
+    if not mongo_p:
+        for node in CLUSTER_CONFIG["mongo_nodes"]:
+            h = node.split(":")[0]
+            p = int(node.split(":")[1]) if ":" in node else 27017
+            if is_port_open(h, p, timeout=0.25):
+                mongo_p = node
+                break
+
+    if not mongo_p:
+        mongo_p = CLUSTER_CONFIG["mongo_nodes"][1] if len(CLUSTER_CONFIG["mongo_nodes"]) > 1 else "192.168.1.222:27017"
+
+    for node in CLUSTER_CONFIG["mongo_nodes"]:
+        if node != mongo_p:
+            h = node.split(":")[0]
+            p = int(node.split(":")[1]) if ":" in node else 27017
+            if is_port_open(h, p, timeout=0.15):
+                mongo_secs.append(node)
+    if not mongo_secs:
+        mongo_secs = [n for n in CLUSTER_CONFIG["mongo_nodes"] if n != mongo_p]
+
+    return mysql_p, mysql_secs, mongo_p, mongo_secs
+
+
+def init_sample_sync_logs(force: bool = False):
+    """Khởi tạo các sự kiện đồng bộ mẫu ban đầu với đầy đủ Dữ liệu Cập nhật và chi tiết kỹ thuật theo đúng Node Primary thực tế"""
+    global SYNC_AUDIT_LOGS
+    if not SYNC_AUDIT_LOGS or force:
+        SYNC_AUDIT_LOGS.clear()
+        mysql_p, mysql_secs, mongo_p, mongo_secs = detect_active_primaries()
+
+        # 1. Sự kiện MongoDB (Khớp dữ liệu cập nhật thực tế)
+        record_sync_log(
+            db_type="MONGO_RS",
+            action="INSERT_REVIEW",
+            title="Đánh giá & Nhận xét SP #1 (5 sao)",
+            summary="Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy...' | Đóng gói: Nguyên hộp, bọc chống sốc",
+            data_payload="Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy chạy rất mượt' | Đánh giá: 5 sao | Đóng gói: Nguyên hộp, bọc chống sốc",
+            affected_tables="product_reviews (1 BSON Document)",
+            source_node=mongo_p,
+            target_nodes=mongo_secs,
+            mechanism="MongoDB Oplog Streaming (local.oplog.rs)",
+            detail=f"Ghi BSON Document kèm thuộc tính cảm xúc động và mảng ảnh vào collection product_reviews tại Primary ({mongo_p}). Tự động phát tán luồng Oplog tới các Node Secondary trong Replica Set.",
+            latency_ms=559.0,
+            status="SYNCED"
+        )
+
+        # 2. Sự kiện MySQL (Đặt hàng giao dịch thực tế)
+        record_sync_log(
+            db_type="MYSQL_GR",
+            action="CHECKOUT_ORDER",
+            title="Đặt hàng #50009 · 28.000.000 đ",
+            summary="Sản phẩm: iPhone 15 Pro Max (SL: 1) | Khách hàng: Nguyễn Văn A (#1002) | Phương thức: COD | 3 bảng",
+            data_payload="Mã đơn: #50009 | Sản phẩm: iPhone 15 Pro Max 256GB (ID #1, SL: 1, Đơn giá: 28.000.000 đ) | Khách hàng: Nguyễn Văn A (ID #1002) | Tổng tiền: 28.000.000 đ | Thanh toán: COD (Tiền mặt khi nhận hàng)",
+            affected_tables="orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
+            source_node=mysql_p,
+            target_nodes=mysql_secs,
+            mechanism="Paxos Consensus (XCom 33061) + Binary Log GTID",
+            detail=f"Mở Transaction ACID trên Primary ({mysql_p}): Khóa dòng FOR UPDATE SP #1, trừ tồn kho, INSERT orders, order_items, payments. Kênh Paxos XCom đồng thuận Write-Set toàn cụm trước khi Commit.",
+            latency_ms=642.0,
+            status="SYNCED"
+        )
+
+
+try:
+    init_sample_sync_logs(force=True)
+except Exception as _e:
+    print(f"[SYNC_LOG_INIT] Lỗi khởi tạo nhật ký mẫu: {_e}")
+
+
 # =====================================================================================
 # GIAO DIỆN CHÍNH & CẤU HÌNH CỤM
 # =====================================================================================
@@ -473,6 +545,15 @@ def get_sync_logs(
     db_type: Optional[str] = Query(None, description="ALL | MYSQL_GR | MONGO_RS")
 ):
     """Lấy danh sách nhật ký đồng bộ & nhân bản dữ liệu giữa các Node trong cụm thời gian thực"""
+    global SYNC_AUDIT_LOGS
+    if not SYNC_AUDIT_LOGS:
+        init_sample_sync_logs()
+    else:
+        # Tự động làm mới nếu mẫu tin cũ đang ghi nhận Node 1 (192.168.1.221) nhưng Node 1 đang OFFLINE
+        has_stale_node1 = any(l.get("source_node", "").startswith("192.168.1.221") for l in SYNC_AUDIT_LOGS)
+        if has_stale_node1 and not is_port_open("192.168.1.221", 3306, timeout=0.15):
+            init_sample_sync_logs(force=True)
+
     limit_val = limit if isinstance(limit, int) else int(getattr(limit, "default", 50) or 50)
     db_type_val = db_type if isinstance(db_type, str) else getattr(db_type, "default", None)
     logs = SYNC_AUDIT_LOGS
@@ -508,7 +589,7 @@ def get_cluster_status(request: Request):
         "mongodb": [],
         "client_node": {
             "configured_ip": CLUSTER_CONFIG["client_node"],
-            "actual_Request_ip": request.client.host if request.client else "127.0.0.1"
+            "actual_Request_ip": request.client.host if (request and getattr(request, "client", None)) else "127.0.0.1"
         },
         "data_counts": {"users": 0, "products": 0, "orders": 0, "order_items": 0, "payments": 0, "reviews": 0, "logs": 0},
         "timestamp": datetime.now().strftime("%H:%M:%S")
@@ -1003,7 +1084,7 @@ def checkout(req: OrderRequest):
                 summary=f"Sản phẩm: {prod['product_name']} (SL: {req.quantity}) | KH #{req.user_id} | PT: {req.payment_method} | 3 bảng",
                 data_payload=f"Mã đơn: #{order_id} | Sản phẩm: {prod['product_name']} (ID #{req.product_id}, SL: {req.quantity}, Đơn giá: {unit_price_fmt}) | Khách hàng: #{req.user_id} | Tổng tiền: {total_fmt} | Hình thức: {req.payment_method}",
                 affected_tables="orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
-                source_node=mysql_meta.get("host", "192.168.1.221"),
+                source_node=mysql_meta.get("host", "192.168.1.222"),
                 target_nodes=online_secondaries if online_secondaries else [h for h in CLUSTER_CONFIG["mysql_nodes"] if h != mysql_meta.get("host")],
                 mechanism="Paxos Consensus (XCom 33061) + Binary Log GTID",
                 detail=f"Mở Transaction ACID trên Primary ({mysql_meta.get('host')}): Khóa dòng FOR UPDATE SP #{req.product_id}, trừ tồn kho {req.quantity}, INSERT orders, order_items, payments. Kênh Paxos XCom đồng thuận Write-Set toàn cụm trước khi Commit.",
