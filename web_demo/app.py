@@ -407,18 +407,11 @@ def detect_active_primaries():
     if not mysql_p:
         mysql_p = CLUSTER_CONFIG["mysql_nodes"][1] if len(CLUSTER_CONFIG["mysql_nodes"]) > 1 else "192.168.1.222"
 
-    for node in CLUSTER_CONFIG["mysql_nodes"]:
-        if node != mysql_p:
-            h = node.split(":")[0]
-            p = int(node.split(":")[1]) if ":" in node else 3306
-            if is_port_open(h, p, timeout=0.15):
-                mysql_secs.append(node)
-    if not mysql_secs:
-        mysql_secs = [n for n in CLUSTER_CONFIG["mysql_nodes"] if n != mysql_p]
+    # 1. Toàn bộ các Node còn lại trong cụm MySQL là Replicas (Node 1, 3, 4)
+    mysql_secs = [n for n in CLUSTER_CONFIG["mysql_nodes"] if n != mysql_p]
 
     # 2. Phát hiện MongoDB Primary
     mongo_p = None
-    mongo_secs = []
     try:
         c, meta = get_mongo_client(read_mode="primary", with_meta=True)
         mongo_p = meta.get("host") if isinstance(meta, dict) else meta
@@ -437,14 +430,8 @@ def detect_active_primaries():
     if not mongo_p:
         mongo_p = CLUSTER_CONFIG["mongo_nodes"][1] if len(CLUSTER_CONFIG["mongo_nodes"]) > 1 else "192.168.1.222:27017"
 
-    for node in CLUSTER_CONFIG["mongo_nodes"]:
-        if node != mongo_p:
-            h = node.split(":")[0]
-            p = int(node.split(":")[1]) if ":" in node else 27017
-            if is_port_open(h, p, timeout=0.15):
-                mongo_secs.append(node)
-    if not mongo_secs:
-        mongo_secs = [n for n in CLUSTER_CONFIG["mongo_nodes"] if n != mongo_p]
+    # Toàn bộ các Node còn lại trong cụm MongoDB là Replicas (Node 1, 3, 4)
+    mongo_secs = [n for n in CLUSTER_CONFIG["mongo_nodes"] if n != mongo_p]
 
     return mysql_p, mysql_secs, mongo_p, mongo_secs
 
@@ -549,9 +536,10 @@ def get_sync_logs(
     if not SYNC_AUDIT_LOGS:
         init_sample_sync_logs()
     else:
-        # Tự động làm mới nếu mẫu tin cũ đang ghi nhận Node 1 (192.168.1.221) nhưng Node 1 đang OFFLINE
+        # Tự động làm mới nếu mẫu tin cũ trỏ vào Node 1 đang OFFLINE hoặc danh sách Replicas chưa đủ 3 node (Node 1, 3, 4)
         has_stale_node1 = any(l.get("source_node", "").startswith("192.168.1.221") for l in SYNC_AUDIT_LOGS)
-        if has_stale_node1 and not is_port_open("192.168.1.221", 3306, timeout=0.15):
+        needs_all_replicas = any(len(l.get("target_nodes", [])) < 3 for l in SYNC_AUDIT_LOGS)
+        if (has_stale_node1 and not is_port_open("192.168.1.221", 3306, timeout=0.15)) or needs_all_replicas:
             init_sample_sync_logs(force=True)
 
     limit_val = limit if isinstance(limit, int) else int(getattr(limit, "default", 50) or 50)

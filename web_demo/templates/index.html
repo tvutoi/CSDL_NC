@@ -1140,10 +1140,10 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                     <tr>
                       <th>Bảng / Collection</th>
                       <th>Hệ quản trị</th>
-                      <th class="text-end">Node 1 (192.168.1.221)</th>
-                      <th class="text-end">Node 2 (192.168.1.222)</th>
-                      <th class="text-end">Node 3 (192.168.1.223)</th>
-                      <th class="text-end">Node 4 (192.168.1.224)</th>
+                      <th class="text-end" id="th-sync-node1">Node 1 (192.168.1.221)</th>
+                      <th class="text-end" id="th-sync-node2">Node 2 (192.168.1.222)</th>
+                      <th class="text-end" id="th-sync-node3">Node 3 (192.168.1.222:3307)</th>
+                      <th class="text-end" id="th-sync-node4">Node 4 (192.168.1.222:3308)</th>
                       <th class="text-center">Đánh giá Đồng bộ</th>
                     </tr>
                   </thead>
@@ -1697,6 +1697,18 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           const mg3 = data.mongodb[2] || {};
           const mg4 = data.mongodb[3] || {};
 
+          // Cập nhật tiêu đề cột Node 1 -> Node 4 khớp với IP:Port thực tế đang cấu hình
+          if (data.mysql && data.mysql.length >= 4) {
+            const h1 = data.mysql[0]?.host || "192.168.1.221";
+            const h2 = data.mysql[1]?.host || "192.168.1.222";
+            const h3 = data.mysql[2]?.host || "192.168.1.222:3307";
+            const h4 = data.mysql[3]?.host || "192.168.1.222:3308";
+            const el1 = document.getElementById("th-sync-node1"); if (el1) el1.innerText = `Node 1 (${h1})`;
+            const el2 = document.getElementById("th-sync-node2"); if (el2) el2.innerText = `Node 2 (${h2})`;
+            const el3 = document.getElementById("th-sync-node3"); if (el3) el3.innerText = `Node 3 (${h3})`;
+            const el4 = document.getElementById("th-sync-node4"); if (el4) el4.innerText = `Node 4 (${h4})`;
+          }
+
           const syncRows = [
             {
               name: "users (Khách hàng)",
@@ -1917,6 +1929,14 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               '<span class="badge bg-primary text-white font-monospace fw-bold px-1.5 py-0.5">$1</span>',
             );
 
+            // Danh sách Node nhận đầy đủ kèm nhãn Node và IP:Port rõ ràng
+            const replicaBadges = (l.target_nodes && l.target_nodes.length)
+              ? l.target_nodes.map((nodeLbl, i) => {
+                  const hostStr = (l.target_hosts && l.target_hosts[i]) ? l.target_hosts[i] : "";
+                  return `<span class="badge bg-white text-dark border px-2 py-1 me-1 mb-1 font-monospace" style="font-size: 11px;"><strong class="text-primary">${nodeLbl}</strong>: <code>${hostStr}</code></span>`;
+                }).join("")
+              : `<code>${l.target_display || "Replicas"}</code>`;
+
             return `
             <tr class="sync-row-clickable" onclick="toggleSyncRow('${detailId}', '${prefix}')" title="Bấm để xem chi tiết dữ liệu cập nhật và cơ chế đồng bộ">
               <td>
@@ -1965,9 +1985,16 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                       <div class="mt-1 text-secondary"><strong>Chi tiết kỹ thuật:</strong> ${l.detail}</div>
                     </div>
                     <div class="col-md-5 border-start ps-3">
-                      <div><strong>Node Khởi tạo (Primary):</strong> <code>${l.source_node}</code></div>
-                      <div class="mt-1"><strong>Node Nhận (Replicas):</strong> <code>${l.target_hosts && l.target_hosts.length ? l.target_hosts.join(", ") : l.target_display}</code></div>
-                      <div class="mt-1 text-muted small">Thời gian: ${l.time || l.timestamp} ngày ${l.date || ""} · Độ trễ: ${l.latency_ms} ms</div>
+                      <div>
+                        <strong>Node Khởi tạo (Primary):</strong> 
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold px-2 py-0.5 me-1 font-monospace" style="font-size: 11px;">${l.source_label || "Node 2"}</span>
+                        <code class="text-dark bg-white px-1.5 py-0.5 border rounded">${l.source_node}</code>
+                      </div>
+                      <div class="mt-2">
+                        <div class="mb-1"><strong>Node Nhận (Replicas):</strong></div>
+                        <div class="d-flex flex-wrap align-items-center">${replicaBadges}</div>
+                      </div>
+                      <div class="mt-2 text-muted small">Thời gian: ${l.time || l.timestamp} ngày ${l.date || ""} · Độ trễ: ${l.latency_ms} ms</div>
                     </div>
                   </div>
                 </div>
