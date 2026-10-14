@@ -439,6 +439,45 @@ def ensure_mongo_primary_priority():
                     c_prim.close()
             except Exception:
                 pass
+        else:
+            # Node 1 đang tắt (OFFLINE):
+            # Kiểm tra các node LAN còn lại đang online
+            online_cands = []
+            for cand in candidates:
+                if cand != node1_host:
+                    hc, pc = cand.split(":") if ":" in cand else (cand, 27017)
+                    if is_port_open(hc, int(pc), timeout=0.2):
+                        online_cands.append(cand)
+
+            if len(online_cands) == 1:
+                # Chỉ có đúng 1 node LAN trực tuyến (ví dụ Node 2):
+                # Tự động cứu Quorum cho node sống duy nhất này để không bị rớt về SECONDARY!
+                h_surv = online_cands[0]
+                need_rescue = False
+                for m in cfg["members"]:
+                    if m["host"] == h_surv:
+                        if m.get("votes") != 1 or m.get("priority") != 1.0:
+                            m["votes"] = 1
+                            m["priority"] = 1.0
+                            need_rescue = True
+                    else:
+                        if m.get("votes") != 0 or m.get("priority") != 0.0:
+                            m["votes"] = 0
+                            m["priority"] = 0.0
+                            need_rescue = True
+                if need_rescue:
+                    cfg["version"] += 1
+                    try:
+                        client.admin.command("replSetReconfig", cfg, force=True)
+                        t_wait = time.time()
+                        while time.time() - t_wait < 3.0:
+                            time.sleep(0.3)
+                            h_chk = client.admin.command("hello")
+                            if h_chk.get("isWritablePrimary") or h_chk.get("ismaster"):
+                                break
+                    except Exception as ex_resc:
+                        print(f"[NODE2_QUORUM_RESCUE_ERR] {ex_resc}")
+
         client.close()
     except Exception:
         try:
@@ -497,10 +536,18 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
                     m["votes"] = 0
                     m["priority"] = 0.0
             c_u.admin.command("replSetReconfig", cfg, force=True)
-            time.sleep(0.5)
-            hello = c_u.admin.command("hello")
-            if hello.get("isWritablePrimary") or hello.get("ismaster"):
-                primary_client, primary_host = c_u, h_u
+
+            # Polling chờ Node hoàn tất bầu chọn (tối đa 3.5s)
+            t_wait = time.time()
+            while time.time() - t_wait < 3.5:
+                time.sleep(0.3)
+                try:
+                    hello = c_u.admin.command("hello")
+                    if hello.get("isWritablePrimary") or hello.get("ismaster"):
+                        primary_client, primary_host = c_u, h_u
+                        break
+                except Exception:
+                    pass
             try:
                 c_u.admin.command("setDefaultRWConcern", defaultWriteConcern={"w": 1})
             except Exception:
@@ -517,7 +564,24 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
             pass
 
     if not primary_client and online_lan_hosts:
-        primary_client, primary_host = online_lan_hosts[0][0], online_lan_hosts[0][1]
+        # Nếu đang ở chế độ primary mà chưa tìm thấy node writable primary, chờ thêm tối đa 2s để election hoàn tất
+        if read_mode == "primary":
+            t_poll = time.time()
+            while time.time() - t_poll < 2.0:
+                time.sleep(0.3)
+                for c_cand, h_cand, _ in online_lan_hosts:
+                    try:
+                        h_c = c_cand.admin.command("hello")
+                        if h_c.get("isWritablePrimary") or h_c.get("ismaster"):
+                            primary_client, primary_host = c_cand, h_cand
+                            break
+                    except Exception:
+                        pass
+                if primary_client:
+                    break
+
+        if not primary_client:
+            primary_client, primary_host = online_lan_hosts[0][0], online_lan_hosts[0][1]
 
     def _ret(client_obj, host_str, role_str):
         # Đóng các client còn lại không được chọn để tránh rò rỉ socket pool
@@ -1666,7 +1730,7 @@ def add_review(req: ReviewRequest):
     res = None
     active_host = None
 
-    for attempt in range(2):
+    for attempt in range(4):
         try:
             m_client, active_host = get_mongo_client("primary")
             mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
@@ -1676,7 +1740,11 @@ def add_review(req: ReviewRequest):
             break
         except Exception as e:
             last_err = e
-            time.sleep(0.5)
+            err_str = str(e).lower()
+            if "not primary" in err_str or "notwritableprimary" in err_str or "replstatechange" in err_str:
+                time.sleep(0.8)
+            else:
+                time.sleep(0.4)
 
     if not res:
         raise HTTPException(status_code=500, detail=f"Lỗi ghi MongoDB: {str(last_err)}")
