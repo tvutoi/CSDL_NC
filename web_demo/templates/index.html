@@ -2362,7 +2362,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               d: data.local_query,
             },
             {
-              label: "2. Truy vấn Phân tán (Đọc phân tải qua mạng LAN)",
+              label: "2. Đọc Phân tải Replicas (Round-Robin qua các Node)",
               d: data.distributed_query,
             },
             {
@@ -2402,13 +2402,13 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             type: "bar",
             data: {
               labels: [
-                "Cục bộ (Local)",
-                "Phân tán (LAN)",
+                "Cục bộ (Primary)",
+                "Đọc Phân tải (Replicas)",
                 "Đa mô hình (Polyglot)",
               ],
               datasets: [
                 {
-                  label: "Thời gian phản hồi trung bình (ms)",
+                  label: "Thời gian phản hồi TB (ms)",
                   data: [
                     data.local_query.avg_ms,
                     data.distributed_query.avg_ms,
@@ -2416,16 +2416,26 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                   ],
                   backgroundColor: ["#004b87", "#2e7d32", "#ed6c02"],
                   borderWidth: 1,
+                  minBarLength: 6,
                 },
               ],
             },
             options: {
               responsive: true,
-              plugins: { legend: { display: true } },
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: function (ctx) {
+                      return ` ${ctx.parsed.y} ms`;
+                    },
+                  },
+                },
+              },
               scales: {
                 y: {
                   beginAtZero: true,
-                  title: { display: true, text: "Thời gian (ms)" },
+                  title: { display: true, text: "Thời gian phản hồi trung bình (ms)" },
                 },
               },
             },
