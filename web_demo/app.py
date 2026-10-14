@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException, Request, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -422,6 +422,11 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
 # =====================================================================================
 # GIAO DIỆN CHÍNH & CẤU HÌNH CỤM
 # =====================================================================================
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return Response(status_code=204)
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     html_path = os.path.join(current_dir, "templates", "index.html")
