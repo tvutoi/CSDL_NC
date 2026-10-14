@@ -98,6 +98,23 @@ load_cluster_config()
 # =====================================================================================
 SYNC_AUDIT_LOGS: List[Dict[str, Any]] = []
 
+def get_node_label(host_str: str, db_type: str = "mysql") -> str:
+    """Chuyển đổi IP:Port thành nhãn Node ngắn gọn (Node 1, Node 2, ...)"""
+    if not host_str:
+        return "Node 1"
+    clean_host = host_str.split(" ")[0].strip()
+    nodes = CLUSTER_CONFIG["mysql_nodes"] if db_type == "mysql" else CLUSTER_CONFIG["mongo_nodes"]
+    for idx, h in enumerate(nodes, start=1):
+        if h == clean_host:
+            return f"Node {idx}"
+        if h.split(":")[0] == clean_host.split(":")[0]:
+            h_port = h.split(":")[1] if ":" in h else ("3306" if db_type == "mysql" else "27017")
+            c_port = clean_host.split(":")[1] if ":" in clean_host else ("3306" if db_type == "mysql" else "27017")
+            if h_port == c_port:
+                return f"Node {idx}"
+    return clean_host
+
+
 def record_sync_log(
     db_type: str,
     action: str,
@@ -108,26 +125,50 @@ def record_sync_log(
     mechanism: str,
     detail: str,
     latency_ms: float = 0.0,
-    status: str = "SYNCED_OK"
+    status: str = "SYNCED"
 ) -> Dict[str, Any]:
     """Ghi nhận sự kiện nhân bản và đồng bộ dữ liệu giữa các Node trong cụm thời gian thực"""
     global SYNC_AUDIT_LOGS
-    now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    now = datetime.now()
     log_id = f"SYNC-{int(time.time()*1000) % 1000000:06d}"
+
+    db_key = "mysql" if db_type == "MYSQL_GR" else "mongo"
+    src_label = get_node_label(source_node, db_key)
+
+    tgt_labels = []
+    tgt_hosts = []
+    for t in target_nodes:
+        lbl = get_node_label(t, db_key)
+        tgt_labels.append(lbl)
+        tgt_hosts.append(t)
+
+    # Rút gọn danh sách đích: ví dụ "Node 2, 3" hoặc "Node 2, 3, 4"
+    if tgt_labels:
+        node_nums = [lbl.replace("Node ", "") for lbl in tgt_labels if lbl.startswith("Node ")]
+        if len(node_nums) == len(tgt_labels):
+            targets_display = f"Node {', '.join(node_nums)}"
+        else:
+            targets_display = ", ".join(tgt_labels)
+    else:
+        targets_display = "Đang chờ node"
 
     log_item = {
         "log_id": log_id,
-        "timestamp": now_str,
+        "time": now.strftime("%H:%M:%S"),
+        "date": now.strftime("%d/%m/%Y"),
+        "timestamp": now.strftime("%H:%M:%S"),
         "db_type": db_type,  # "MYSQL_GR" hoặc "MONGO_RS"
         "action": action,
         "title": title,
         "summary": summary,
+        "source_label": src_label,
         "source_node": source_node,
-        "target_nodes": target_nodes if target_nodes else ["Đang chờ thành viên trực tuyến"],
-        "target_count": len(target_nodes) if target_nodes else 0,
+        "target_display": targets_display,
+        "target_nodes": tgt_labels,
+        "target_hosts": tgt_hosts,
         "mechanism": mechanism,
         "detail": detail,
-        "latency_ms": round(latency_ms, 2),
+        "latency_ms": round(latency_ms, 1),
         "status": status
     }
     SYNC_AUDIT_LOGS.insert(0, log_item)
@@ -138,47 +179,38 @@ def record_sync_log(
 
 
 def init_sample_sync_logs():
-    """Khởi tạo các sự kiện đồng bộ mẫu ban đầu để giao diện có dữ liệu đối chứng tức thì"""
+    """Khởi tạo các sự kiện đồng bộ mẫu ban đầu với định dạng súc tích, chuyên nghiệp"""
     global SYNC_AUDIT_LOGS
     if not SYNC_AUDIT_LOGS:
-        t_base = datetime.now()
         mysql_p = CLUSTER_CONFIG["mysql_nodes"][0] if CLUSTER_CONFIG["mysql_nodes"] else "192.168.1.221"
-        mysql_secs = CLUSTER_CONFIG["mysql_nodes"][1:] if len(CLUSTER_CONFIG["mysql_nodes"]) > 1 else ["192.168.1.222", "192.168.1.223", "192.168.1.224"]
+        mysql_secs = CLUSTER_CONFIG["mysql_nodes"][1:] if len(CLUSTER_CONFIG["mysql_nodes"]) > 1 else ["192.168.1.222", "192.168.1.222:3307", "192.168.1.222:3308"]
         mongo_p = CLUSTER_CONFIG["mongo_nodes"][0] if CLUSTER_CONFIG["mongo_nodes"] else "192.168.1.221:27017"
-        mongo_secs = CLUSTER_CONFIG["mongo_nodes"][1:] if len(CLUSTER_CONFIG["mongo_nodes"]) > 1 else ["192.168.1.222:27017", "192.168.1.223:27017", "192.168.1.224:27017"]
+        mongo_secs = CLUSTER_CONFIG["mongo_nodes"][1:] if len(CLUSTER_CONFIG["mongo_nodes"]) > 1 else ["192.168.1.222:27017", "192.168.1.222:27018", "192.168.1.222:27019"]
 
-        SYNC_AUDIT_LOGS.extend([
-            {
-                "log_id": "SYNC-000001",
-                "timestamp": t_base.strftime("%d/%m/%Y %H:%M:%S"),
-                "db_type": "MYSQL_GR",
-                "action": "CLUSTER_BOOTSTRAP_SYNC",
-                "title": "Khởi tạo Cụm MySQL Group Replication",
-                "summary": "Đồng thuận 212.024 bản ghi CSDL ecommerce_db qua 4 Node",
-                "source_node": f"{mysql_p} (PRIMARY)",
-                "target_nodes": mysql_secs,
-                "target_count": len(mysql_secs),
-                "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
-                "detail": "Kênh XCom đồng thuận Write-Set toàn cụm, các Node Secondary áp dụng đồng nhất qua applier worker.",
-                "latency_ms": 12.5,
-                "status": "SYNCED_OK"
-            },
-            {
-                "log_id": "SYNC-000002",
-                "timestamp": t_base.strftime("%d/%m/%Y %H:%M:%S"),
-                "db_type": "MONGO_RS",
-                "action": "REPLICA_SET_OPLOG_INIT",
-                "title": "Khởi tạo Cụm MongoDB Replica Set rsEcomNhom2",
-                "summary": "Khởi tạo và đối chiếu 100.013 documents BSON qua 4 Node",
-                "source_node": f"{mongo_p} (PRIMARY)",
-                "target_nodes": mongo_secs,
-                "target_count": len(mongo_secs),
-                "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
-                "detail": "Các Secondary theo dõi stream từ Primary Oplog và replay dữ liệu đồng nhất.",
-                "latency_ms": 7.8,
-                "status": "REPLICATED_OK"
-            }
-        ])
+        record_sync_log(
+            db_type="MONGO_RS",
+            action="REPLICA_SET_INIT",
+            title="Khởi tạo cụm MongoDB Replica Set",
+            summary="product_reviews, user_activity_logs · 100.013 documents",
+            source_node=mongo_p,
+            target_nodes=mongo_secs,
+            mechanism="MongoDB Oplog Streaming (local.oplog.rs)",
+            detail="Tất cả Node Secondary thiết lập kết nối Oplog streaming trực tiếp tới Primary, hoàn tất replay 100.013 BSON documents.",
+            latency_ms=7.8,
+            status="SYNCED"
+        )
+        record_sync_log(
+            db_type="MYSQL_GR",
+            action="CLUSTER_BOOTSTRAP",
+            title="Khởi tạo cụm MySQL Group Replication",
+            summary="users, products, orders, order_items, payments · 212.024 bản ghi",
+            source_node=mysql_p,
+            target_nodes=mysql_secs,
+            mechanism="Paxos Consensus (XCom 33061) + Binary Log GTID",
+            detail="Đồng thuận kênh truyền XCom toàn cụm qua cổng 33061. Write-Set được kiểm chứng xung đột và áp dụng đồng nhất qua Binlog GTID.",
+            latency_ms=12.5,
+            status="SYNCED"
+        )
 
 init_sample_sync_logs()
 
@@ -941,15 +973,15 @@ def checkout(req: OrderRequest):
             online_secondaries = [h for h in CLUSTER_CONFIG["mysql_nodes"] if h != mysql_meta.get("host") and is_port_open(h.split(":")[0], int(h.split(":")[1]) if ":" in h else 3306, timeout=0.15)]
             sync_entry = record_sync_log(
                 db_type="MYSQL_GR",
-                action="CHECKOUT_TRANSACTION",
-                title=f"Giao dịch Đặt hàng #{order_id} ({total:,.0f} đ)",
-                summary=f"Sản phẩm: {prod['product_name']} | SL: {req.quantity} | KH #{req.user_id} | PT: {req.payment_method}",
-                source_node=f"{mysql_meta.get('host')} ({mysql_meta.get('role', 'PRIMARY')})",
+                action="CHECKOUT_ORDER",
+                title=f"Đặt hàng #{order_id} · {total:,.0f} đ".replace(",", "."),
+                summary="orders, order_items, payments · 3 bảng",
+                source_node=mysql_meta.get("host", "192.168.1.221"),
                 target_nodes=online_secondaries if online_secondaries else [h for h in CLUSTER_CONFIG["mysql_nodes"] if h != mysql_meta.get("host")],
                 mechanism="Paxos Consensus (XCom 33061) + Binary Log GTID",
-                detail=f"Mở Transaction ACID trên Primary ({mysql_meta.get('host')}) -> Khóa dòng FOR UPDATE SP #{req.product_id} -> Trừ tồn kho {req.quantity} -> INSERT orders, order_items, payments -> Kênh Paxos XCom đồng thuận Write-Set và nhân bản sang các Node Replicas.",
+                detail=f"Giao dịch ACID tại Primary ({mysql_meta.get('host')}): SP #{req.product_id} (SL {req.quantity}) - KH #{req.user_id} ({req.payment_method}). Kênh Paxos XCom đồng thuận Write-Set toàn cụm trước khi Commit.",
                 latency_ms=tx_ms,
-                status="SYNCED_OK"
+                status="SYNCED"
             )
         except Exception as log_ex:
             print(f"[SYNC_LOG_ERROR] {log_ex}")
@@ -1016,17 +1048,18 @@ def add_review(req: ReviewRequest):
         sync_entry = None
         try:
             mongo_secondaries = [h for h in CLUSTER_CONFIG["mongo_nodes"] if h != active_host and is_port_open(h.split(":")[0], int(h.split(":")[1]) if ":" in h else 27017, timeout=0.15)]
+            stars = "★" * req.rating
             sync_entry = record_sync_log(
                 db_type="MONGO_RS",
                 action="INSERT_REVIEW",
-                title=f"Đánh giá & Nhận xét SP #{req.product_id} ({req.rating} sao)",
-                summary=f"Tiêu đề: '{req.title}' | Bình luận: '{req.comment[:35]}...' | Đóng gói: {req.packaging}",
-                source_node=f"{active_host} (PRIMARY)",
+                title=f"Thêm đánh giá SP #{req.product_id} ({stars})",
+                summary="product_reviews · 1 document",
+                source_node=active_host,
                 target_nodes=mongo_secondaries if mongo_secondaries else [h for h in CLUSTER_CONFIG["mongo_nodes"] if h != active_host],
                 mechanism="MongoDB Oplog Streaming (local.oplog.rs)",
-                detail=f"Ghi BSON Document kèm thuộc tính cảm xúc động và mảng ảnh vào collection product_reviews tại Primary ({active_host}) -> Tự động phát tán luồng Oplog tới các Node Secondary trong Replica Set.",
+                detail=f"Ghi BSON Document vào product_reviews tại Primary ({active_host}): '{req.title}' - '{req.comment[:40]}...'. Secondary tự động kéo thay đổi từ Oplog và đồng bộ cục bộ.",
                 latency_ms=elapsed_ms,
-                status="REPLICATED_OK"
+                status="SYNCED"
             )
         except Exception as log_ex:
             print(f"[SYNC_LOG_ERROR] {log_ex}")

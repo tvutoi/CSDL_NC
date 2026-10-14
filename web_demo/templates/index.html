@@ -326,6 +326,39 @@
         font-size: 12.5px;
         color: #64748b;
       }
+      .badge-db-mysql {
+        display: inline-block;
+        color: #0369a1;
+        background: #f0f9ff;
+        font-weight: 500;
+        font-size: 11px;
+        padding: 2px 7px;
+        border-radius: 4px;
+        border: 1px solid #bae6fd;
+      }
+      .badge-db-mongo {
+        display: inline-block;
+        color: #047857;
+        background: #f0fdf4;
+        font-weight: 500;
+        font-size: 11px;
+        padding: 2px 7px;
+        border-radius: 4px;
+        border: 1px solid #bbf7d0;
+      }
+      .sync-row-clickable {
+        cursor: pointer;
+        transition: background-color 0.12s ease;
+      }
+      .sync-row-clickable:hover {
+        background-color: #f8fafc !important;
+      }
+      .sync-detail-box {
+        background: #f8fafc;
+        border-left: 3px solid #0284c7;
+        font-size: 12px;
+        line-height: 1.55;
+      }
     </style>
   </head>
   <body>
@@ -345,11 +378,11 @@
         </div>
         <div class="d-flex align-items-center gap-2">
           <button
-            class="btn btn-sm btn-outline-warning text-white"
+            class="btn btn-sm btn-outline-light"
             data-bs-toggle="modal"
             data-bs-target="#syncLogsModal"
             onclick="loadSyncLogs()">
-            &#x1F4CB; Nhật ký Đồng bộ Cụm <span class="badge bg-warning text-dark ms-1" id="sync-log-badge">0</span>
+            Nhật ký đồng bộ <span class="badge bg-light text-dark ms-1" id="sync-log-badge">0</span>
           </button>
           <button
             class="btn btn-sm btn-outline-light"
@@ -1112,21 +1145,22 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             </div>
           </div>
 
-          <!-- MỤC 4: DÒNG CHẢY SỰ KIỆN ĐỒNG BỘ & NHÂN BẢN DỮ LIỆU THỜI GIAN THỰC -->
+          <!-- MỤC 4: DÒNG SỰ KIỆN ĐỒNG BỘ DỮ LIỆU -->
           <div class="panel-box mt-3">
-            <div class="panel-header d-flex justify-content-between align-items-center">
+            <div class="panel-header d-flex flex-wrap justify-content-between align-items-center gap-2">
               <div>
-                <span class="fw-bold">&#x1F4CB; 4. Dòng Chảy Sự Kiện Đồng Bộ & Nhân Bản Dữ Liệu Thời Gian Thực (Replication Audit Stream)</span>
-                <span class="small text-muted ms-2">(Theo dõi chi tiết dữ liệu nào được khởi tạo tại Node nào và nhân bản sang các Node nào)</span>
+                <span class="fw-bold">4. Dòng sự kiện đồng bộ dữ liệu</span>
+                <span class="small text-muted ms-2">(Ghi nhận thời gian thực giữa Primary và Replicas)</span>
               </div>
               <div class="d-flex align-items-center gap-2">
                 <div class="btn-group btn-group-sm" role="group">
-                  <button type="button" class="btn btn-sm btn-outline-secondary active" id="btn-sync-all" onclick="filterSyncLogs('ALL')">Tất cả</button>
-                  <button type="button" class="btn btn-sm btn-outline-primary" id="btn-sync-mysql" onclick="filterSyncLogs('MYSQL_GR')">MySQL (Paxos)</button>
-                  <button type="button" class="btn btn-sm btn-outline-success" id="btn-sync-mongo" onclick="filterSyncLogs('MONGO_RS')">MongoDB (Oplog)</button>
+                  <button type="button" class="btn btn-outline-secondary active" id="btn-sync-all" onclick="filterSyncLogs('ALL')">Tất cả <span class="badge bg-secondary-subtle text-dark" id="tab-cnt-all">0</span></button>
+                  <button type="button" class="btn btn-outline-secondary" id="btn-sync-mysql" onclick="filterSyncLogs('MYSQL_GR')">MySQL <span class="badge bg-secondary-subtle text-dark" id="tab-cnt-mysql">0</span></button>
+                  <button type="button" class="btn btn-outline-secondary" id="btn-sync-mongo" onclick="filterSyncLogs('MONGO_RS')">MongoDB <span class="badge bg-secondary-subtle text-dark" id="tab-cnt-mongo">0</span></button>
                 </div>
-                <button class="btn btn-sm btn-outline-secondary" onclick="loadSyncLogs()">&#x21bb; Làm mới</button>
-                <button class="btn btn-sm btn-outline-danger" onclick="clearSyncLogs()">Xóa log</button>
+                <input type="text" id="tab-sync-search-input" class="form-control form-control-sm" placeholder="Tìm kiếm nhanh..." style="width: 170px;" oninput="renderSyncLogsUI()" />
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadSyncLogs()">Làm mới</button>
+                <button class="btn btn-sm btn-link text-danger text-decoration-none p-0 ms-1 small" onclick="clearSyncLogs()">Xóa nhật ký</button>
               </div>
             </div>
             <div class="panel-body p-0">
@@ -1134,17 +1168,17 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                 <table class="table table-bordered table-sm table-custom mb-0 align-middle">
                   <thead class="table-light sticky-top">
                     <tr>
-                      <th style="width: 135px;">Thời gian</th>
-                      <th style="width: 120px;" class="text-center">Hệ CSDL</th>
-                      <th>Sự kiện & Dữ liệu Cập nhật</th>
-                      <th style="width: 170px;">Node Nguồn (Khởi tạo)</th>
-                      <th>Nhân bản sang Node Đích</th>
-                      <th>Cơ chế Đồng bộ & Giao thức</th>
-                      <th style="width: 100px;" class="text-center">Trạng thái</th>
+                      <th style="width: 95px;">Giờ</th>
+                      <th style="width: 105px;" class="text-center">CSDL</th>
+                      <th>Sự kiện</th>
+                      <th style="width: 95px;" class="text-center">Nguồn</th>
+                      <th style="width: 115px;" class="text-center">Đích</th>
+                      <th style="width: 90px;" class="text-end">Độ trễ</th>
+                      <th style="width: 110px;" class="text-center">Trạng thái</th>
                     </tr>
                   </thead>
                   <tbody id="sync-audit-stream-table">
-                    <tr><td colspan="7" class="text-center py-3 text-muted">Đang tải nhật ký đồng bộ...</td></tr>
+                    <tr><td colspan="7" class="text-center py-4 text-muted">Đang tải nhật ký đồng bộ...</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -1301,32 +1335,35 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       </div>
     </div>
 
-    <!-- MODAL NHẬT KÝ ĐỒNG BỘ & NHÂN BẢN CỤM SERVER -->
+    <!-- MODAL NHẬT KÝ ĐỒNG BỘ CỤM -->
     <div class="modal fade" id="syncLogsModal" tabindex="-1" aria-labelledby="syncLogsModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
           <div class="modal-header py-2 bg-light">
             <div>
               <h6 class="modal-title fw-bold mb-0" id="syncLogsModalLabel">
-                📋 Nhật ký Đồng bộ & Nhân bản Cụm Server (Replication & Sync Audit Stream)
+                Nhật ký đồng bộ cụm
               </h6>
               <div class="small text-muted" style="font-size: 0.8rem;">
-                Theo dõi dữ liệu thực tế được ghi vào Primary và nhân bản sang các Secondary (MySQL Paxos 33061 & MongoDB Oplog)
+                MySQL Group Replication &middot; MongoDB Replica Set
               </div>
             </div>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-3">
             <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
-              <div class="btn-group btn-group-sm" role="group">
-                <button type="button" class="btn btn-outline-secondary active" id="modal-btn-sync-all" onclick="filterSyncLogs('ALL')">Tất cả nhật ký</button>
-                <button type="button" class="btn btn-outline-primary" id="modal-btn-sync-mysql" onclick="filterSyncLogs('MYSQL_GR')">MySQL (Paxos XCom)</button>
-                <button type="button" class="btn btn-outline-success" id="modal-btn-sync-mongo" onclick="filterSyncLogs('MONGO_RS')">MongoDB (Oplog)</button>
+              <div class="d-flex align-items-center gap-2">
+                <div class="btn-group btn-group-sm" role="group">
+                  <button type="button" class="btn btn-outline-secondary active" id="modal-btn-sync-all" onclick="filterSyncLogs('ALL')">Tất cả <span class="badge bg-secondary-subtle text-dark" id="modal-cnt-all">0</span></button>
+                  <button type="button" class="btn btn-outline-secondary" id="modal-btn-sync-mysql" onclick="filterSyncLogs('MYSQL_GR')">MySQL <span class="badge bg-secondary-subtle text-dark" id="modal-cnt-mysql">0</span></button>
+                  <button type="button" class="btn btn-outline-secondary" id="modal-btn-sync-mongo" onclick="filterSyncLogs('MONGO_RS')">MongoDB <span class="badge bg-secondary-subtle text-dark" id="modal-cnt-mongo">0</span></button>
+                </div>
+                <input type="text" id="sync-search-input" class="form-control form-control-sm" placeholder="Tìm kiếm theo mã, sự kiện..." style="width: 210px;" oninput="renderSyncLogsUI()" />
               </div>
               <div class="d-flex align-items-center gap-2">
-                <span class="small text-muted" id="sync-log-total-info">Đang tải...</span>
-                <button class="btn btn-sm btn-outline-secondary" onclick="loadSyncLogs()">&#x21bb; Làm mới</button>
-                <button class="btn btn-sm btn-outline-danger" onclick="clearSyncLogs()">Xóa nhật ký</button>
+                <span class="small text-muted" id="sync-log-total-info">0 sự kiện</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadSyncLogs()">Làm mới</button>
+                <button class="btn btn-sm btn-link text-danger text-decoration-none p-0 ms-2 small" onclick="clearSyncLogs()">Xóa nhật ký</button>
               </div>
             </div>
 
@@ -1334,12 +1371,12 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               <table class="table table-bordered table-sm table-custom mb-0 align-middle">
                 <thead class="table-light sticky-top">
                   <tr>
-                    <th style="width: 130px;">Thời gian</th>
-                    <th style="width: 120px;" class="text-center">Hệ CSDL</th>
-                    <th>Sự kiện & Dữ liệu Cập nhật</th>
-                    <th style="width: 200px;">Node Nguồn (Khởi tạo)</th>
-                    <th style="width: 220px;">Nhân bản sang Node Đích</th>
-                    <th>Cơ chế Đồng bộ & Giao thức</th>
+                    <th style="width: 95px;">Giờ</th>
+                    <th style="width: 105px;" class="text-center">CSDL</th>
+                    <th>Sự kiện</th>
+                    <th style="width: 95px;" class="text-center">Nguồn</th>
+                    <th style="width: 115px;" class="text-center">Đích</th>
+                    <th style="width: 90px;" class="text-end">Độ trễ</th>
                     <th style="width: 110px;" class="text-center">Trạng thái</th>
                   </tr>
                 </thead>
@@ -1349,14 +1386,19 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               </table>
             </div>
 
-            <div class="alert alert-info py-2 px-3 mt-3 mb-0 small" style="font-size: 0.82rem;">
-              <strong>💡 Cơ chế hoạt động trong Đề tài 2:</strong><br>
-              &bull; <b>MySQL Group Replication:</b> Sử dụng giao thức đồng thuận Paxos (XCom trên cổng 33061). Mọi giao dịch đặt hàng ghi vào Primary (Node 1) phải đạt đa số phiếu chấp thuận (Quorum) trước khi Commit và phát tán Binlog GTID sang Node 2, 3, 4.<br>
-              &bull; <b>MongoDB Replica Set:</b> Sử dụng Oplog streaming. Khi có đánh giá sản phẩm mới ghi vào Primary, các Secondary (Node 2, 3, 4) tự động kéo dữ liệu từ <code>local.oplog.rs</code> để áp dụng cục bộ.
+            <!-- Giải thích cơ chế dạng collapse thu gọn (mặc định đóng, không chiếm diện tích) -->
+            <div class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center">
+              <button class="btn btn-sm btn-link text-secondary text-decoration-none p-0" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSyncMechanism" aria-expanded="false">
+                <span style="font-size: 0.82rem;">&#9656; Giải thích cơ chế đồng bộ cụm</span>
+              </button>
+              <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>
             </div>
-          </div>
-          <div class="modal-footer py-2">
-            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            <div class="collapse mt-2" id="collapseSyncMechanism">
+              <div class="p-2 bg-light border rounded small text-secondary" style="font-size: 0.8rem; line-height: 1.5;">
+                <div><strong>MySQL Group Replication:</strong> Giao thức đồng thuận Paxos (XCom cổng 33061). Mọi giao dịch đặt hàng ghi vào Primary phải đạt đa số phiếu chấp thuận (Quorum) trước khi Commit và phát tán Binary Log GTID sang các Replicas.</div>
+                <div class="mt-1"><strong>MongoDB Replica Set:</strong> Cơ chế Oplog streaming bất đồng bộ qua <code>local.oplog.rs</code>. Các Node Secondary tự động kéo các bản ghi thay đổi từ Primary Oplog để áp dụng cục bộ.</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1629,55 +1671,80 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         renderSyncLogsUI();
       }
 
-      function renderSyncRowsHTML(logs) {
+      function toggleSyncRow(detailId) {
+        const el = document.getElementById(detailId);
+        if (!el) return;
+        const isHidden = el.style.display === "none";
+        el.style.display = isHidden ? "table-row" : "none";
+      }
+
+      function renderSyncRowsHTML(logs, prefix) {
         if (!logs || logs.length === 0) {
-          return `<tr><td colspan="7" class="text-center py-4 text-muted">Chưa có bản ghi đồng bộ nào được ghi nhận. Hãy thực hiện đặt hàng hoặc gửi nhận xét!</td></tr>`;
+          return `
+            <tr>
+              <td colspan="7" class="text-center py-5 text-muted">
+                <div class="fw-semibold text-secondary mb-1">Chưa có bản ghi đồng bộ nào</div>
+                <div class="small">Các sự kiện nhân bản giữa Primary và Replicas sẽ tự động hiển thị tại đây khi phát sinh giao dịch.</div>
+              </td>
+            </tr>
+          `;
         }
         return logs
           .map((l) => {
             const isMySQL = l.db_type === "MYSQL_GR";
             const dbBadge = isMySQL
-              ? `<span class="label-tag tag-primary">MySQL Paxos</span>`
-              : `<span class="label-tag tag-online">MongoDB Oplog</span>`;
+              ? `<span class="badge-db-mysql">● MySQL</span>`
+              : `<span class="badge-db-mongo">● MongoDB</span>`;
 
-            const targetsHtml =
-              l.target_nodes && l.target_nodes.length > 0
-                ? l.target_nodes
-                    .map(
-                      (t) =>
-                        `<div class="small text-success text-nowrap">&#x2794; ${t}</div>`,
-                    )
-                    .join("")
-                : `<span class="text-muted small">Tự động phát tán cụm...</span>`;
+            // Node nguồn: badge xanh dương dịu
+            const srcHtml = `<span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-medium" title="${l.source_node || ''}">${l.source_label || l.source_node || 'Node 1'}</span>`;
 
-            const statusBadge =
-              l.status && l.status.indexOf("OK") !== -1
-                ? `<span class="label-tag tag-online">${l.status}</span>`
-                : `<span class="label-tag tag-secondary">${l.status || "SYNCED"}</span>`;
+            // Node đích: badge xám gọn gàng
+            const tgtTitle = (l.target_hosts && l.target_hosts.length) ? l.target_hosts.join(', ') : '';
+            const tgtHtml = `<span class="badge bg-light text-dark border" title="${tgtTitle}">${l.target_display || 'Replicas'}</span>`;
 
-            const latTxt = l.latency_ms ? ` (${l.latency_ms} ms)` : "";
+            // Trạng thái: "Đã đồng bộ" (badge xanh lá)
+            const statusHtml = `<span class="badge bg-success-subtle text-success border border-success-subtle fw-medium">Đã đồng bộ</span>`;
+
+            const detailId = `detail-${prefix}-${l.log_id}`;
 
             return `
-            <tr>
+            <tr class="sync-row-clickable" onclick="toggleSyncRow('${detailId}')" title="Bấm để xem chi tiết cơ chế đồng bộ">
               <td>
-                <span class="mono-text fw-semibold text-dark">${l.timestamp}</span><br/>
-                <span class="text-muted small">${l.log_id || ""}</span>
+                <div class="fw-semibold text-dark">${l.time || l.timestamp}</div>
+                <div class="mono-text text-muted" style="font-size: 11px;">${l.log_id}</div>
               </td>
               <td class="text-center">${dbBadge}</td>
               <td>
-                <div class="fw-semibold text-navy">${l.title || l.action}</div>
-                <div class="small text-dark mt-1">${l.summary || ""}</div>
-                ${l.detail ? `<div class="small text-muted mt-1 fst-italic">${l.detail}</div>` : ""}
+                <div class="d-flex align-items-center justify-content-between">
+                  <span class="fw-semibold text-dark">${l.title}</span>
+                  <span class="text-muted small" style="font-size: 10px;">&#9662;</span>
+                </div>
+                <div class="text-secondary small mt-0" style="font-size: 11.5px;">${l.summary}</div>
               </td>
-              <td>
-                <div class="fw-semibold text-danger"><span class="status-dot dot-online me-1"></span>${l.source_node}</div>
+              <td class="text-center">${srcHtml}</td>
+              <td class="text-center">${tgtHtml}</td>
+              <td class="text-end">
+                <span class="mono-text">${l.latency_ms} ms</span>
               </td>
-              <td>${targetsHtml}</td>
-              <td>
-                <div class="small mono-text text-secondary">${l.mechanism || l.sync_mechanism || ""}</div>
-                <span class="badge bg-light text-dark border mt-1">${l.action}${latTxt}</span>
+              <td class="text-center">${statusHtml}</td>
+            </tr>
+            <tr id="${detailId}" class="sync-detail-row bg-light" style="display: none;">
+              <td colspan="7" class="p-3 bg-light border-bottom">
+                <div class="sync-detail-box p-2 rounded">
+                  <div class="row g-2">
+                    <div class="col-md-7">
+                      <div><strong>Giao thức & Cơ chế:</strong> <span class="mono-text text-dark">${l.mechanism}</span></div>
+                      <div class="mt-1 text-secondary"><strong>Chi tiết kỹ thuật:</strong> ${l.detail}</div>
+                    </div>
+                    <div class="col-md-5 border-start ps-3">
+                      <div><strong>Node Khởi tạo (Primary):</strong> <code>${l.source_node}</code></div>
+                      <div class="mt-1"><strong>Node Nhận (Replicas):</strong> <code>${(l.target_hosts && l.target_hosts.length) ? l.target_hosts.join(', ') : l.target_display}</code></div>
+                      <div class="mt-1 text-muted small">Thời gian: ${l.time || l.timestamp} ngày ${l.date || ''} · Độ trễ: ${l.latency_ms} ms</div>
+                    </div>
+                  </div>
+                </div>
               </td>
-              <td class="text-center">${statusBadge}</td>
             </tr>
           `;
           })
@@ -1685,22 +1752,62 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       }
 
       function renderSyncLogsUI() {
+        const cntAll = cachedSyncLogs.length;
+        const cntMySQL = cachedSyncLogs.filter((l) => l.db_type === "MYSQL_GR").length;
+        const cntMongo = cachedSyncLogs.filter((l) => l.db_type === "MONGO_RS").length;
+
+        ["modal-cnt-all", "tab-cnt-all"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.innerText = cntAll;
+        });
+        ["modal-cnt-mysql", "tab-cnt-mysql"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.innerText = cntMySQL;
+        });
+        ["modal-cnt-mongo", "tab-cnt-mongo"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.innerText = cntMongo;
+        });
+
         let filtered = cachedSyncLogs;
         if (currentSyncFilter && currentSyncFilter !== "ALL") {
-          filtered = cachedSyncLogs.filter(
-            (l) => l.db_type === currentSyncFilter,
+          filtered = cachedSyncLogs.filter((l) => l.db_type === currentSyncFilter);
+        }
+
+        const qModal = (document.getElementById("sync-search-input")?.value || "").toLowerCase().trim();
+        const qTab = (document.getElementById("tab-sync-search-input")?.value || "").toLowerCase().trim();
+
+        let filteredModal = filtered;
+        if (qModal) {
+          filteredModal = filtered.filter(
+            (l) =>
+              (l.title && l.title.toLowerCase().includes(qModal)) ||
+              (l.summary && l.summary.toLowerCase().includes(qModal)) ||
+              (l.log_id && l.log_id.toLowerCase().includes(qModal)) ||
+              (l.detail && l.detail.toLowerCase().includes(qModal)),
           );
         }
 
-        const html = renderSyncRowsHTML(filtered);
+        let filteredTab = filtered;
+        if (qTab) {
+          filteredTab = filtered.filter(
+            (l) =>
+              (l.title && l.title.toLowerCase().includes(qTab)) ||
+              (l.summary && l.summary.toLowerCase().includes(qTab)) ||
+              (l.log_id && l.log_id.toLowerCase().includes(qTab)) ||
+              (l.detail && l.detail.toLowerCase().includes(qTab)),
+          );
+        }
+
         const t1 = document.getElementById("sync-audit-stream-table");
-        if (t1) t1.innerHTML = html;
+        if (t1) t1.innerHTML = renderSyncRowsHTML(filteredTab, "tab");
+
         const t2 = document.getElementById("modal-sync-audit-table");
-        if (t2) t2.innerHTML = html;
+        if (t2) t2.innerHTML = renderSyncRowsHTML(filteredModal, "modal");
 
         const info = document.getElementById("sync-log-total-info");
         if (info) {
-          info.innerText = `Hiển thị ${filtered.length} / ${cachedSyncLogs.length} sự kiện đồng bộ`;
+          info.innerText = `${filteredModal.length} sự kiện`;
         }
       }
 
