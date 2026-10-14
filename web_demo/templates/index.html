@@ -1107,13 +1107,14 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         </div>
 
         <!-- ========================================================================= -->
-        <!-- TAB 4: ĐO KIỂM HIỆU NĂNG TRUY VẤN (BENCHMARK CỤC BỘ VS ĐỌC PHÂN TẢI)      -->
+        <!-- TAB 4: ĐO KIỂM HIỆU NĂNG TRUY VẤN (BENCHMARK CỤC BỘ VS PHÂN TÁN)         -->
         <!-- ========================================================================= -->
         <div class="tab-pane fade" id="tab-benchmark" role="tabpanel">
           <div class="panel-box">
             <div class="panel-header">
               <span
-                >Thực nghiệm So sánh Thời gian Thực thi: Truy vấn Cục bộ (Primary) vs Đọc Phân tải (Replicas) & Đa mô hình (Polyglot)</span
+                >Thực nghiệm So sánh Thời gian Thực thi: Truy vấn Cục bộ vs Truy
+                vấn Phân tán & Đa mô hình</span
               >
               <div class="d-flex align-items-center gap-2">
                 <label class="small fw-normal mb-0">Số vòng lặp đo:</label>
@@ -2361,7 +2362,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               d: data.local_query,
             },
             {
-              label: "2. Truy vấn Phân tán (Đọc Phân tải Round-Robin qua các Replicas)",
+              label: "2. Truy vấn Phân tán (Đọc phân tải qua mạng LAN)",
               d: data.distributed_query,
             },
             {
@@ -2401,8 +2402,8 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             type: "bar",
             data: {
               labels: [
-                "Cục bộ (Primary)",
-                "Đọc Phân tải (Replicas)",
+                "Cục bộ (Local)",
+                "Phân tán (LAN)",
                 "Đa mô hình (Polyglot)",
               ],
               datasets: [
