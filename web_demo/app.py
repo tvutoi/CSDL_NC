@@ -1363,8 +1363,35 @@ def get_cluster_status(request: Request):
             for m in online_m:
                 m["state"] = "PRIMARY" if m["host"] == first_p["host"] else "SECONDARY"
 
+    # Tự động rà soát và đồng bộ trạng thái nhân bản các sự kiện đồng bộ (Replication & Sync Audit Logs)
+    global SYNC_AUDIT_LOGS
+    if not SYNC_AUDIT_LOGS:
+        file_logs = load_sync_logs_from_file()
+        if file_logs:
+            SYNC_AUDIT_LOGS.extend(file_logs)
+
+    mysql_conn_map = {m["host"]: (m.get("state") == "ONLINE") for m in status.get("mysql", [])}
+    mongo_conn_map = {m["host"]: (m.get("health") == 1 and m.get("state") != "OFFLINE") for m in mongo_results}
+
+    logs_updated = False
+    for l in SYNC_AUDIT_LOGS:
+        c_cache = mysql_conn_map if l.get("db_type") == "MYSQL_GR" else mongo_conn_map
+        prev_st = l.get("status")
+        prev_display = l.get("target_display")
+        evaluate_sync_log_targets(l, c_cache)
+        if l.get("status") != prev_st or l.get("target_display") != prev_display:
+            logs_updated = True
+
+    if logs_updated:
+        save_sync_logs_to_file(SYNC_AUDIT_LOGS)
+
+    # Tạo mã băm trạng thái nhật ký để frontend tự động phát hiện và đồng bộ Section 4
+    sig_parts = [f"{l.get('log_id')}:{l.get('status')}:{l.get('target_display')}" for l in SYNC_AUDIT_LOGS[:15]]
+    sync_logs_hash = f"{len(SYNC_AUDIT_LOGS)}|" + "|".join(sig_parts)
+
     status["mongodb"] = mongo_results
     status["sync_logs_count"] = len(SYNC_AUDIT_LOGS)
+    status["sync_logs_hash"] = sync_logs_hash
     status["latest_sync_log"] = SYNC_AUDIT_LOGS[0] if SYNC_AUDIT_LOGS else None
     return status
 

@@ -479,7 +479,7 @@
               data-bs-target="#tab-cluster"
               type="button"
               role="tab"
-              onclick="fetchClusterStatus()">
+              onclick="fetchClusterStatus(); loadSyncLogs();">
               <span class="tab-step">3</span>
               <span>Trạng thái Cụm Server (LAN)</span>
             </button>
@@ -1814,12 +1814,20 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           if (data.sync_logs_count !== undefined) {
             const badge = document.getElementById("sync-log-badge");
             if (badge) {
-              const prevCount = parseInt(badge.innerText || "-1", 10);
               badge.innerText = data.sync_logs_count;
-              if (prevCount !== data.sync_logs_count) {
-                loadSyncLogs();
-              }
             }
+          }
+
+          // TỰ ĐỘNG ĐỒNG BỘ DÒNG SỰ KIỆN ĐỒNG BỘ (SECTION 4):
+          // Dựa vào mã băm trạng thái toàn cục (sync_logs_hash). Bất cứ khi nào một Node khởi động lại / tắt đi,
+          // hoặc có sự kiện đồng bộ mới, hash này sẽ thay đổi ngay trên chu kỳ quét 2s,
+          // kích hoạt tự động cập nhật Section 4 mà không cần người dùng bấm 'Làm mới' thủ công.
+          const currentHash = data.sync_logs_hash || `${data.sync_logs_count}`;
+          if (window.lastSyncLogsHash === undefined) {
+            window.lastSyncLogsHash = currentHash;
+          } else if (window.lastSyncLogsHash !== currentHash) {
+            window.lastSyncLogsHash = currentHash;
+            loadSyncLogs();
           }
         } catch (e) {
           console.error("Cluster status error:", e);
@@ -2172,6 +2180,17 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
       async function loadSyncLogs() {
         try {
+          // Ghi nhớ các dòng chi tiết đang được người dùng mở xem để không bị đóng khi tự động làm mới
+          const openLogIds = new Set();
+          document.querySelectorAll(".sync-detail-row").forEach((row) => {
+            if (row.style.display === "table-row") {
+              const parts = row.id.split("-");
+              if (parts.length >= 4) {
+                openLogIds.add(parts.slice(3).join("-"));
+              }
+            }
+          });
+
           const res = await fetch(
             "/api/cluster/sync-logs?limit=100&_t=" + Date.now(),
             {
@@ -2184,6 +2203,18 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           if (badge) badge.innerText = cachedSyncLogs.length;
 
           renderSyncLogsUI();
+
+          // Khôi phục hiển thị cho các dòng chi tiết đang mở
+          if (openLogIds.size > 0) {
+            document.querySelectorAll(".sync-detail-row").forEach((row) => {
+              const parts = row.id.split("-");
+              if (parts.length >= 4 && openLogIds.has(parts.slice(3).join("-"))) {
+                row.style.display = "table-row";
+                const chevron = document.getElementById("chevron-" + row.id);
+                if (chevron) chevron.innerHTML = "&#9652;";
+              }
+            });
+          }
         } catch (e) {
           console.error("Load sync logs error:", e);
         }
