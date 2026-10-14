@@ -4,6 +4,7 @@ import json
 import time
 import random
 import socket
+import threading
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
@@ -95,9 +96,54 @@ load_cluster_config()
 
 
 # =====================================================================================
-# QUẢN LÝ NHẬT KÝ ĐỒNG BỘ CỤM THỜI GIAN THỰC (REPLICATION & SYNC AUDIT LOGS)
+# QUẢN LÝ NHẬT KÝ ĐỒNG BỘ CỤM THỜI GIAN THỰC (LƯU VĨNH VIỄN VÀO FILE sync_audit_logs.json)
 # =====================================================================================
+SYNC_LOGS_FILE = os.path.join(current_dir, "sync_audit_logs.json")
+SYNC_LOGS_LOCK = threading.Lock()
 SYNC_AUDIT_LOGS: List[Dict[str, Any]] = []
+
+
+def load_sync_logs_from_file() -> List[Dict[str, Any]]:
+    """Đọc toàn bộ nhật ký đồng bộ từ file sync_audit_logs.json"""
+    if os.path.exists(SYNC_LOGS_FILE):
+        try:
+            with open(SYNC_LOGS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+        except Exception as e:
+            print(f"[SYNC_LOG_FILE] Lỗi đọc {SYNC_LOGS_FILE}: {e}")
+    return []
+
+
+def save_sync_logs_to_file(logs: List[Dict[str, Any]]) -> bool:
+    """Lưu vĩnh viễn toàn bộ nhật ký đồng bộ vào file sync_audit_logs.json"""
+    with SYNC_LOGS_LOCK:
+        try:
+            target_files = [SYNC_LOGS_FILE]
+            parent_dir = os.path.dirname(current_dir)
+            if os.path.basename(current_dir) == "web_demo":
+                if os.path.basename(parent_dir) == "CSDL_NC":
+                    alt = os.path.join(os.path.dirname(parent_dir), "web_demo", "sync_audit_logs.json")
+                    if os.path.exists(os.path.dirname(alt)):
+                        target_files.append(alt)
+                else:
+                    alt = os.path.join(parent_dir, "CSDL_NC", "web_demo", "sync_audit_logs.json")
+                    if os.path.exists(os.path.dirname(alt)):
+                        target_files.append(alt)
+
+            for tf in target_files:
+                temp_file = f"{tf}.tmp"
+                with open(temp_file, "w", encoding="utf-8") as f:
+                    json.dump(logs, f, ensure_ascii=False, indent=2)
+                if os.path.exists(tf):
+                    os.replace(temp_file, tf)
+                else:
+                    os.rename(temp_file, tf)
+            return True
+        except Exception as e:
+            print(f"[SYNC_LOG_FILE] Lỗi lưu {SYNC_LOGS_FILE}: {e}")
+            return False
 
 def get_node_label(host_str: str, db_type: str = "mysql") -> str:
     """Chuyển đổi IP:Port thành nhãn Node ngắn gọn (Node 1, Node 2, ...)"""
@@ -304,9 +350,16 @@ def record_sync_log(
     # Đánh giá trạng thái thực tế dựa trên kết nối mạng thực tế của từng Replicas
     evaluate_sync_log_targets(log_item)
 
-    SYNC_AUDIT_LOGS.insert(0, log_item)
-    if len(SYNC_AUDIT_LOGS) > 100:
-        SYNC_AUDIT_LOGS.pop()
+    # Đọc từ file sync_audit_logs.json, chèn mẫu tin mới lên đầu, giới hạn 100 bản ghi, và lưu vĩnh viễn
+    logs = load_sync_logs_from_file()
+    logs.insert(0, log_item)
+    if len(logs) > 100:
+        logs = logs[:100]
+    save_sync_logs_to_file(logs)
+
+    # Đồng bộ bộ đệm RAM
+    SYNC_AUDIT_LOGS.clear()
+    SYNC_AUDIT_LOGS.extend(logs)
 
     return log_item
 
@@ -562,47 +615,55 @@ def detect_active_primaries():
 
 
 def init_sample_sync_logs(force: bool = False):
-    """Khởi tạo các sự kiện đồng bộ mẫu ban đầu với đầy đủ Dữ liệu Cập nhật và chi tiết kỹ thuật theo đúng Node Primary thực tế"""
+    """Khởi tạo các sự kiện đồng bộ mẫu ban đầu vào file sync_audit_logs.json nếu file chưa có hoặc rỗng"""
     global SYNC_AUDIT_LOGS
-    if not SYNC_AUDIT_LOGS or force:
+    logs = load_sync_logs_from_file()
+    if logs and not force:
         SYNC_AUDIT_LOGS.clear()
-        mysql_p, mysql_secs, mongo_p, mongo_secs = detect_active_primaries()
+        SYNC_AUDIT_LOGS.extend(logs)
+        return
 
-        # 1. Sự kiện MongoDB (Khớp dữ liệu cập nhật thực tế)
-        record_sync_log(
-            db_type="MONGO_RS",
-            action="INSERT_REVIEW",
-            title="Đánh giá & Nhận xét SP #1",
-            summary="Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy...' | Đóng gói: Nguyên hộp, bọc chống sốc",
-            data_payload="Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy chạy rất mượt' | Đánh giá: 5 sao | Đóng gói: Nguyên hộp, bọc chống sốc",
-            affected_tables="product_reviews (1 BSON Document)",
-            source_node=mongo_p,
-            target_nodes=mongo_secs,
-            mechanism="MongoDB Oplog Streaming (local.oplog.rs)",
-            detail=f"Ghi BSON Document kèm thuộc tính cảm xúc động và mảng ảnh vào collection product_reviews tại Primary ({mongo_p}). Tự động phát tán luồng Oplog tới các Node Secondary trong Replica Set.",
-            latency_ms=559.0
-        )
+    # Khởi tạo mới hoặc ghi đè khi force=True
+    SYNC_AUDIT_LOGS.clear()
+    save_sync_logs_to_file([])
 
-        # 2. Sự kiện MySQL (Đặt hàng giao dịch thực tế)
-        record_sync_log(
-            db_type="MYSQL_GR",
-            action="CHECKOUT_ORDER",
-            title="Đặt hàng #50009",
-            summary="Sản phẩm: iPhone 15 Pro Max (SL: 1) | Khách hàng: Nguyễn Văn A (#1002) | Phương thức: COD | 3 bảng",
-            data_payload="Mã đơn: #50009 | Sản phẩm: iPhone 15 Pro Max 256GB (ID #1, SL: 1, Đơn giá: 28.000.000 đ) | Khách hàng: Nguyễn Văn A (ID #1002) | Tổng tiền: 28.000.000 đ | Thanh toán: COD (Tiền mặt khi nhận hàng)",
-            affected_tables="orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
-            source_node=mysql_p,
-            target_nodes=mysql_secs,
-            mechanism="Paxos Consensus (XCom 33061) + Binary Log GTID",
-            detail=f"Mở Transaction ACID trên Primary ({mysql_p}): Khóa dòng FOR UPDATE SP #1, trừ tồn kho, INSERT orders, order_items, payments. Kênh Paxos XCom đồng thuận Write-Set toàn cụm trước khi Commit.",
-            latency_ms=642.0
-        )
+    mysql_p, mysql_secs, mongo_p, mongo_secs = detect_active_primaries()
+
+    # 1. Sự kiện MongoDB (Khớp dữ liệu cập nhật thực tế)
+    record_sync_log(
+        db_type="MONGO_RS",
+        action="INSERT_REVIEW",
+        title="Đánh giá & Nhận xét SP #1",
+        summary="Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy...' | Đóng gói: Nguyên hộp, bọc chống sốc",
+        data_payload="Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy chạy rất mượt' | Đánh giá: 5 sao | Đóng gói: Nguyên hộp, bọc chống sốc",
+        affected_tables="product_reviews (1 BSON Document)",
+        source_node=mongo_p,
+        target_nodes=mongo_secs,
+        mechanism="MongoDB Oplog Streaming (local.oplog.rs)",
+        detail=f"Ghi BSON Document kèm thuộc tính cảm xúc động và mảng ảnh vào collection product_reviews tại Primary ({mongo_p}). Tự động phát tán luồng Oplog tới các Node Secondary trong Replica Set.",
+        latency_ms=559.0
+    )
+
+    # 2. Sự kiện MySQL (Đặt hàng giao dịch thực tế)
+    record_sync_log(
+        db_type="MYSQL_GR",
+        action="CHECKOUT_ORDER",
+        title="Đặt hàng #50009",
+        summary="Sản phẩm: iPhone 15 Pro Max (SL: 1) | Khách hàng: Nguyễn Văn A (#1002) | Phương thức: COD | 3 bảng",
+        data_payload="Mã đơn: #50009 | Sản phẩm: iPhone 15 Pro Max 256GB (ID #1, SL: 1, Đơn giá: 28.000.000 đ) | Khách hàng: Nguyễn Văn A (ID #1002) | Tổng tiền: 28.000.000 đ | Thanh toán: COD (Tiền mặt khi nhận hàng)",
+        affected_tables="orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
+        source_node=mysql_p,
+        target_nodes=mysql_secs,
+        mechanism="Paxos Consensus (XCom 33061) + Binary Log GTID",
+        detail=f"Mở Transaction ACID trên Primary ({mysql_p}): Khóa dòng FOR UPDATE SP #1, trừ tồn kho, INSERT orders, order_items, payments. Kênh Paxos XCom đồng thuận Write-Set toàn cụm trước khi Commit.",
+        latency_ms=642.0
+    )
 
 
 try:
-    init_sample_sync_logs(force=True)
+    init_sample_sync_logs(force=False)
 except Exception as _e:
-    print(f"[SYNC_LOG_INIT] Lỗi khởi tạo nhật ký mẫu: {_e}")
+    print(f"[SYNC_LOG_INIT] Lỗi khởi tạo nhật ký: {_e}")
 
 
 # =====================================================================================
@@ -654,16 +715,15 @@ def get_sync_logs(
     limit: int = Query(50, ge=5, le=100),
     db_type: Optional[str] = Query(None, description="ALL | MYSQL_GR | MONGO_RS")
 ):
-    """Lấy danh sách nhật ký đồng bộ & nhân bản dữ liệu giữa các Node trong cụm thời gian thực"""
+    """Lấy danh sách nhật ký đồng bộ & nhân bản dữ liệu từ file sync_audit_logs.json thời gian thực"""
     global SYNC_AUDIT_LOGS
-    if not SYNC_AUDIT_LOGS:
-        init_sample_sync_logs()
-    else:
-        # Tự động làm mới nếu mẫu tin cũ trỏ vào Node 1 đang OFFLINE hoặc danh sách Replicas chưa đủ 3 node (Node 1, 3, 4)
-        has_stale_node1 = any(l.get("source_node", "").startswith("192.168.1.221") for l in SYNC_AUDIT_LOGS)
-        needs_all_replicas = any(len(l.get("target_nodes", [])) < 3 for l in SYNC_AUDIT_LOGS)
-        if (has_stale_node1 and not is_port_open("192.168.1.221", 3306, timeout=0.15)) or needs_all_replicas:
-            init_sample_sync_logs(force=True)
+    file_logs = load_sync_logs_from_file()
+    if not file_logs:
+        init_sample_sync_logs(force=True)
+        file_logs = load_sync_logs_from_file()
+
+    SYNC_AUDIT_LOGS.clear()
+    SYNC_AUDIT_LOGS.extend(file_logs)
 
     # Đánh giá lại trạng thái kết nối mạng thực tế của Replicas cho toàn bộ logs
     # Sử dụng cache kết nối theo từng IP:port để đảm bảo phản hồi cực nhanh (< 0.2s)
@@ -676,6 +736,9 @@ def get_sync_logs(
             l["title"] = re.sub(r"\s*·\s*[0-9.,]+\s*đ", "", l["title"])
             l["title"] = re.sub(r"\s*\([0-9]+\s*sao\)", "", l["title"])
             l["title"] = re.sub(r"\s*·\s*[0-9]+\s*bản ghi bù", "", l["title"])
+
+    # Lưu lại file để cập nhật trạng thái kết nối thực tế mới nhất
+    save_sync_logs_to_file(SYNC_AUDIT_LOGS)
 
     limit_val = limit if isinstance(limit, int) else int(getattr(limit, "default", 50) or 50)
     db_type_val = db_type if isinstance(db_type, str) else getattr(db_type, "default", None)
@@ -691,10 +754,11 @@ def get_sync_logs(
 
 @app.post("/api/cluster/sync-logs/clear")
 def clear_sync_logs():
-    """Xóa toàn bộ nhật ký đồng bộ cụm"""
+    """Xóa toàn bộ nhật ký đồng bộ cụm khỏi file sync_audit_logs.json"""
     global SYNC_AUDIT_LOGS
     SYNC_AUDIT_LOGS.clear()
-    return {"status": "SUCCESS", "message": "Đã xóa toàn bộ nhật ký đồng bộ cụm!", "total": 0}
+    save_sync_logs_to_file([])
+    return {"status": "SUCCESS", "message": "Đã xóa toàn bộ nhật ký đồng bộ trong file sync_audit_logs.json!", "total": 0}
 
 
 @app.post("/api/cluster/sync-data")

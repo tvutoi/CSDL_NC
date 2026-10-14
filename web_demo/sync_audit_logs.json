@@ -1,0 +1,164 @@
+[
+  {
+    "log_id": "SYNC-418061",
+    "time": "13:27:21",
+    "date": "14/10/2026",
+    "timestamp": "13:27:21",
+    "start_time": "13:27:21.220",
+    "end_time": "13:27:21.806",
+    "db_type": "MYSQL_GR",
+    "action": "CHECKOUT_ORDER",
+    "title": "Đặt hàng #50014",
+    "summary": "Sản phẩm: iPhone 15 Pro Max 256GB Titan Tự Nhiên (SL: 1) | KH #1002 | PT: COD | 3 bảng",
+    "data_payload": "Mã đơn: #50014 | Sản phẩm: iPhone 15 Pro Max 256GB Titan Tự Nhiên (ID #1, SL: 1, Đơn giá: 28.000.000 đ) | Khách hàng: #1002 | Tổng tiền: 28.000.000 đ | Hình thức: COD",
+    "affected_tables": "orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221",
+      "192.168.1.222:3307",
+      "192.168.1.222:3308"
+    ],
+    "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
+    "detail": "Giao dịch đã đồng bộ thành công tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
+    "latency_ms": 586.2,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 Node",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:3307",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:3308",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-657682",
+    "time": "13:26:05",
+    "date": "14/10/2026",
+    "timestamp": "13:26:05",
+    "start_time": "13:26:05.126",
+    "end_time": "13:26:05.768",
+    "db_type": "MYSQL_GR",
+    "action": "CHECKOUT_ORDER",
+    "title": "Đặt hàng #50009",
+    "summary": "Sản phẩm: iPhone 15 Pro Max (SL: 1) | Khách hàng: Nguyễn Văn A (#1002) | Phương thức: COD | 3 bảng",
+    "data_payload": "Mã đơn: #50009 | Sản phẩm: iPhone 15 Pro Max 256GB (ID #1, SL: 1, Đơn giá: 28.000.000 đ) | Khách hàng: Nguyễn Văn A (ID #1002) | Tổng tiền: 28.000.000 đ | Thanh toán: COD (Tiền mặt khi nhận hàng)",
+    "affected_tables": "orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221",
+      "192.168.1.222:3307",
+      "192.168.1.222:3308"
+    ],
+    "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
+    "detail": "Giao dịch đã đồng bộ thành công tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
+    "latency_ms": 642.0,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 Node",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:3307",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:3308",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-656561",
+    "time": "13:26:05",
+    "date": "14/10/2026",
+    "timestamp": "13:26:05",
+    "start_time": "13:26:05.097",
+    "end_time": "13:26:05.656",
+    "db_type": "MONGO_RS",
+    "action": "INSERT_REVIEW",
+    "title": "Đánh giá & Nhận xét SP #1",
+    "summary": "Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy...' | Đóng gói: Nguyên hộp, bọc chống sốc",
+    "data_payload": "Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy chạy rất mượt' | Đánh giá: 5 sao | Đóng gói: Nguyên hộp, bọc chống sốc",
+    "affected_tables": "product_reviews (1 BSON Document)",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:27017",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:27017",
+      "192.168.1.222:27018",
+      "192.168.1.222:27019"
+    ],
+    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
+    "detail": "Giao dịch đã đồng bộ thành công qua Oplog tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động streaming bù Oplog ngay khi trực tuyến trở lại.",
+    "latency_ms": 559.0,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 Node",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:27017",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:27018",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:27019",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  }
+]
