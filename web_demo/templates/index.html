@@ -1576,9 +1576,9 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           if (data.sync_logs_count !== undefined) {
             const badge = document.getElementById("sync-log-badge");
             if (badge) {
-              const prevCount = parseInt(badge.innerText || "0", 10);
+              const prevCount = parseInt(badge.innerText || "-1", 10);
               badge.innerText = data.sync_logs_count;
-              if (cachedSyncLogs.length === 0 || prevCount !== data.sync_logs_count) {
+              if (prevCount !== data.sync_logs_count) {
                 loadSyncLogs();
               }
             }
@@ -1734,12 +1734,15 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           });
           if (res.ok) {
             cachedSyncLogs = [];
-            renderSyncLogsUI();
             const badge = document.getElementById("sync-log-badge");
             if (badge) badge.innerText = "0";
+            renderSyncLogsUI();
+          } else {
+            alert("Lỗi khi xóa nhật ký: " + (await res.text()));
           }
         } catch (e) {
           console.error("Clear sync logs error:", e);
+          alert("Lỗi kết nối khi xóa nhật ký: " + e);
         }
       }
 

@@ -426,11 +426,10 @@ def get_sync_logs(
 
 @app.post("/api/cluster/sync-logs/clear")
 def clear_sync_logs():
-    """Làm mới danh sách nhật ký đồng bộ cụm"""
+    """Xóa toàn bộ nhật ký đồng bộ cụm"""
     global SYNC_AUDIT_LOGS
-    SYNC_AUDIT_LOGS = []
-    init_sample_sync_logs()
-    return {"status": "SUCCESS", "message": "Đã làm mới nhật ký đồng bộ cụm!"}
+    SYNC_AUDIT_LOGS.clear()
+    return {"status": "SUCCESS", "message": "Đã xóa toàn bộ nhật ký đồng bộ cụm!", "total": 0}
 
 
 # =====================================================================================
