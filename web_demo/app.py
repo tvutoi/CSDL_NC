@@ -125,7 +125,9 @@ def record_sync_log(
     mechanism: str,
     detail: str,
     latency_ms: float = 0.0,
-    status: str = "SYNCED"
+    status: str = "SYNCED",
+    data_payload: str = "",
+    affected_tables: str = ""
 ) -> Dict[str, Any]:
     """Ghi nhận sự kiện nhân bản và đồng bộ dữ liệu giữa các Node trong cụm thời gian thực"""
     global SYNC_AUDIT_LOGS
@@ -161,6 +163,8 @@ def record_sync_log(
         "action": action,
         "title": title,
         "summary": summary,
+        "data_payload": data_payload or summary,
+        "affected_tables": affected_tables,
         "source_label": src_label,
         "source_node": source_node,
         "target_display": targets_display,
@@ -179,7 +183,7 @@ def record_sync_log(
 
 
 def init_sample_sync_logs():
-    """Khởi tạo các sự kiện đồng bộ mẫu ban đầu với định dạng súc tích, chuyên nghiệp"""
+    """Khởi tạo các sự kiện đồng bộ mẫu ban đầu với đầy đủ Dữ liệu Cập nhật và chi tiết kỹ thuật"""
     global SYNC_AUDIT_LOGS
     if not SYNC_AUDIT_LOGS:
         mysql_p = CLUSTER_CONFIG["mysql_nodes"][0] if CLUSTER_CONFIG["mysql_nodes"] else "192.168.1.221"
@@ -187,30 +191,38 @@ def init_sample_sync_logs():
         mongo_p = CLUSTER_CONFIG["mongo_nodes"][0] if CLUSTER_CONFIG["mongo_nodes"] else "192.168.1.221:27017"
         mongo_secs = CLUSTER_CONFIG["mongo_nodes"][1:] if len(CLUSTER_CONFIG["mongo_nodes"]) > 1 else ["192.168.1.222:27017", "192.168.1.222:27018", "192.168.1.222:27019"]
 
+        # 1. Sự kiện MongoDB (Khớp dữ liệu cập nhật như hình mẫu)
         record_sync_log(
             db_type="MONGO_RS",
-            action="REPLICA_SET_INIT",
-            title="Khởi tạo cụm MongoDB Replica Set",
-            summary="product_reviews, user_activity_logs · 100.013 documents",
+            action="INSERT_REVIEW",
+            title="Đánh giá & Nhận xét SP #1 (5 sao)",
+            summary="Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy...' | Đóng gói: Nguyên hộp, bọc chống sốc",
+            data_payload="Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy chạy rất mượt' | Đánh giá: 5 sao | Đóng gói: Nguyên hộp, bọc chống sốc",
+            affected_tables="product_reviews (1 BSON Document)",
             source_node=mongo_p,
             target_nodes=mongo_secs,
             mechanism="MongoDB Oplog Streaming (local.oplog.rs)",
-            detail="Tất cả Node Secondary thiết lập kết nối Oplog streaming trực tiếp tới Primary, hoàn tất replay 100.013 BSON documents.",
-            latency_ms=7.8,
+            detail=f"Ghi BSON Document kèm thuộc tính cảm xúc động và mảng ảnh vào collection product_reviews tại Primary ({mongo_p}). Tự động phát tán luồng Oplog tới các Node Secondary trong Replica Set.",
+            latency_ms=559.0,
             status="SYNCED"
         )
+
+        # 2. Sự kiện MySQL (Đặt hàng giao dịch thực tế)
         record_sync_log(
             db_type="MYSQL_GR",
-            action="CLUSTER_BOOTSTRAP",
-            title="Khởi tạo cụm MySQL Group Replication",
-            summary="users, products, orders, order_items, payments · 212.024 bản ghi",
+            action="CHECKOUT_ORDER",
+            title="Đặt hàng #50009 · 28.000.000 đ",
+            summary="Sản phẩm: iPhone 15 Pro Max (SL: 1) | Khách hàng: Nguyễn Văn A (#1002) | Phương thức: COD | 3 bảng",
+            data_payload="Mã đơn: #50009 | Sản phẩm: iPhone 15 Pro Max 256GB (ID #1, SL: 1, Đơn giá: 28.000.000 đ) | Khách hàng: Nguyễn Văn A (ID #1002) | Tổng tiền: 28.000.000 đ | Thanh toán: COD (Tiền mặt khi nhận hàng)",
+            affected_tables="orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
             source_node=mysql_p,
             target_nodes=mysql_secs,
             mechanism="Paxos Consensus (XCom 33061) + Binary Log GTID",
-            detail="Đồng thuận kênh truyền XCom toàn cụm qua cổng 33061. Write-Set được kiểm chứng xung đột và áp dụng đồng nhất qua Binlog GTID.",
-            latency_ms=12.5,
+            detail=f"Mở Transaction ACID trên Primary ({mysql_p}): Khóa dòng FOR UPDATE SP #1, trừ tồn kho, INSERT orders, order_items, payments. Kênh Paxos XCom đồng thuận Write-Set toàn cụm trước khi Commit.",
+            latency_ms=642.0,
             status="SYNCED"
         )
+
 
 init_sample_sync_logs()
 
@@ -973,15 +985,19 @@ def checkout(req: OrderRequest):
         sync_entry = None
         try:
             online_secondaries = [h for h in CLUSTER_CONFIG["mysql_nodes"] if h != mysql_meta.get("host") and is_port_open(h.split(":")[0], int(h.split(":")[1]) if ":" in h else 3306, timeout=0.15)]
+            total_fmt = f"{total:,.0f} đ".replace(",", ".")
+            unit_price_fmt = f"{prod['price']:,.0f} đ".replace(",", ".")
             sync_entry = record_sync_log(
                 db_type="MYSQL_GR",
                 action="CHECKOUT_ORDER",
-                title=f"Đặt hàng #{order_id} · {total:,.0f} đ".replace(",", "."),
-                summary="orders, order_items, payments · 3 bảng",
+                title=f"Đặt hàng #{order_id} · {total_fmt}",
+                summary=f"Sản phẩm: {prod['product_name']} (SL: {req.quantity}) | KH #{req.user_id} | PT: {req.payment_method} | 3 bảng",
+                data_payload=f"Mã đơn: #{order_id} | Sản phẩm: {prod['product_name']} (ID #{req.product_id}, SL: {req.quantity}, Đơn giá: {unit_price_fmt}) | Khách hàng: #{req.user_id} | Tổng tiền: {total_fmt} | Hình thức: {req.payment_method}",
+                affected_tables="orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
                 source_node=mysql_meta.get("host", "192.168.1.221"),
                 target_nodes=online_secondaries if online_secondaries else [h for h in CLUSTER_CONFIG["mysql_nodes"] if h != mysql_meta.get("host")],
                 mechanism="Paxos Consensus (XCom 33061) + Binary Log GTID",
-                detail=f"Giao dịch ACID tại Primary ({mysql_meta.get('host')}): SP #{req.product_id} (SL {req.quantity}) - KH #{req.user_id} ({req.payment_method}). Kênh Paxos XCom đồng thuận Write-Set toàn cụm trước khi Commit.",
+                detail=f"Mở Transaction ACID trên Primary ({mysql_meta.get('host')}): Khóa dòng FOR UPDATE SP #{req.product_id}, trừ tồn kho {req.quantity}, INSERT orders, order_items, payments. Kênh Paxos XCom đồng thuận Write-Set toàn cụm trước khi Commit.",
                 latency_ms=tx_ms,
                 status="SYNCED"
             )
@@ -1054,12 +1070,14 @@ def add_review(req: ReviewRequest):
             sync_entry = record_sync_log(
                 db_type="MONGO_RS",
                 action="INSERT_REVIEW",
-                title=f"Thêm đánh giá SP #{req.product_id} ({stars})",
-                summary="product_reviews · 1 document",
+                title=f"Đánh giá & Nhận xét SP #{req.product_id} ({req.rating} sao)",
+                summary=f"Tiêu đề: '{req.title}' | Bình luận: '{req.comment[:40]}...' | Đóng gói: {req.packaging}",
+                data_payload=f"Sản phẩm ID: #{req.product_id} | Đánh giá: {req.rating} sao ({stars}) | Tiêu đề: '{req.title}' | Bình luận: '{req.comment}' | Đóng gói: {req.packaging}",
+                affected_tables="product_reviews (1 BSON Document)",
                 source_node=active_host,
                 target_nodes=mongo_secondaries if mongo_secondaries else [h for h in CLUSTER_CONFIG["mongo_nodes"] if h != active_host],
                 mechanism="MongoDB Oplog Streaming (local.oplog.rs)",
-                detail=f"Ghi BSON Document vào product_reviews tại Primary ({active_host}): '{req.title}' - '{req.comment[:40]}...'. Secondary tự động kéo thay đổi từ Oplog và đồng bộ cục bộ.",
+                detail=f"Ghi BSON Document kèm thuộc tính cảm xúc động và mảng ảnh vào collection product_reviews tại Primary ({active_host}). Tự động phát tán luồng Oplog tới các Node Secondary trong Replica Set.",
                 latency_ms=elapsed_ms,
                 status="SYNCED"
             )

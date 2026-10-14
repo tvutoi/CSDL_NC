@@ -1170,7 +1170,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                     <tr>
                       <th style="width: 95px;">Giờ</th>
                       <th style="width: 105px;" class="text-center">CSDL</th>
-                      <th>Sự kiện</th>
+                      <th>Sự kiện & Dữ liệu Cập nhật</th>
                       <th style="width: 95px;" class="text-center">Nguồn</th>
                       <th style="width: 115px;" class="text-center">Đích</th>
                       <th style="width: 90px;" class="text-end">Độ trễ</th>
@@ -1373,7 +1373,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                   <tr>
                     <th style="width: 95px;">Giờ</th>
                     <th style="width: 105px;" class="text-center">CSDL</th>
-                    <th>Sự kiện</th>
+                    <th>Sự kiện & Dữ liệu Cập nhật</th>
                     <th style="width: 95px;" class="text-center">Nguồn</th>
                     <th style="width: 115px;" class="text-center">Đích</th>
                     <th style="width: 90px;" class="text-end">Độ trễ</th>
@@ -1708,8 +1708,13 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
             const detailId = `detail-${prefix}-${l.log_id}`;
 
+            const payloadHtml = l.data_payload || l.summary || '';
+            const affectedTablesHtml = l.affected_tables
+              ? `<div class="mt-1 small text-secondary"><strong>Bảng / Collection bị ghi:</strong> <code class="text-dark bg-white px-1 border rounded">${l.affected_tables}</code></div>`
+              : '';
+
             return `
-            <tr class="sync-row-clickable" onclick="toggleSyncRow('${detailId}')" title="Bấm để xem chi tiết cơ chế đồng bộ">
+            <tr class="sync-row-clickable" onclick="toggleSyncRow('${detailId}')" title="Bấm để xem chi tiết dữ liệu cập nhật và cơ chế đồng bộ">
               <td>
                 <div class="fw-semibold text-dark">${l.time || l.timestamp}</div>
                 <div class="mono-text text-muted" style="font-size: 11px;">${l.log_id}</div>
@@ -1720,7 +1725,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                   <span class="fw-semibold text-dark">${l.title}</span>
                   <span class="text-muted small" style="font-size: 10px;">&#9662;</span>
                 </div>
-                <div class="text-secondary small mt-0" style="font-size: 11.5px;">${l.summary}</div>
+                <div class="text-secondary small mt-1" style="font-size: 11.5px; line-height: 1.4;">${l.summary}</div>
               </td>
               <td class="text-center">${srcHtml}</td>
               <td class="text-center">${tgtHtml}</td>
@@ -1731,7 +1736,14 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             </tr>
             <tr id="${detailId}" class="sync-detail-row bg-light" style="display: none;">
               <td colspan="7" class="p-3 bg-light border-bottom">
-                <div class="sync-detail-box p-2 rounded">
+                <div class="sync-detail-box p-3 rounded">
+                  <div class="p-2 mb-2 bg-white rounded border">
+                    <div class="fw-semibold text-dark small mb-1">
+                      <i class="bi bi-file-earmark-diff text-primary me-1"></i>Dữ liệu cập nhật:
+                    </div>
+                    <div class="small text-dark font-monospace ps-2" style="white-space: pre-wrap; word-break: break-word;">${payloadHtml}</div>
+                    ${affectedTablesHtml}
+                  </div>
                   <div class="row g-2">
                     <div class="col-md-7">
                       <div><strong>Giao thức & Cơ chế:</strong> <span class="mono-text text-dark">${l.mechanism}</span></div>
@@ -1783,6 +1795,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             (l) =>
               (l.title && l.title.toLowerCase().includes(qModal)) ||
               (l.summary && l.summary.toLowerCase().includes(qModal)) ||
+              (l.data_payload && l.data_payload.toLowerCase().includes(qModal)) ||
               (l.log_id && l.log_id.toLowerCase().includes(qModal)) ||
               (l.detail && l.detail.toLowerCase().includes(qModal)),
           );
@@ -1794,6 +1807,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             (l) =>
               (l.title && l.title.toLowerCase().includes(qTab)) ||
               (l.summary && l.summary.toLowerCase().includes(qTab)) ||
+              (l.data_payload && l.data_payload.toLowerCase().includes(qTab)) ||
               (l.log_id && l.log_id.toLowerCase().includes(qTab)) ||
               (l.detail && l.detail.toLowerCase().includes(qTab)),
           );
