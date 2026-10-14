@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import time
 import random
@@ -571,7 +572,7 @@ def init_sample_sync_logs(force: bool = False):
         record_sync_log(
             db_type="MONGO_RS",
             action="INSERT_REVIEW",
-            title="Đánh giá & Nhận xét SP #1 (5 sao)",
+            title="Đánh giá & Nhận xét SP #1",
             summary="Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy...' | Đóng gói: Nguyên hộp, bọc chống sốc",
             data_payload="Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy chạy rất mượt' | Đánh giá: 5 sao | Đóng gói: Nguyên hộp, bọc chống sốc",
             affected_tables="product_reviews (1 BSON Document)",
@@ -586,7 +587,7 @@ def init_sample_sync_logs(force: bool = False):
         record_sync_log(
             db_type="MYSQL_GR",
             action="CHECKOUT_ORDER",
-            title="Đặt hàng #50009 · 28.000.000 đ",
+            title="Đặt hàng #50009",
             summary="Sản phẩm: iPhone 15 Pro Max (SL: 1) | Khách hàng: Nguyễn Văn A (#1002) | Phương thức: COD | 3 bảng",
             data_payload="Mã đơn: #50009 | Sản phẩm: iPhone 15 Pro Max 256GB (ID #1, SL: 1, Đơn giá: 28.000.000 đ) | Khách hàng: Nguyễn Văn A (ID #1002) | Tổng tiền: 28.000.000 đ | Thanh toán: COD (Tiền mặt khi nhận hàng)",
             affected_tables="orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
@@ -671,6 +672,10 @@ def get_sync_logs(
     for l in SYNC_AUDIT_LOGS:
         c_cache = mysql_cache if l.get("db_type") == "MYSQL_GR" else mongo_cache
         evaluate_sync_log_targets(l, c_cache)
+        if l.get("title"):
+            l["title"] = re.sub(r"\s*·\s*[0-9.,]+\s*đ", "", l["title"])
+            l["title"] = re.sub(r"\s*\([0-9]+\s*sao\)", "", l["title"])
+            l["title"] = re.sub(r"\s*·\s*[0-9]+\s*bản ghi bù", "", l["title"])
 
     limit_val = limit if isinstance(limit, int) else int(getattr(limit, "default", 50) or 50)
     db_type_val = db_type if isinstance(db_type, str) else getattr(db_type, "default", None)
@@ -795,8 +800,8 @@ def manual_sync_cluster_data():
         record_sync_log(
             db_type="MYSQL_GR",
             action="MANUAL_SYNC",
-            title=f"Đồng bộ thủ công qua Quản trị viên · {total_synced_rows} bản ghi bù",
-            summary=f"Quản trị viên kích hoạt đồng bộ dữ liệu | Đối chiếu và bù bản ghi thiếu | {len(synced_details)} Node nhận trực tiếp",
+            title="Đồng bộ thủ công qua Quản trị viên",
+            summary=f"Quản trị viên kích hoạt đối chiếu và đồng bộ dữ liệu | {total_synced_rows} bản ghi bù | Toàn cụm LAN",
             data_payload=f"Thao tác: Kích hoạt đồng bộ dữ liệu thủ công toàn cụm | Node chính: {mysql_p} | Số bản ghi bù mới: {total_synced_rows} dòng | Các Node nhận: {', '.join(synced_details) if synced_details else 'Tất cả các node đã đồng bộ sẵn'}",
             affected_tables="orders, order_items, payments (Đối chiếu & Kiểm tra toàn vẹn)",
             source_node=mysql_p,
@@ -1323,7 +1328,7 @@ def checkout(req: OrderRequest):
             sync_entry = record_sync_log(
                 db_type="MYSQL_GR",
                 action="CHECKOUT_ORDER",
-                title=f"Đặt hàng #{order_id} · {total_fmt}",
+                title=f"Đặt hàng #{order_id}",
                 summary=f"Sản phẩm: {prod['product_name']} (SL: {req.quantity}) | KH #{req.user_id} | PT: {req.payment_method} | 3 bảng",
                 data_payload=f"Mã đơn: #{order_id} | Sản phẩm: {prod['product_name']} (ID #{req.product_id}, SL: {req.quantity}, Đơn giá: {unit_price_fmt}) | Khách hàng: #{req.user_id} | Tổng tiền: {total_fmt} | Hình thức: {req.payment_method}",
                 affected_tables="orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
@@ -1402,7 +1407,7 @@ def add_review(req: ReviewRequest):
             sync_entry = record_sync_log(
                 db_type="MONGO_RS",
                 action="INSERT_REVIEW",
-                title=f"Đánh giá & Nhận xét SP #{req.product_id} ({req.rating} sao)",
+                title=f"Đánh giá & Nhận xét SP #{req.product_id}",
                 summary=f"Tiêu đề: '{req.title}' | Bình luận: '{req.comment[:40]}...' | Đóng gói: {req.packaging}",
                 data_payload=f"Sản phẩm ID: #{req.product_id} | Đánh giá: {req.rating} sao ({stars}) | Tiêu đề: '{req.title}' | Bình luận: '{req.comment}' | Đóng gói: {req.packaging}",
                 affected_tables="product_reviews (1 BSON Document)",

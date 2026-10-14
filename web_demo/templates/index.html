@@ -1235,15 +1235,13 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                   class="table table-bordered table-sm table-custom mb-0 align-middle">
                   <thead class="table-light sticky-top">
                     <tr>
-                      <th style="width: 110px">STT & Giờ</th>
+                      <th style="width: 110px" class="text-center">STT & Giờ</th>
                       <th style="width: 105px" class="text-center">CSDL</th>
-                      <th>Sự kiện & Dữ liệu Cập nhật</th>
+                      <th class="text-center">Sự kiện & Tóm tắt</th>
                       <th style="width: 95px" class="text-center">Nguồn</th>
                       <th style="width: 115px" class="text-center">Đích</th>
-                      <th style="width: 90px" class="text-end">Độ trễ</th>
-                      <th style="width: 110px" class="text-center">
-                        Trạng thái
-                      </th>
+                      <th style="width: 90px" class="text-center">Độ trễ</th>
+                      <th style="width: 110px" class="text-center">Trạng thái</th>
                     </tr>
                   </thead>
                   <tbody id="sync-audit-stream-table">
@@ -1515,12 +1513,12 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                 class="table table-bordered table-sm table-custom mb-0 align-middle">
                 <thead class="table-light sticky-top">
                   <tr>
-                    <th style="width: 110px">STT & Giờ</th>
+                    <th style="width: 110px" class="text-center">STT & Giờ</th>
                     <th style="width: 105px" class="text-center">CSDL</th>
-                    <th>Sự kiện & Dữ liệu Cập nhật</th>
+                    <th class="text-center">Sự kiện & Tóm tắt</th>
                     <th style="width: 95px" class="text-center">Nguồn</th>
                     <th style="width: 115px" class="text-center">Đích</th>
-                    <th style="width: 90px" class="text-end">Độ trễ</th>
+                    <th style="width: 90px" class="text-center">Độ trễ</th>
                     <th style="width: 110px" class="text-center">Trạng thái</th>
                   </tr>
                 </thead>
@@ -1950,8 +1948,14 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                  </div>`
               : "";
 
-            // Nổi bật các số / mã số trong tiêu đề (ví dụ #50009, SP #1, 28.000.000 đ)
-            const formattedTitle = (l.title || "").replace(
+            // Chuẩn hóa tiêu đề sự kiện ngắn gọn, nhận diện rõ mã ID (không cần lặp lại thông tin vì đã có chi tiết bên dưới)
+            let cleanTitle = (l.title || "")
+              .replace(/\s*·\s*[0-9.,]+\s*đ/gi, "")
+              .replace(/\s*\([0-9]+\s*sao\)/gi, "")
+              .replace(/\s*·\s*[0-9]+\s*bản ghi bù/gi, "")
+              .trim();
+
+            const formattedTitle = cleanTitle.replace(
               /(#[0-9]+)/g,
               '<span class="badge bg-primary text-white font-monospace fw-bold px-1.5 py-0.5">$1</span>',
             );
@@ -2002,12 +2006,12 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
             return `
             <tr class="sync-row-clickable" onclick="toggleSyncRow('${detailId}', '${prefix}')" title="Bấm để xem chi tiết dữ liệu cập nhật và cơ chế đồng bộ">
-              <td>
-                <div class="d-flex align-items-center gap-1 mb-1">
+              <td class="text-center">
+                <div class="d-flex align-items-center justify-content-center gap-1 mb-1">
                   <span class="badge bg-dark text-white fw-bold px-1.5 py-0.5" style="font-size: 11px;" title="Mẫu tin số ${idx + 1}">#${idx + 1}</span>
                   <span class="fw-bold text-dark">${l.time || l.timestamp}</span>
                 </div>
-                <div>
+                <div class="text-center">
                   <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle font-monospace px-1.5 py-0.5" style="font-size: 11px; font-weight: 600;" title="Mã đồng bộ mẫu tin">${l.log_id}</span>
                 </div>
               </td>
@@ -2021,7 +2025,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               </td>
               <td class="text-center">${srcHtml}</td>
               <td class="text-center">${tgtHtml}</td>
-              <td class="text-end">
+              <td class="text-center">
                 <span class="mono-text fw-bold text-dark">${l.latency_ms} ms</span>
               </td>
               <td class="text-center">${statusHtml}</td>
