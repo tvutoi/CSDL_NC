@@ -54,7 +54,8 @@ CLUSTER_CONFIG = {
     "mysql_db": "ecommerce_db",
     "mongo_db": "ecommerce_nosql",
     "replica_set": "rsEcomNhom2",
-    "round_robin_idx": 0
+    "round_robin_idx": 0,
+    "sync_interval_sec": 2
 }
 
 
@@ -67,8 +68,11 @@ def load_cluster_config():
                 saved = json.load(f)
                 for k, v in saved.items():
                     if k in CLUSTER_CONFIG and v is not None:
-                        CLUSTER_CONFIG[k] = v
-            print(f"[CONFIG] Đã nạp cấu hình cụm từ {CONFIG_FILE}")
+                        if k == "sync_interval_sec":
+                            CLUSTER_CONFIG[k] = max(1, min(60, int(v)))
+                        else:
+                            CLUSTER_CONFIG[k] = v
+            print(f"[CONFIG] Đã nạp cấu hình cụm từ {CONFIG_FILE} (sync_interval_sec={CLUSTER_CONFIG.get('sync_interval_sec', 2)}s)")
         except Exception as e:
             print(f"[CONFIG] Lỗi đọc {CONFIG_FILE}: {e}")
     else:
@@ -82,10 +86,24 @@ def save_cluster_config_to_file():
             "mysql_nodes": CLUSTER_CONFIG["mysql_nodes"],
             "mongo_nodes": CLUSTER_CONFIG["mongo_nodes"],
             "client_node": CLUSTER_CONFIG["client_node"],
-            "mysql_password": CLUSTER_CONFIG["mysql_password"]
+            "mysql_password": CLUSTER_CONFIG["mysql_password"],
+            "sync_interval_sec": int(CLUSTER_CONFIG.get("sync_interval_sec", 2))
         }
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        target_files = [CONFIG_FILE]
+        parent_dir = os.path.dirname(current_dir)
+        if os.path.basename(current_dir) == "web_demo":
+            if os.path.basename(parent_dir) == "CSDL_NC":
+                alt = os.path.join(os.path.dirname(parent_dir), "web_demo", "cluster_config.json")
+                if os.path.exists(os.path.dirname(alt)):
+                    target_files.append(alt)
+            else:
+                alt = os.path.join(parent_dir, "CSDL_NC", "web_demo", "cluster_config.json")
+                if os.path.exists(os.path.dirname(alt)):
+                    target_files.append(alt)
+
+        for tf in target_files:
+            with open(tf, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
         print(f"[CONFIG] Đã lưu cấu hình cụm vào {CONFIG_FILE}")
     except Exception as e:
         print(f"[CONFIG] Lỗi lưu {CONFIG_FILE}: {e}")
@@ -879,6 +897,7 @@ class ClusterConfigUpdate(BaseModel):
     mongo_nodes: List[str]
     client_node: str
     mysql_password: str
+    sync_interval_sec: Optional[int] = 2
 
 
 @app.get("/api/cluster/config")
@@ -888,7 +907,8 @@ def get_config():
         "mysql_nodes": CLUSTER_CONFIG["mysql_nodes"],
         "mongo_nodes": CLUSTER_CONFIG["mongo_nodes"],
         "client_node": CLUSTER_CONFIG["client_node"],
-        "mysql_password": CLUSTER_CONFIG["mysql_password"]
+        "mysql_password": CLUSTER_CONFIG["mysql_password"],
+        "sync_interval_sec": int(CLUSTER_CONFIG.get("sync_interval_sec", 2))
     }
 
 
@@ -899,6 +919,8 @@ def update_config(cfg: ClusterConfigUpdate):
     CLUSTER_CONFIG["client_node"] = cfg.client_node.strip()
     if cfg.mysql_password:
         CLUSTER_CONFIG["mysql_password"] = cfg.mysql_password
+    if cfg.sync_interval_sec is not None:
+        CLUSTER_CONFIG["sync_interval_sec"] = max(1, min(60, int(cfg.sync_interval_sec)))
     save_cluster_config_to_file()
     return {"status": "UPDATED", "config": get_config()}
 
@@ -1392,6 +1414,7 @@ def get_cluster_status(request: Request):
     status["mongodb"] = mongo_results
     status["sync_logs_count"] = len(SYNC_AUDIT_LOGS)
     status["sync_logs_hash"] = sync_logs_hash
+    status["sync_interval_sec"] = int(CLUSTER_CONFIG.get("sync_interval_sec", 2))
     status["latest_sync_log"] = SYNC_AUDIT_LOGS[0] if SYNC_AUDIT_LOGS else None
     return status
 

@@ -1128,6 +1128,9 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                 <span class="small text-muted fw-normal ms-2 d-none d-lg-inline">Kiểm chứng tính nhất quán dữ liệu giữa Primary và Secondary</span>
               </div>
               <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-light text-secondary border px-2 py-1.5 font-monospace" style="font-size: 11px;" title="Chu kỳ tự động quét và đồng bộ dữ liệu (cấu hình trong cluster_config.json)">
+                  <i class="bi bi-clock-history me-1 text-primary"></i>Tự động quét: <strong class="text-dark" id="lbl-sync-interval">2s</strong>
+                </span>
                 <button
                   type="button"
                   class="btn btn-sm btn-primary py-1 px-3 fw-semibold shadow-sm"
@@ -1365,23 +1368,34 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                 value="192.168.1.221:27017, 192.168.1.222:27017, 192.168.1.222:27018, 192.168.1.222:27019" />
             </div>
             <div class="row g-2 mb-2">
-              <div class="col-6">
-                <label class="form-label"
-                  >IP Máy Client / Router (Node 4)</label
-                >
+              <div class="col-md-4">
+                <label class="form-label">IP Client / Router</label>
                 <input
                   type="text"
                   id="cfg-client-node"
                   class="form-control"
                   value="192.168.1.224" />
               </div>
-              <div class="col-6">
-                <label class="form-label">Mật khẩu root MySQL</label>
+              <div class="col-md-4">
+                <label class="form-label">Mật khẩu MySQL</label>
                 <input
                   type="password"
                   id="cfg-mysql-pass"
                   class="form-control"
                   value="root" />
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" title="Thời gian tự động đồng bộ và quét trạng thái định kỳ">Tự động đồng bộ</label>
+                <div class="input-group">
+                  <input
+                    type="number"
+                    id="cfg-sync-interval"
+                    class="form-control"
+                    value="2"
+                    min="1"
+                    max="60" />
+                  <span class="input-group-text px-2">giây</span>
+                </div>
               </div>
             </div>
             <div
@@ -1816,6 +1830,12 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             if (badge) {
               badge.innerText = data.sync_logs_count;
             }
+          }
+
+          // Cập nhật chu kỳ tự động quét nếu có
+          if (data.sync_interval_sec !== undefined) {
+            const lbl = document.getElementById("lbl-sync-interval");
+            if (lbl) lbl.innerText = `${data.sync_interval_sec}s`;
           }
 
           // TỰ ĐỘNG ĐỒNG BỘ DÒNG SỰ KIỆN ĐỒNG BỘ (SECTION 4):
@@ -3290,6 +3310,21 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       }
 
       // 8. TẢI VÀ LƯU CẤU HÌNH IP MẠNG LAN (ĐỒNG BỘ 2 CHIỀU VỚI SERVER)
+      let currentClusterSyncTimer = null;
+      let currentClusterIntervalSec = 2;
+
+      function updateClusterSyncTimer(sec) {
+        const intervalSec = Math.max(1, Math.min(60, parseInt(sec, 10) || 2));
+        currentClusterIntervalSec = intervalSec;
+        const lbl = document.getElementById("lbl-sync-interval");
+        if (lbl) lbl.innerText = `${intervalSec}s`;
+
+        if (currentClusterSyncTimer) {
+          clearInterval(currentClusterSyncTimer);
+        }
+        currentClusterSyncTimer = setInterval(fetchClusterStatus, intervalSec * 1000);
+      }
+
       async function loadClusterConfig() {
         try {
           const res = await fetch("/api/cluster/config?_t=" + Date.now(), {
@@ -3312,6 +3347,11 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           if (cfg.mysql_password) {
             const el = document.getElementById("cfg-mysql-pass");
             if (el) el.value = cfg.mysql_password;
+          }
+          if (cfg.sync_interval_sec) {
+            const el = document.getElementById("cfg-sync-interval");
+            if (el) el.value = cfg.sync_interval_sec;
+            updateClusterSyncTimer(cfg.sync_interval_sec);
           }
           console.log(
             "[ClusterConfig] Đã nạp cấu hình mới nhất từ server:",
@@ -3344,6 +3384,10 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             .getElementById("cfg-client-node")
             .value.trim();
           const mysqlPass = document.getElementById("cfg-mysql-pass").value;
+          const syncIntervalVal = parseInt(
+            document.getElementById("cfg-sync-interval")?.value || "2",
+            10,
+          ) || 2;
 
           const res = await fetch("/api/cluster/config", {
             method: "POST",
@@ -3353,11 +3397,13 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               mongo_nodes: mongoNodes,
               client_node: clientNode,
               mysql_password: mysqlPass,
+              sync_interval_sec: syncIntervalVal,
             }),
           });
           if (!res.ok) {
             throw new Error(`Mã lỗi HTTP: ${res.status}`);
           }
+          updateClusterSyncTimer(syncIntervalVal);
           bootstrap.Modal.getInstance(
             document.getElementById("configModal"),
           ).hide();
@@ -3425,7 +3471,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           configModalEl.addEventListener("show.bs.modal", loadClusterConfig);
         }
         refreshAll(false);
-        setInterval(fetchClusterStatus, 2000);
+        updateClusterSyncTimer(2);
       });
     </script>
   </body>

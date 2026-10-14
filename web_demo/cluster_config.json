@@ -12,5 +12,6 @@
     "192.168.1.222:27019"
   ],
   "client_node": "192.168.1.224",
-  "mysql_password": "root"
+  "mysql_password": "root",
+  "sync_interval_sec": 2
 }
