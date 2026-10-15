@@ -1374,11 +1374,14 @@ def get_cluster_status(request: Request):
         if not is_port_open(h_mg, int(p_mg), timeout=0.2):
             return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": "OFFLINE", "health": 0,
+                "ping_ms": None,
                 "reviews_count": 0, "logs_count": 0
             }
         try:
+            t_start = time.perf_counter()
             m_single = MongoClient(f"mongodb://{cfg_host}/?directConnection=true", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=400)
             hello_res = m_single.admin.command("hello")
+            ping_ms = round((time.perf_counter() - t_start) * 1000, 2)
             is_prim = hello_res.get("isWritablePrimary") or hello_res.get("ismaster")
             state_str = "PRIMARY" if is_prim else ("SECONDARY" if hello_res.get("secondary") else "ONLINE")
             if cfg_host in rs_map:
@@ -1388,11 +1391,13 @@ def get_cluster_status(request: Request):
             m_single.close()
             return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": state_str, "health": 1,
+                "ping_ms": ping_ms,
                 "reviews_count": mongo_reviews_cnt, "logs_count": mongo_logs_cnt
             }
         except Exception:
             return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": "OFFLINE", "health": 0,
+                "ping_ms": None,
                 "reviews_count": 0, "logs_count": 0
             }
 
