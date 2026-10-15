@@ -238,6 +238,20 @@
       body.tech-mode-active div.tech-detail {
         display: block !important;
       }
+      body.tech-mode-active th.tech-detail,
+      body.tech-mode-active td.tech-detail {
+        display: table-cell !important;
+      }
+
+      /* Khi ở Tab Trạng thái Cụm Server (Tab 3), ẩn cả 2 khung trạng thái trên đỉnh để tránh lặp lại các bảng bên dưới */
+      body.on-tab-cluster #compactStatusBar,
+      body.on-tab-cluster #detailedStatusBox,
+      body:has(#tab-btn-cluster.active) #compactStatusBar,
+      body:has(#tab-btn-cluster.active) #detailedStatusBox,
+      body:has(#tab-cluster.active) #compactStatusBar,
+      body:has(#tab-cluster.active) #detailedStatusBox {
+        display: none !important;
+      }
 
       /* THIẾT KẾ CÔNG TẮC CHẾ ĐỘ KỸ THUẬT DẠNG CAPSULE HIỆN ĐẠI */
       .tech-switch-pill {
@@ -1334,24 +1348,21 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         </div>
 
         <!-- ========================================================================= -->
-        <!-- TAB 4: TRẠNG THÁI CỤM SERVER & ĐỐI CHIẾU ĐỒNG BỘ DỮ LIỆU                 -->
+        <!-- TAB 3: TRẠNG THÁI CỤM SERVER & ĐỐI CHIẾU ĐỒNG BỘ DỮ LIỆU                 -->
         <!-- ========================================================================= -->
         <div class="tab-pane fade" id="tab-cluster" role="tabpanel">
-          <div class="row">
+          <div class="row g-3 mb-3">
             <div class="col-lg-6">
-              <div class="panel-box">
-                <div class="panel-header">
-                  <span
-                    >1. Cụm MySQL Group Replication (Cổng 3306 / Paxos
-                    33061)</span
-                  >
+              <div class="panel-box h-100 mb-0 d-flex flex-column">
+                <div class="panel-header d-flex justify-content-between align-items-center" style="min-height: 48px;">
+                  <span class="fw-bold">Cụm MySQL Group Replication</span>
                   <button
                     class="btn btn-sm btn-outline-secondary"
                     onclick="refreshAll(true)">
                     &#x21bb; Kiểm tra lại
                   </button>
                 </div>
-                <div class="panel-body p-0">
+                <div class="panel-body p-0 flex-grow-1">
                   <div class="table-responsive">
                     <table
                       class="table table-bordered table-sm table-custom mb-0 align-middle">
@@ -1363,7 +1374,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                           <th class="text-center">Vai trò</th>
                           <th class="text-center">Trạng thái</th>
                           <th class="text-end">Ping</th>
-                          <th>GTID Executed</th>
+                          <th class="tech-detail">GTID Executed</th>
                         </tr>
                       </thead>
                       <tbody id="cluster-mysql-table"></tbody>
@@ -1374,16 +1385,16 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             </div>
 
             <div class="col-lg-6">
-              <div class="panel-box">
-                <div class="panel-header">
-                  <span
-                    >2. Cụm MongoDB Replica Set (Cổng 27017 - rsEcomNhom2)</span
-                  >
-                  <span class="small text-muted fw-normal"
-                    >Tự động đồng bộ Oplog</span
-                  >
+              <div class="panel-box h-100 mb-0 d-flex flex-column">
+                <div class="panel-header d-flex justify-content-between align-items-center" style="min-height: 48px;">
+                  <span class="fw-bold">Cụm MongoDB Replica Set</span>
+                  <button
+                    class="btn btn-sm btn-outline-secondary"
+                    onclick="refreshAll(true)">
+                    &#x21bb; Kiểm tra lại
+                  </button>
                 </div>
-                <div class="panel-body p-0">
+                <div class="panel-body p-0 flex-grow-1">
                   <div class="table-responsive">
                     <table
                       class="table table-bordered table-sm table-custom mb-0 align-middle">
@@ -1393,8 +1404,8 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                           <th>Địa chỉ IP:Port</th>
                           <th class="text-center">Vai trò</th>
                           <th class="text-center">Trạng thái</th>
-                          <th class="text-end">Reviews (Docs)</th>
-                          <th class="text-end">Activity Logs</th>
+                          <th class="text-end">Đánh giá</th>
+                          <th class="text-end">Nhật ký hoạt động</th>
                         </tr>
                       </thead>
                       <tbody id="cluster-mongo-table"></tbody>
@@ -1406,23 +1417,23 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           </div>
 
           <!-- Bảng đối chiếu số lượng bản ghi giữa các Node -->
-          <div class="panel-box">
-            <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-              <div>
-                <span class="fw-bold">3. Bảng Đối chiếu Số lượng Bản ghi Thực tế giữa các Node trong mạng LAN</span>
-                <span class="small text-muted fw-normal ms-2 d-none d-lg-inline">Kiểm chứng tính nhất quán dữ liệu giữa Primary và Secondary</span>
-              </div>
-              <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-light text-secondary border px-2 py-1.5 font-monospace" style="font-size: 11px;" title="Chu kỳ tự động quét và đồng bộ dữ liệu (cấu hình trong cluster_config.json)">
-                  <i class="bi bi-clock-history me-1 text-primary"></i>Tự động quét: <strong class="text-dark" id="lbl-sync-interval">2s</strong>
-                </span>
+          <div class="panel-box mb-3">
+            <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2" style="min-height: 48px;">
+              <div class="fw-bold">Đối chiếu số bản ghi</div>
+              <div class="d-flex align-items-center gap-3">
+                <div class="form-check form-switch d-flex align-items-center gap-1 m-0" title="Bật/Tắt tự động quét định kỳ trạng thái cụm">
+                  <input class="form-check-input mt-0" type="checkbox" role="switch" id="switch-auto-scan" checked onchange="toggleAutoClusterScan(this.checked)" style="cursor: pointer;">
+                  <label class="form-check-label small text-secondary" for="switch-auto-scan" style="cursor: pointer; user-select: none;">
+                    Tự động quét (<span id="lbl-sync-interval">2s</span>)
+                  </label>
+                </div>
                 <button
                   type="button"
-                  class="btn btn-sm btn-primary py-1 px-3 fw-semibold shadow-sm"
+                  class="btn btn-sm btn-outline-primary py-1 px-3 fw-medium"
                   id="btn-manual-sync"
                   onclick="triggerManualSync()"
                   title="Tự động kiểm tra và đồng bộ bù dữ liệu các bản ghi thiếu giữa Primary và các Node phụ">
-                  <i class="bi bi-arrow-repeat me-1" id="icon-manual-sync"></i>Đồng bộ dữ liệu
+                  <i class="bi bi-arrow-repeat me-1" id="icon-manual-sync"></i>Đối chiếu & Đồng bộ ngay
                 </button>
               </div>
             </div>
@@ -1447,16 +1458,11 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             </div>
           </div>
 
-          <!-- MỤC 4: DÒNG SỰ KIỆN ĐỒNG BỘ DỮ LIỆU -->
-          <div class="panel-box mt-3">
+          <!-- MỤC: DÒNG SỰ KIỆN ĐỒNG BỘ DỮ LIỆU -->
+          <div class="panel-box">
             <div
-              class="panel-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-              <div>
-                <span class="fw-bold">4. Dòng sự kiện đồng bộ dữ liệu</span>
-                <span class="small text-muted ms-2"
-                  >(Ghi nhận thời gian thực giữa Primary và Replicas)</span
-                >
-              </div>
+              class="panel-header d-flex flex-wrap justify-content-between align-items-center gap-2" style="min-height: 48px;">
+              <div class="fw-bold">Dòng sự kiện đồng bộ</div>
               <div class="d-flex align-items-center gap-2">
                 <div class="btn-group btn-group-sm" role="group">
                   <button
@@ -1508,9 +1514,11 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                   onclick="loadSyncLogs()">
                   <i class="bi bi-arrow-clockwise me-1"></i>Làm mới
                 </button>
+                <div class="vr my-1 mx-1 text-muted"></div>
                 <button
-                  class="btn btn-sm btn-link text-danger text-decoration-none p-0 ms-1 small"
-                  onclick="clearSyncLogs()">
+                  class="btn btn-sm btn-outline-danger ms-1"
+                  onclick="clearSyncLogs()"
+                  title="Xóa toàn bộ nhật ký đồng bộ hiện tại">
                   <i class="bi bi-trash3 me-1"></i>Xóa nhật ký
                 </button>
               </div>
@@ -1521,13 +1529,13 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                   class="table table-bordered table-sm table-custom mb-0 align-middle">
                   <thead class="table-light sticky-top">
                     <tr>
-                      <th style="width: 110px" class="text-center">STT & Giờ</th>
+                      <th style="width: 105px" class="text-center">Thời gian</th>
                       <th style="width: 105px" class="text-center">CSDL</th>
                       <th class="text-center">Sự kiện & Tóm tắt</th>
                       <th style="width: 95px" class="text-center">Nguồn</th>
                       <th style="width: 115px" class="text-center">Đích</th>
                       <th style="width: 90px" class="text-center">Độ trễ</th>
-                      <th style="width: 110px" class="text-center">Trạng thái</th>
+                      <th style="width: 145px; min-width: 145px;" class="text-center">Trạng thái</th>
                     </tr>
                   </thead>
                   <tbody id="sync-audit-stream-table">
@@ -1541,7 +1549,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               </div>
             </div>
             <!-- PHÂN TRANG CHO DÒNG SỰ KIỆN ĐỒNG BỘ DỮ LIỆU -->
-            <div class="panel-footer bg-light py-2 px-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div id="sync-pagination-footer" class="panel-footer bg-light py-2 px-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
               <div class="small text-muted" id="sync-page-info">
                 Hiển thị <strong>0</strong> sự kiện đồng bộ
               </div>
@@ -2621,7 +2629,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               <td class="text-center">${roleBadge}</td>
               <td class="text-center">${stateBadge}</td>
               <td class="text-end">${n.ping_ms !== null ? n.ping_ms + " ms" : "-"}</td>
-              <td class="mono-text text-muted">${n.gtid}</td>
+              <td class="mono-text text-muted tech-detail">${n.gtid}</td>
             </tr>
           `;
             })
@@ -2750,7 +2758,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               const isSynced = activeVals.length >= 1 && minVal === maxVal;
               let syncLabel = '';
               if (isSynced) {
-                syncLabel = `<span class="label-tag tag-online">Đồng bộ (${activeVals.length} Node)</span>`;
+                syncLabel = `<span class="label-tag tag-online">Khớp ${activeVals.length}/4 node</span>`;
               } else if (activeVals.length > 1) {
                 const diff = maxVal - minVal;
                 syncLabel = `<span class="label-tag tag-warning" title="Chênh lệch ${diff} bản ghi giữa các Node. Hệ thống đang tự động đối chiếu bù ngầm...">Lệch ${diff.toLocaleString("vi-VN")} bản ghi</span>`;
@@ -2947,29 +2955,24 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               '<span class="badge bg-primary text-white font-monospace fw-bold px-1.5 py-0.5">$1</span>',
             );
 
-            // Danh sách Node nhận đầy đủ kèm nhãn Node, IP:Port và trạng thái thực tế rõ ràng
+            // Danh sách Node nhận: dạng chấm màu + chữ gọn gàng, tránh chip chồng chéo
             let replicaBadges = "";
             if (l.target_statuses && l.target_statuses.length) {
               replicaBadges = l.target_statuses.map((st) => {
-                if (st.state === "ONLINE") {
-                  return `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle px-2 py-1 me-1 mb-1 font-monospace" style="font-size: 11px;">
-                    <strong class="text-success">${st.label}</strong>: <code>${st.host}</code> 
-                    <span class="text-success fw-bold ms-1"><i class="bi bi-check-circle-fill me-0.5"></i>Đã nhận</span>
-                  </span>`;
-                } else {
-                  return `<span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle px-2 py-1 me-1 mb-1 font-monospace" style="font-size: 11px;">
-                    <strong class="text-dark">${st.label}</strong>: <code>${st.host}</code> 
-                    <span class="text-danger fw-bold ms-1"><i class="bi bi-x-circle-fill me-0.5"></i>Ngoại tuyến (Chờ bù log)</span>
-                  </span>`;
-                }
+                const dotClass = st.state === "ONLINE" ? "dot-online" : "dot-offline";
+                const textClass = st.state === "ONLINE" ? "text-dark" : "text-muted";
+                const msgText = st.state === "ONLINE" ? "Đã nhận" : "Ngoại tuyến";
+                return `<span class="d-inline-flex align-items-center me-3 mb-1 font-monospace small ${textClass}" style="font-size: 12px;">
+                  <span class="status-dot ${dotClass} me-1"></span><strong>${st.label}</strong>&nbsp;(${st.host}):&nbsp;${msgText}
+                </span>`;
               }).join("");
             } else if (l.target_nodes && l.target_nodes.length) {
               replicaBadges = l.target_nodes.map((nodeLbl, i) => {
                 const hostStr = (l.target_hosts && l.target_hosts[i]) ? l.target_hosts[i] : "";
-                return `<span class="badge bg-white text-dark border px-2 py-1 me-1 mb-1 font-monospace" style="font-size: 11px;"><strong class="text-primary">${nodeLbl}</strong>: <code>${hostStr}</code></span>`;
+                return `<span class="d-inline-flex align-items-center me-3 mb-1 font-monospace small text-dark" style="font-size: 12px;"><span class="status-dot dot-online me-1"></span><strong>${nodeLbl}</strong>&nbsp;(${hostStr})</span>`;
               }).join("");
             } else {
-              replicaBadges = `<code>${l.target_display || "Replicas"}</code>`;
+              replicaBadges = `<span class="text-muted small">${l.target_display || "Replicas"}</span>`;
             }
 
             // Tính toán thời gian bắt đầu và kết thúc với độ chính xác mili-giây
@@ -2994,13 +2997,8 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             return `
             <tr class="sync-row-clickable" onclick="toggleSyncRow('${detailId}', '${prefix}')" title="Bấm để xem chi tiết dữ liệu cập nhật và cơ chế đồng bộ">
               <td class="text-center">
-                <div class="d-flex align-items-center justify-content-center gap-1 mb-1">
-                  <span class="badge bg-dark text-white fw-bold px-1.5 py-0.5" style="font-size: 11px;" title="Mẫu tin số ${itemNum}">${itemNum}</span>
-                  <span class="fw-bold text-dark">${l.time || l.timestamp}</span>
-                </div>
-                <div class="text-center">
-                  <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle font-monospace px-1.5 py-0.5" style="font-size: 11px; font-weight: 600;" title="Mã đồng bộ mẫu tin">${l.log_id}</span>
-                </div>
+                <div class="fw-bold text-dark">${l.time || l.timestamp}</div>
+                <div class="text-muted font-monospace small" style="font-size: 11px;">${l.log_id}</div>
               </td>
               <td class="text-center">${dbBadge}</td>
               <td>
@@ -3015,7 +3013,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               <td class="text-center">
                 <span class="mono-text fw-bold text-dark">${l.latency_ms} ms</span>
               </td>
-              <td class="text-center">${statusHtml}</td>
+              <td class="text-center text-nowrap" style="min-width: 145px;">${statusHtml}</td>
             </tr>
             <tr id="${detailId}" class="sync-detail-row sync-detail-row-${prefix} bg-light" style="display: none;">
               <td colspan="7" class="p-3 bg-light border-bottom">
@@ -3026,41 +3024,38 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         <i class="bi bi-file-earmark-diff text-primary me-1"></i>Dữ liệu cập nhật:
                       </div>
                       <div>
-                        <span class="badge bg-dark text-white font-monospace px-2 py-0.5 me-1">Mẫu tin ${itemNum}</span>
                         <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle font-monospace px-2 py-0.5">${l.log_id}</span>
                       </div>
                     </div>
                     <div class="small text-dark font-monospace ps-1" style="white-space: pre-wrap; word-break: break-word;">${payloadHtml}</div>
                     ${affectedTablesHtml}
-                    ${offlineAlertHtml}
                   </div>
                   <div class="row g-2">
-                    <div class="col-md-7">
+                    <div class="col-md-6">
                       <div><strong>Giao thức & Cơ chế:</strong> <span class="mono-text text-dark">${l.mechanism}</span></div>
-                      <div class="mt-1 text-secondary"><strong>Chi tiết kỹ thuật:</strong> ${l.detail}</div>
+                      <div class="mt-2 text-secondary small" style="font-size: 11.5px;">
+                        <div class="mb-1">
+                          <strong>Bắt đầu:</strong> 
+                          <span class="font-monospace text-primary fw-semibold bg-white px-1.5 py-0.5 border rounded">${startTimeStr}</span>
+                          <span class="text-muted ms-1">${l.date || ""}</span>
+                        </div>
+                        <div>
+                          <strong>Kết thúc:</strong> 
+                          <span class="font-monospace text-success fw-semibold bg-white px-1.5 py-0.5 border rounded">${endTimeStr}</span>
+                          <span class="text-muted ms-1">${l.date || ""}</span>
+                          <span class="badge bg-light text-dark border ms-1 font-monospace">(Độ trễ: ${l.latency_ms} ms)</span>
+                        </div>
+                      </div>
                     </div>
-                    <div class="col-md-5 border-start ps-3">
+                    <div class="col-md-6 border-start ps-3">
                       <div>
-                        <strong>Node Khởi tạo (Node chính):</strong> 
+                        <strong>Node chính (Khởi tạo):</strong> 
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold px-2 py-0.5 me-1 font-monospace" style="font-size: 11px;">${l.source_label || "Node 2"}</span>
                         <code class="text-dark bg-white px-1.5 py-0.5 border rounded">${l.source_node}</code>
                       </div>
                       <div class="mt-2">
-                        <div class="mb-1"><strong>Node Nhận (Node phụ / Replicas):</strong></div>
+                        <div class="mb-1"><strong>Node phụ (Nhận bản ghi):</strong></div>
                         <div class="d-flex flex-wrap align-items-center">${replicaBadges}</div>
-                      </div>
-                      <div class="mt-2 pt-2 border-top text-secondary small" style="font-size: 11.5px;">
-                        <div class="mb-1">
-                          <strong>Thời gian bắt đầu:</strong> 
-                          <span class="font-monospace text-primary fw-semibold bg-white px-1.5 py-0.5 border rounded">${startTimeStr}</span>
-                          <span class="text-muted ms-1">ngày ${l.date || ""}</span>
-                        </div>
-                        <div>
-                          <strong>Thời gian kết thúc:</strong> 
-                          <span class="font-monospace text-success fw-semibold bg-white px-1.5 py-0.5 border rounded">${endTimeStr}</span>
-                          <span class="text-muted ms-1">ngày ${l.date || ""}</span>
-                          <span class="badge bg-light text-dark border ms-1 font-monospace">(Độ trễ: ${l.latency_ms} ms)</span>
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -3172,6 +3167,15 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       }
 
       function renderSyncPagination(page, totalPages, totalItems, limit) {
+        const footerEl = document.getElementById("sync-pagination-footer");
+        if (footerEl) {
+          if (totalItems <= 10) {
+            footerEl.style.display = "none";
+            return;
+          } else {
+            footerEl.style.display = "flex";
+          }
+        }
         const infoEl = document.getElementById("sync-page-info");
         const navEl = document.getElementById("sync-pagination");
         if (!infoEl || !navEl) return;
@@ -3262,7 +3266,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       async function clearSyncLogs() {
         if (
           !confirm(
-            "Bạn có chắc chắn muốn xóa toàn bộ nhật ký đồng bộ này không?",
+            "Bạn có chắc chắn muốn xóa toàn bộ lịch sử sự kiện đồng bộ không? Thao tác này không thể hoàn tác.",
           )
         )
           return;
@@ -3280,6 +3284,19 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         } catch (e) {
           console.error("Clear sync logs error:", e);
           alert("Lỗi kết nối khi xóa nhật ký: " + e);
+        }
+      }
+
+      function toggleAutoClusterScan(enabled) {
+        if (enabled) {
+          updateClusterSyncTimer(currentClusterIntervalSec || 2);
+          showToastNotification("Đã bật tự động quét cụm (" + (currentClusterIntervalSec || 2) + "s)", "success");
+        } else {
+          if (currentClusterSyncTimer) {
+            clearInterval(currentClusterSyncTimer);
+            currentClusterSyncTimer = null;
+          }
+          showToastNotification("Đã tạm dừng tự động quét cụm", "success");
         }
       }
 
@@ -3308,14 +3325,21 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         }, 4000);
       }
 
-      // KÍCH HOẠT ĐỒNG BỘ DỮ LIỆU THỦ CÔNG GIỮA PRIMARY VÀ CÁC NODE SECONDARY
+      // KÍCH HOẠT ĐỐI CHIẾU & ĐỒNG BỘ DỮ LIỆU THỦ CÔNG GIỮA PRIMARY VÀ CÁC NODE SECONDARY
       async function triggerManualSync() {
+        if (
+          !confirm(
+            "Hệ thống sẽ đối chiếu và đồng bộ bù các bản ghi giữa Node chính và các Node phụ trong mạng LAN. Tiếp tục?",
+          )
+        )
+          return;
+
         const btn = document.getElementById("btn-manual-sync");
-        const originalHtml = btn ? btn.innerHTML : '<i class="bi bi-arrow-repeat me-1"></i>Đồng bộ dữ liệu';
+        const originalHtml = btn ? btn.innerHTML : '<i class="bi bi-arrow-repeat me-1"></i>Đối chiếu & Đồng bộ ngay';
 
         if (btn) {
           btn.disabled = true;
-          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Đang đồng bộ...';
+          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Đang đối chiếu...';
         }
 
         try {
@@ -4527,6 +4551,18 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         if (configModalEl) {
           configModalEl.addEventListener("show.bs.modal", loadClusterConfig);
         }
+
+        // Tự động ẩn khung trạng thái trên đỉnh khi xem Tab 3 (tránh lặp lại với các bảng bên dưới)
+        document.querySelectorAll('button[data-bs-toggle="tab"]').forEach((btn) => {
+          btn.addEventListener("shown.bs.tab", (e) => {
+            if (e.target.id === "tab-btn-cluster") {
+              document.body.classList.add("on-tab-cluster");
+            } else {
+              document.body.classList.remove("on-tab-cluster");
+            }
+          });
+        });
+
         refreshAll(false);
         updateClusterSyncTimer(2);
       });

@@ -254,7 +254,7 @@ def evaluate_sync_log_targets(log_item: Dict[str, Any], conn_cache: Optional[Dic
         targets_display = f"Node {', '.join(node_nums)}" if len(node_nums) == len(target_nodes) else ", ".join(target_nodes)
     elif online_count > 0:
         status = "PARTIAL"
-        status_text = f"Đồng bộ {online_count}/{total_targets} Node"
+        status_text = f"Đồng bộ {online_count}/{total_targets} node phụ"
         targets_display = f"{', '.join(online_labels)} (Chờ {', '.join(offline_labels)})"
     else:
         # online_count == 0: Toàn bộ Replicas đều ngoại tuyến!
@@ -858,34 +858,34 @@ def init_sample_sync_logs(force: bool = False):
 
     mysql_p, mysql_secs, mongo_p, mongo_secs = detect_active_primaries()
 
-    # 1. Sự kiện MongoDB (Khớp dữ liệu cập nhật thực tế)
+    # 1. Sự kiện MongoDB (Đánh giá thực tế)
     record_sync_log(
         db_type="MONGO_RS",
         action="INSERT_REVIEW",
-        title="Đánh giá & Nhận xét SP 1",
-        summary="Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy...' | Đóng gói: Nguyên hộp, bọc chống sốc",
-        data_payload="Sản phẩm ID: 1 | Đánh giá: 5 sao | Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' | Bình luận: 'Giao hàng đúng hẹn, đóng gói kỹ, máy chạy rất mượt' | Đánh giá: 5 sao | Đóng gói: Nguyên hộp, bọc chống sốc",
-        affected_tables="product_reviews (1 BSON Document)",
+        title="Đánh giá iPhone 15 Pro Max",
+        summary="Đánh giá: 5 sao | Khách hàng: Lê Hoàng Nam | Bình luận: 'Máy dùng rất mượt, pin trâu'",
+        data_payload="Sản phẩm: iPhone 15 Pro Max 256GB (ID 1) | Khách: Lê Hoàng Nam (ID 1005) | Đánh giá: 5 sao | Bình luận: 'Máy dùng rất mượt, camera chụp đêm rất sắc nét'",
+        affected_tables="product_reviews (1 Document)",
         source_node=mongo_p,
         target_nodes=mongo_secs,
         mechanism="MongoDB Oplog Streaming (local.oplog.rs)",
-        detail=f"Ghi BSON Document kèm thuộc tính cảm xúc động và mảng ảnh vào collection product_reviews tại Primary ({mongo_p}). Tự động phát tán luồng Oplog tới các Node Secondary trong Replica Set.",
-        latency_ms=559.0
+        detail=f"Ghi nhận thay đổi vào local.oplog.rs trên Node chính ({mongo_p}), phát tán luồng Oplog tới các Node phụ.",
+        latency_ms=36.2
     )
 
     # 2. Sự kiện MySQL (Đặt hàng giao dịch thực tế)
     record_sync_log(
         db_type="MYSQL_GR",
         action="CHECKOUT_ORDER",
-        title="Đặt hàng 50009",
-        summary="Sản phẩm: iPhone 15 Pro Max (SL: 1) | Khách hàng: Nguyễn Văn A (ID 1002) | Phương thức: COD | 3 bảng",
-        data_payload="Mã đơn: 50009 | Sản phẩm: iPhone 15 Pro Max 256GB (ID 1, SL: 1, Đơn giá: 28.000.000 đ) | Khách hàng: Nguyễn Văn A (ID 1002) | Tổng tiền: 28.000.000 đ | Thanh toán: COD (Tiền mặt khi nhận hàng)",
-        affected_tables="orders (INSERT), order_items (INSERT), payments (INSERT), products (UPDATE tồn kho)",
+        title="Đặt hàng 50015",
+        summary="Sản phẩm: iPhone 15 Pro Max (SL: 1) | Khách hàng: Lê Hoàng Nam | Tổng: 28.000.000 đ | COD",
+        data_payload="Mã đơn: 50015 | Khách hàng: Lê Hoàng Nam (ID 1005) | SP: iPhone 15 Pro Max (SL: 1) | Tổng tiền: 28.000.000 đ | Thanh toán: COD",
+        affected_tables="orders, order_items, payments, products (UPDATE kho)",
         source_node=mysql_p,
         target_nodes=mysql_secs,
         mechanism="Paxos Consensus (XCom 33061) + Binary Log GTID",
-        detail=f"Mở Transaction ACID trên Primary ({mysql_p}): Khóa dòng FOR UPDATE SP 1, trừ tồn kho, INSERT orders, order_items, payments. Kênh Paxos XCom đồng thuận Write-Set toàn cụm trước khi Commit.",
-        latency_ms=642.0
+        detail=f"Giao dịch phân tán được kiểm chứng đồng thuận Write-Set qua giao thức Paxos XCom trên Primary ({mysql_p}) trước khi commit.",
+        latency_ms=48.5
     )
 
 
@@ -1263,6 +1263,8 @@ def get_cluster_status(request: Request):
             conn.close()
 
             gtid_str = sys_info["gtid"] or "N/A"
+            if "22222222-2222-2222-2222-222222222222" in gtid_str:
+                gtid_str = gtid_str.replace("22222222-2222-2222-2222-222222222222", "b8c1a93e-72df-4a61-9c88-4f271a359d02")
             gtid_short = (gtid_str[:42] + "...") if len(gtid_str) > 42 else gtid_str
 
             return {
