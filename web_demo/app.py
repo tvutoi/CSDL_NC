@@ -60,35 +60,47 @@ CLUSTER_CONFIG = {
     "mongo_db": "ecommerce_nosql",
     "replica_set": "rsEcomNhom2",
     "round_robin_idx": 0,
-    "sync_interval_sec": 2
+    "sync_interval_sec": 2,
+    "active_mysql_primary": "192.168.1.222",
+    "active_mongo_primary": "192.168.1.222:27017"
 }
 
-_ACTIVE_MYSQL_PRIMARY: Optional[str] = None
-_ACTIVE_MONGO_PRIMARY: Optional[str] = None
+_ACTIVE_MYSQL_PRIMARY: Optional[str] = "192.168.1.222"
+_ACTIVE_MONGO_PRIMARY: Optional[str] = "192.168.1.222:27017"
 _PRIMARY_TRACKING_LOCK = threading.Lock()
 
 def get_active_mysql_primary() -> Optional[str]:
-    global _ACTIVE_MYSQL_PRIMARY
-    return _ACTIVE_MYSQL_PRIMARY
+    global _ACTIVE_MYSQL_PRIMARY, CLUSTER_CONFIG
+    return _ACTIVE_MYSQL_PRIMARY or CLUSTER_CONFIG.get("active_mysql_primary")
 
 def set_active_mysql_primary(host: Optional[str]):
-    global _ACTIVE_MYSQL_PRIMARY
+    global _ACTIVE_MYSQL_PRIMARY, CLUSTER_CONFIG
+    if not host:
+        return
     with _PRIMARY_TRACKING_LOCK:
-        _ACTIVE_MYSQL_PRIMARY = host
+        if _ACTIVE_MYSQL_PRIMARY != host:
+            _ACTIVE_MYSQL_PRIMARY = host
+            CLUSTER_CONFIG["active_mysql_primary"] = host
+            save_cluster_config_to_file()
 
 def get_active_mongo_primary() -> Optional[str]:
-    global _ACTIVE_MONGO_PRIMARY
-    return _ACTIVE_MONGO_PRIMARY
+    global _ACTIVE_MONGO_PRIMARY, CLUSTER_CONFIG
+    return _ACTIVE_MONGO_PRIMARY or CLUSTER_CONFIG.get("active_mongo_primary")
 
 def set_active_mongo_primary(host: Optional[str]):
-    global _ACTIVE_MONGO_PRIMARY
+    global _ACTIVE_MONGO_PRIMARY, CLUSTER_CONFIG
+    if not host:
+        return
     with _PRIMARY_TRACKING_LOCK:
-        _ACTIVE_MONGO_PRIMARY = host
+        if _ACTIVE_MONGO_PRIMARY != host:
+            _ACTIVE_MONGO_PRIMARY = host
+            CLUSTER_CONFIG["active_mongo_primary"] = host
+            save_cluster_config_to_file()
 
 
 def load_cluster_config():
     """Tự động nạp cấu hình từ cluster_config.json nếu có, nếu chưa có thì tạo file mặc định"""
-    global CLUSTER_CONFIG
+    global CLUSTER_CONFIG, _ACTIVE_MYSQL_PRIMARY, _ACTIVE_MONGO_PRIMARY
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -99,7 +111,11 @@ def load_cluster_config():
                             CLUSTER_CONFIG[k] = max(1, min(60, int(v)))
                         else:
                             CLUSTER_CONFIG[k] = v
-            print(f"[CONFIG] Đã nạp cấu hình cụm từ {CONFIG_FILE} (sync_interval_sec={CLUSTER_CONFIG.get('sync_interval_sec', 2)}s)")
+                if "active_mysql_primary" in saved and saved["active_mysql_primary"]:
+                    _ACTIVE_MYSQL_PRIMARY = saved["active_mysql_primary"]
+                if "active_mongo_primary" in saved and saved["active_mongo_primary"]:
+                    _ACTIVE_MONGO_PRIMARY = saved["active_mongo_primary"]
+            print(f"[CONFIG] Đã nạp cấu hình cụm từ {CONFIG_FILE} (sync_interval_sec={CLUSTER_CONFIG.get('sync_interval_sec', 2)}s, primary={_ACTIVE_MYSQL_PRIMARY})")
         except Exception as e:
             print(f"[CONFIG] Lỗi đọc {CONFIG_FILE}: {e}")
     else:
@@ -114,7 +130,9 @@ def save_cluster_config_to_file():
             "mongo_nodes": CLUSTER_CONFIG["mongo_nodes"],
             "client_node": CLUSTER_CONFIG["client_node"],
             "mysql_password": CLUSTER_CONFIG["mysql_password"],
-            "sync_interval_sec": int(CLUSTER_CONFIG.get("sync_interval_sec", 2))
+            "sync_interval_sec": int(CLUSTER_CONFIG.get("sync_interval_sec", 2)),
+            "active_mysql_primary": CLUSTER_CONFIG.get("active_mysql_primary", _ACTIVE_MYSQL_PRIMARY),
+            "active_mongo_primary": CLUSTER_CONFIG.get("active_mongo_primary", _ACTIVE_MONGO_PRIMARY)
         }
         target_files = [CONFIG_FILE]
         parent_dir = os.path.dirname(current_dir)
@@ -1627,7 +1645,7 @@ def get_cluster_status(request: Request):
     # GIỮ NGUYÊN Node Primary đang phục vụ (_ACTIVE_MYSQL_PRIMARY), không tự cướp về Node 1!
     if not primary_assigned:
         curr_active = get_active_mysql_primary()
-        active_node = next((n for n in mysql_results if n["host"] == curr_active and n["state"] == "ONLINE" and n.get("_ro") == 0), None)
+        active_node = next((n for n in mysql_results if n["host"] == curr_active and n["state"] == "ONLINE"), None)
         if active_node:
             active_node["role"] = "PRIMARY"
             primary_assigned = True
@@ -1645,6 +1663,32 @@ def get_cluster_status(request: Request):
         if n.get("role") == "PRIMARY":
             set_active_mysql_primary(n["host"])
             break
+
+    # Đảm bảo nguyên tắc bảo toàn dữ liệu phân tán (Single-Primary Write Protection):
+    # - Node PRIMARY được mở ghi (read_only = OFF)
+    # - Các Node SECONDARY đang trực tuyến tự động khóa read_only = ON để chống split-brain
+    for n in mysql_results:
+        if n["state"] == "ONLINE":
+            try:
+                h_s, p_s = n["host"].split(":") if ":" in n["host"] else (n["host"], 3306)
+                if n["role"] == "SECONDARY" and n.get("_ro") == 0:
+                    c_fix = mysql.connector.connect(host=h_s, port=int(p_s), user="root", password=CLUSTER_CONFIG["mysql_password"], connection_timeout=0.6)
+                    cur_f = c_fix.cursor()
+                    cur_f.execute("SET GLOBAL read_only = ON")
+                    cur_f.execute("SET GLOBAL super_read_only = ON")
+                    cur_f.close()
+                    c_fix.close()
+                    n["_ro"] = 1
+                elif n["role"] == "PRIMARY" and n.get("_ro") == 1:
+                    c_fix = mysql.connector.connect(host=h_s, port=int(p_s), user="root", password=CLUSTER_CONFIG["mysql_password"], connection_timeout=0.6)
+                    cur_f = c_fix.cursor()
+                    cur_f.execute("SET GLOBAL super_read_only = OFF")
+                    cur_f.execute("SET GLOBAL read_only = OFF")
+                    cur_f.close()
+                    c_fix.close()
+                    n["_ro"] = 0
+            except Exception:
+                pass
 
     for n in mysql_results:
         for k in ["_uuid", "_primary_uuid", "_ro"]:
@@ -1751,11 +1795,21 @@ def get_cluster_status(request: Request):
     if online_m:
         primaries = [m for m in online_m if m["state"] == "PRIMARY"]
         if len(primaries) == 0:
-            online_m[0]["state"] = "PRIMARY"
+            curr_mg_active = get_active_mongo_primary()
+            act_m = next((m for m in online_m if m["host"] == curr_mg_active), None)
+            if act_m:
+                act_m["state"] = "PRIMARY"
+            else:
+                online_m[0]["state"] = "PRIMARY"
+                set_active_mongo_primary(online_m[0]["host"])
         elif len(primaries) > 1:
-            first_p = primaries[0]
+            curr_mg_active = get_active_mongo_primary()
+            act_m = next((m for m in primaries if m["host"] == curr_mg_active), primaries[0])
             for m in online_m:
-                m["state"] = "PRIMARY" if m["host"] == first_p["host"] else "SECONDARY"
+                m["state"] = "PRIMARY" if m["host"] == act_m["host"] else "SECONDARY"
+            set_active_mongo_primary(act_m["host"])
+        else:
+            set_active_mongo_primary(primaries[0]["host"])
 
     # Đọc nhật ký đồng bộ trực tiếp từ file JSON an toàn (không ghi đè lịch sử)
     global SYNC_AUDIT_LOGS

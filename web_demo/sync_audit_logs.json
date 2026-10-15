@@ -1,32 +1,32 @@
 [
   {
-    "id": "SYNC-a6181c82",
-    "thoi_diem": "2026-10-15 15:48:49.233",
+    "id": "SYNC-0d9dd0c7",
+    "thoi_diem": "2026-10-15 19:30:29.082",
     "he_csdl": "MYSQL_GR",
     "loai_su_kien": "CHECKOUT_ORDER",
-    "ma_nhom_giao_dich": "DH-50018",
-    "gtid_hoac_optime": "d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-19",
+    "ma_nhom_giao_dich": "DH-50019",
+    "gtid_hoac_optime": "d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-68",
     "node_nguon": "Node 2 (192.168.1.222)",
     "node_dich": [
       {
         "node": "Node 1",
         "host": "192.168.1.221",
-        "thoi_diem_ap_dung": null,
-        "do_tre_ms": null,
-        "trang_thai": "OFFLINE_WAITING"
+        "thoi_diem_ap_dung": "19:30:29.000",
+        "do_tre_ms": 1407.9,
+        "trang_thai": "APPLIED"
       },
       {
         "node": "Node 3",
         "host": "192.168.1.222:3307",
-        "thoi_diem_ap_dung": "15:48:49.172",
-        "do_tre_ms": 2520.4,
+        "thoi_diem_ap_dung": "19:30:29.041",
+        "do_tre_ms": 1447.8,
         "trang_thai": "APPLIED"
       },
       {
         "node": "Node 4",
         "host": "192.168.1.222:3308",
-        "thoi_diem_ap_dung": "15:48:49.231",
-        "do_tre_ms": 2580.6,
+        "thoi_diem_ap_dung": "19:30:29.082",
+        "do_tre_ms": 1488.2,
         "trang_thai": "APPLIED"
       }
     ],
@@ -38,9 +38,9 @@
         "so_ban_ghi": 1,
         "mau_ban_ghi": [
           {
-            "order_id": 50018,
+            "order_id": 50019,
             "user_id": 1,
-            "total_amount": 75980000.0,
+            "total_amount": 28990000.0,
             "status": "COMPLETED",
             "shipping_region": "MIEN_NAM"
           }
@@ -51,10 +51,10 @@
         "so_ban_ghi": 1,
         "mau_ban_ghi": [
           {
-            "order_id": 50018,
-            "product_id": 2,
-            "quantity": 2,
-            "unit_price": "37990000.00"
+            "order_id": 50019,
+            "product_id": 1,
+            "quantity": 1,
+            "unit_price": "28990000.00"
           }
         ]
       },
@@ -63,8 +63,8 @@
         "so_ban_ghi": 1,
         "mau_ban_ghi": [
           {
-            "order_id": 50018,
-            "amount": 75980000.0,
+            "order_id": 50019,
+            "amount": 28990000.0,
             "payment_method": "E-WALLET",
             "transaction_status": "SUCCESS"
           }
@@ -75,30 +75,30 @@
         "so_ban_ghi": 1,
         "mau_ban_ghi": [
           {
-            "product_id": 2,
-            "product_name": "Laptop Dell XPS 15 9530 Core i9 OLED",
+            "product_id": 1,
+            "product_name": "iPhone 15 Pro Max 256GB Titan Tự Nhiên",
             "action": "UPDATE stock",
-            "delta": -2,
-            "ton_kho_moi": 40
+            "delta": -1,
+            "ton_kho_moi": 7
           }
         ]
       }
     ],
-    "log_id": "SYNC-a6181c82",
-    "time": "15:48:49",
+    "log_id": "SYNC-0d9dd0c7",
+    "time": "19:30:29",
     "date": "15/10/2026",
-    "timestamp": "15:48:49",
-    "start_time": "15:48:49.233",
-    "end_time": "15:48:49.233",
+    "timestamp": "19:30:29",
+    "start_time": "19:30:29.082",
+    "end_time": "19:30:29.082",
     "db_type": "MYSQL_GR",
     "action": "CHECKOUT_ORDER",
-    "title": "Đặt hàng #50018",
-    "summary": "Sản phẩm: Laptop Dell XPS 15 9530 Core i9 OLED (SL: 2) · KH 1 · Tổng: 75.980.000 đ · PT: E-WALLET · 4 bảng",
-    "data_payload": "Mã đơn: #50018 · GTID: d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-19 · SP: Laptop Dell XPS 15 9530 Core i9 OLED (ID 2, SL: 2, Đơn giá: 37.990.000 đ) · Khách: 1 · Tổng: 75.980.000 đ · Phương thức: E-WALLET",
+    "title": "Đặt hàng #50019",
+    "summary": "Sản phẩm: iPhone 15 Pro Max 256GB Titan Tự Nhiên (SL: 1) · KH 1 · Tổng: 28.990.000 đ · PT: E-WALLET · 4 bảng",
+    "data_payload": "Mã đơn: #50019 · GTID: d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-68 · SP: iPhone 15 Pro Max 256GB Titan Tự Nhiên (ID 1, SL: 1, Đơn giá: 28.990.000 đ) · Khách: 1 · Tổng: 28.990.000 đ · Phương thức: E-WALLET",
     "affected_tables": "orders (1), order_items (1), payments (1), products (1)",
     "source_label": "Node 2",
     "source_node": "192.168.1.222",
-    "target_display": "Node 3, Node 4 (Node 1 ngoại tuyến)",
+    "target_display": "Node 1, 3, 4",
     "target_nodes": [
       "Node 1",
       "Node 3",
@@ -113,8 +113,8 @@
       {
         "label": "Node 1",
         "host": "192.168.1.221",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
+        "state": "ONLINE",
+        "message": "Đã nhận"
       },
       {
         "label": "Node 3",
@@ -130,9 +130,110 @@
       }
     ],
     "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
-    "detail": "Mở Transaction ACID trên Primary (192.168.1.222): Khóa dòng FOR UPDATE SP 2, trừ tồn kho, INSERT orders, order_items, payments. GTID: d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-19.",
-    "latency_ms": 2550.5,
+    "detail": "Mở Transaction ACID trên Primary (192.168.1.222): Khóa dòng FOR UPDATE SP 1, trừ tồn kho, INSERT orders, order_items, payments. GTID: d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-68.",
+    "latency_ms": 1448.0,
     "status": "LAGGING",
-    "status_text": "Trễ (>500ms)"
+    "status_text": "Trễ vượt ngưỡng (>500ms)"
+  },
+  {
+    "id": "SYNC-6436302b",
+    "thoi_diem": "2026-10-15 19:20:38.354",
+    "he_csdl": "MONGO_RS",
+    "loai_su_kien": "INSERT_REVIEW",
+    "ma_nhom_giao_dich": "REV-6ad0c516a67f40f22c38e78f",
+    "gtid_hoac_optime": "Timestamp(1792066838, 1)",
+    "node_nguon": "Node 2 (192.168.1.222:27017)",
+    "node_dich": [
+      {
+        "node": "Node 1",
+        "host": "192.168.1.221:27017",
+        "thoi_diem_ap_dung": null,
+        "do_tre_ms": null,
+        "trang_thai": "OFFLINE_WAITING"
+      },
+      {
+        "node": "Node 3",
+        "host": "192.168.1.222:27018",
+        "thoi_diem_ap_dung": "19:20:38.353",
+        "do_tre_ms": 0.0,
+        "trang_thai": "APPLIED"
+      },
+      {
+        "node": "Node 4",
+        "host": "192.168.1.222:27019",
+        "thoi_diem_ap_dung": "19:20:38.353",
+        "do_tre_ms": 0.0,
+        "trang_thai": "APPLIED"
+      }
+    ],
+    "trang_thai": "SYNCED",
+    "so_ban_ghi": 1,
+    "chi_tiet": [
+      {
+        "bang": "product_reviews",
+        "so_ban_ghi": 1,
+        "mau_ban_ghi": [
+          {
+            "review_id": "6ad0c516a67f40f22c38e78f",
+            "product_id": 3,
+            "rating": 5,
+            "title": "Sản phẩm đúng mô tả, dùng ổn định",
+            "author": "Khách hàng #1",
+            "packaging": "Nguyên hộp, bọc chống sốc",
+            "comment": "test"
+          }
+        ]
+      }
+    ],
+    "log_id": "SYNC-6436302b",
+    "time": "19:20:38",
+    "date": "15/10/2026",
+    "timestamp": "19:20:38",
+    "start_time": "19:20:38.354",
+    "end_time": "19:20:38.354",
+    "db_type": "MONGO_RS",
+    "action": "INSERT_REVIEW",
+    "title": "Đánh giá SP #3",
+    "summary": "Đánh giá: 5 sao (★★★★★) · Khách: Khách hàng #1 · Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' · Đóng gói: Nguyên hộp, bọc chống sốc",
+    "data_payload": "SP ID: #3 · Review ID: 6ad0c516a67f40f22c38e78f · Optime: Timestamp(1792066838, 1) · Đánh giá: 5 sao · Bình luận: 'test' · Đóng gói: Nguyên hộp, bọc chống sốc",
+    "affected_tables": "product_reviews (1 Document)",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:27017",
+    "target_display": "Node 3, Node 4 (Node 1 ngoại tuyến)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:27017",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù oplog)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:27018",
+        "state": "ONLINE",
+        "message": "Đã nhận"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:27019",
+        "state": "ONLINE",
+        "message": "Đã nhận"
+      }
+    ],
+    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
+    "detail": "Ghi BSON Document vào collection product_reviews tại Primary (192.168.1.222:27017). Luồng Oplog phát tán tới các Secondary. Optime: Timestamp(1792066838, 1).",
+    "latency_ms": 0.0,
+    "status": "SYNCED",
+    "status_text": "Đã đồng bộ 2/2 node trực tuyến (Node 1 ngoại tuyến)"
   }
 ]
