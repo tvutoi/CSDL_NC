@@ -51,9 +51,9 @@ templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
 CONFIG_FILE = os.path.join(current_dir, "cluster_config.json")
 
 CLUSTER_CONFIG = {
-    "mysql_nodes": ["192.168.1.221", "192.168.1.222", "192.168.1.222:3307", "192.168.1.222:3308"],
-    "mongo_nodes": ["192.168.1.221:27017", "192.168.1.222:27017", "192.168.1.222:27018", "192.168.1.222:27019"],
-    "client_node": "192.168.1.224",
+    "mysql_nodes": [],
+    "mongo_nodes": [],
+    "client_node": "",
     "mysql_user": "root",
     "mysql_password": os.environ.get("MYSQL_ROOT_PASSWORD", "root"),
     "mysql_db": "ecommerce_db",
@@ -61,78 +61,84 @@ CLUSTER_CONFIG = {
     "replica_set": "rsEcomNhom2",
     "round_robin_idx": 0,
     "sync_interval_sec": 2,
-    "active_mysql_primary": "192.168.1.222",
-    "active_mongo_primary": "192.168.1.222:27017"
+    "active_mysql_primary": None,
+    "active_mongo_primary": None
 }
 
-_ACTIVE_MYSQL_PRIMARY: Optional[str] = "192.168.1.222"
-_ACTIVE_MONGO_PRIMARY: Optional[str] = "192.168.1.222:27017"
 _PRIMARY_TRACKING_LOCK = threading.Lock()
-
-def get_active_mysql_primary() -> Optional[str]:
-    global _ACTIVE_MYSQL_PRIMARY, CLUSTER_CONFIG
-    return _ACTIVE_MYSQL_PRIMARY or CLUSTER_CONFIG.get("active_mysql_primary")
-
-def set_active_mysql_primary(host: Optional[str]):
-    global _ACTIVE_MYSQL_PRIMARY, CLUSTER_CONFIG
-    if not host:
-        return
-    with _PRIMARY_TRACKING_LOCK:
-        if _ACTIVE_MYSQL_PRIMARY != host:
-            _ACTIVE_MYSQL_PRIMARY = host
-            CLUSTER_CONFIG["active_mysql_primary"] = host
-            save_cluster_config_to_file()
-
-def get_active_mongo_primary() -> Optional[str]:
-    global _ACTIVE_MONGO_PRIMARY, CLUSTER_CONFIG
-    return _ACTIVE_MONGO_PRIMARY or CLUSTER_CONFIG.get("active_mongo_primary")
-
-def set_active_mongo_primary(host: Optional[str]):
-    global _ACTIVE_MONGO_PRIMARY, CLUSTER_CONFIG
-    if not host:
-        return
-    with _PRIMARY_TRACKING_LOCK:
-        if _ACTIVE_MONGO_PRIMARY != host:
-            _ACTIVE_MONGO_PRIMARY = host
-            CLUSTER_CONFIG["active_mongo_primary"] = host
-            save_cluster_config_to_file()
+_CONFIG_LAST_MTIME = 0.0
 
 
-def load_cluster_config():
-    """Tự động nạp cấu hình từ cluster_config.json nếu có, nếu chưa có thì tạo file mặc định"""
-    global CLUSTER_CONFIG, _ACTIVE_MYSQL_PRIMARY, _ACTIVE_MONGO_PRIMARY
+def load_cluster_config(force: bool = False) -> Dict[str, Any]:
+    """Tự động nạp cấu hình trực tiếp từ cluster_config.json, không gán cứng trong code"""
+    global CLUSTER_CONFIG, _CONFIG_LAST_MTIME
     if os.path.exists(CONFIG_FILE):
         try:
+            current_mtime = os.path.getmtime(CONFIG_FILE)
+            if not force and current_mtime == _CONFIG_LAST_MTIME:
+                return CLUSTER_CONFIG
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 saved = json.load(f)
                 for k, v in saved.items():
-                    if k in CLUSTER_CONFIG and v is not None:
+                    if v is not None:
                         if k == "sync_interval_sec":
                             CLUSTER_CONFIG[k] = max(1, min(60, int(v)))
                         else:
                             CLUSTER_CONFIG[k] = v
-                if "active_mysql_primary" in saved and saved["active_mysql_primary"]:
-                    _ACTIVE_MYSQL_PRIMARY = saved["active_mysql_primary"]
-                if "active_mongo_primary" in saved and saved["active_mongo_primary"]:
-                    _ACTIVE_MONGO_PRIMARY = saved["active_mongo_primary"]
-            print(f"[CONFIG] Đã nạp cấu hình cụm từ {CONFIG_FILE} (sync_interval_sec={CLUSTER_CONFIG.get('sync_interval_sec', 2)}s, primary={_ACTIVE_MYSQL_PRIMARY})")
+            _CONFIG_LAST_MTIME = current_mtime
         except Exception as e:
             print(f"[CONFIG] Lỗi đọc {CONFIG_FILE}: {e}")
     else:
         save_cluster_config_to_file()
+    return CLUSTER_CONFIG
+
+
+def get_active_mysql_primary() -> Optional[str]:
+    cfg = load_cluster_config()
+    return cfg.get("active_mysql_primary")
+
+
+def set_active_mysql_primary(host: Optional[str]):
+    if not host:
+        return
+    cfg = load_cluster_config()
+    with _PRIMARY_TRACKING_LOCK:
+        if cfg.get("active_mysql_primary") != host:
+            cfg["active_mysql_primary"] = host
+            save_cluster_config_to_file()
+
+
+def get_active_mongo_primary() -> Optional[str]:
+    cfg = load_cluster_config()
+    return cfg.get("active_mongo_primary")
+
+
+def set_active_mongo_primary(host: Optional[str]):
+    if not host:
+        return
+    cfg = load_cluster_config()
+    with _PRIMARY_TRACKING_LOCK:
+        if cfg.get("active_mongo_primary") != host:
+            cfg["active_mongo_primary"] = host
+            save_cluster_config_to_file()
+
+
+# Khởi tạo nạp cấu hình ngay khi ứng dụng khởi chạy
+load_cluster_config(force=True)
 
 
 def save_cluster_config_to_file():
     """Lưu vĩnh viễn cấu hình cụm vào cluster_config.json"""
+    global _CONFIG_LAST_MTIME
     try:
         data = {
-            "mysql_nodes": CLUSTER_CONFIG["mysql_nodes"],
-            "mongo_nodes": CLUSTER_CONFIG["mongo_nodes"],
-            "client_node": CLUSTER_CONFIG["client_node"],
-            "mysql_password": CLUSTER_CONFIG["mysql_password"],
+            "mysql_nodes": CLUSTER_CONFIG.get("mysql_nodes", []),
+            "mongo_nodes": CLUSTER_CONFIG.get("mongo_nodes", []),
+            "client_node": CLUSTER_CONFIG.get("client_node", ""),
+            "mysql_password": CLUSTER_CONFIG.get("mysql_password", "root"),
             "sync_interval_sec": int(CLUSTER_CONFIG.get("sync_interval_sec", 2)),
-            "active_mysql_primary": CLUSTER_CONFIG.get("active_mysql_primary", _ACTIVE_MYSQL_PRIMARY),
-            "active_mongo_primary": CLUSTER_CONFIG.get("active_mongo_primary", _ACTIVE_MONGO_PRIMARY)
+            "active_mysql_primary": CLUSTER_CONFIG.get("active_mysql_primary"),
+            "active_mongo_primary": CLUSTER_CONFIG.get("active_mongo_primary")
         }
         target_files = [CONFIG_FILE]
         parent_dir = os.path.dirname(current_dir)
@@ -149,13 +155,11 @@ def save_cluster_config_to_file():
         for tf in target_files:
             with open(tf, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
+        if os.path.exists(CONFIG_FILE):
+            _CONFIG_LAST_MTIME = os.path.getmtime(CONFIG_FILE)
         print(f"[CONFIG] Đã lưu cấu hình cụm vào {CONFIG_FILE}")
     except Exception as e:
         print(f"[CONFIG] Lỗi lưu {CONFIG_FILE}: {e}")
-
-
-# Tự động nạp hoặc tạo file cấu hình khi khởi động
-load_cluster_config()
 
 
 # =====================================================================================
@@ -720,107 +724,73 @@ def record_sync_log(
 
 def ensure_mongo_primary_priority():
     """
-    Quản lý cấu hình Quorum và duy trì tính ổn định của Primary trong cụm MongoDB Replica Set:
-    - Khi Node 1 mở lại (ONLINE): Không ép replSetStepDown lên Node đang là Primary (giữ nguyên Node 2 làm Primary để Node 1 làm Secondary nhận bù Oplog an toàn, tránh mất dữ liệu).
-    - Khôi phục votes=1, priority=1.0 bình đẳng cho các node đang trực tuyến để cụm tự động failover chỉ khi Primary thực sự chết.
+    Quản lý tính sẵn sàng của Primary trong cụm MongoDB Replica Set:
+    - KHI ĐÃ CÓ NODE CHÍNH (PRIMARY): Tuyệt đối KHÔNG bầu lại, KHÔNG replSetReconfig, KHÔNG step down!
+      Giữ nguyên Node chính đang hoạt động để các Node phụ đồng bộ dữ liệu an toàn.
+    - KHI CHƯA CÓ NODE CHÍNH (mất Quorum / toàn bộ node rớt về SECONDARY):
+      Mới thực hiện cứu Quorum / bầu chọn Node chính dựa trên cấu hình cluster_config.json.
     """
-    node1_host = CLUSTER_CONFIG["mongo_nodes"][0]  # "192.168.1.221:27017"
-    h1, p1 = node1_host.split(":") if ":" in node1_host else (node1_host, 27017)
-    node1_online = is_port_open(h1, int(p1), timeout=0.2)
-
-    candidates = [node1_host] + [h for h in CLUSTER_CONFIG["mongo_nodes"] if h != node1_host]
-    client = None
-    for cand in candidates:
-        hc, pc = cand.split(":") if ":" in cand else (cand, 27017)
-        if not is_port_open(hc, int(pc), timeout=0.2):
-            continue
-        try:
-            c = MongoClient(f"mongodb://{cand}/?directConnection=true&w=1", serverSelectionTimeoutMS=500)
-            c.admin.command("ping")
-            client = c
-            break
-        except Exception:
-            continue
-
-    if not client:
+    cfg = load_cluster_config()
+    mongo_nodes = cfg.get("mongo_nodes", [])
+    if not mongo_nodes:
         return
 
-    try:
-        cfg = client.admin.command("replSetGetConfig")["config"]
-        changed = False
-
-        if node1_online:
-            # Node 1 đang mở lại: Khôi phục votes=1, priority=1.0 cho các node online
-            # Giữ nguyên Primary hiện tại đang chạy (ví dụ Node 2), Node 1 tham gia làm SECONDARY để sync oplog an toàn
-            for m in cfg["members"]:
-                m_h = m["host"]
-                h_c, p_c = m_h.split(":") if ":" in m_h else (m_h, 27017)
-                if is_port_open(h_c, int(p_c), timeout=0.15):
-                    if m.get("priority") != 1.0 or m.get("votes") != 1:
-                        m["priority"] = 1.0
-                        m["votes"] = 1
-                        changed = True
-
-            if changed:
-                cfg["version"] += 1
-                try:
-                    client.admin.command("replSetReconfig", cfg, force=True)
-                except Exception as ex_reconf:
-                    print(f"[MONGO_RECONFIG_FORCE_ERR] {ex_reconf}")
-
-            # Cập nhật Primary thực tế đang phục vụ
+    # 1. Kiểm tra xem trong cụm ĐÃ CÓ Node nào đang là PRIMARY hay chưa
+    active_primary_host = None
+    online_hosts = []
+    for host in mongo_nodes:
+        h, p = host.split(":") if ":" in host else (host, 27017)
+        if is_port_open(h, int(p), timeout=0.2):
             try:
-                hello = client.admin.command("hello")
-                current_primary = hello.get("primary")
-                if current_primary:
-                    set_active_mongo_primary(current_primary)
+                c = MongoClient(f"mongodb://{host}/?directConnection=true&w=1", serverSelectionTimeoutMS=400)
+                hello = c.admin.command("hello")
+                c.close()
+                online_hosts.append(host)
+                if hello.get("isWritablePrimary") or hello.get("ismaster"):
+                    active_primary_host = host
+                    break
             except Exception:
                 pass
-        else:
-            # Node 1 đang tắt (OFFLINE):
-            # Kiểm tra các node LAN còn lại đang online
-            online_cands = []
-            for cand in candidates:
-                if cand != node1_host:
-                    hc, pc = cand.split(":") if ":" in cand else (cand, 27017)
-                    if is_port_open(hc, int(pc), timeout=0.2):
-                        online_cands.append(cand)
 
-            if len(online_cands) == 1:
-                # Chỉ có đúng 1 node LAN trực tuyến (ví dụ Node 2):
-                # Tự động cứu Quorum cho node sống duy nhất này để không bị rớt về SECONDARY!
-                h_surv = online_cands[0]
-                need_rescue = False
-                for m in cfg["members"]:
-                    if m["host"] == h_surv:
-                        if m.get("votes") != 1 or m.get("priority") != 1.0:
-                            m["votes"] = 1
-                            m["priority"] = 1.0
-                            need_rescue = True
-                    else:
-                        if m.get("votes") != 0 or m.get("priority") != 0.0:
-                            m["votes"] = 0
-                            m["priority"] = 0.0
-                            need_rescue = True
-                if need_rescue:
-                    cfg["version"] += 1
-                    try:
-                        client.admin.command("replSetReconfig", cfg, force=True)
-                        t_wait = time.time()
-                        while time.time() - t_wait < 3.0:
-                            time.sleep(0.3)
-                            h_chk = client.admin.command("hello")
-                            if h_chk.get("isWritablePrimary") or h_chk.get("ismaster"):
-                                break
-                    except Exception as ex_resc:
-                        print(f"[NODE2_QUORUM_RESCUE_ERR] {ex_resc}")
+    # KHI ĐÃ CÓ NODE CHÍNH: TUYỆT ĐỐI KHÔNG BẦU LẠI!
+    if active_primary_host:
+        set_active_mongo_primary(active_primary_host)
+        return
 
-        client.close()
-    except Exception:
-        try:
-            client.close()
-        except Exception:
-            pass
+    # 2. NẾU CHƯA CÓ NODE CHÍNH: MỚI THỰC HIỆN BẦU LẠI
+    if not online_hosts:
+        return
+
+    # Lấy node cấu hình từ cluster_config.json
+    configured_pri = get_active_mongo_primary()
+    chosen_primary = configured_pri if (configured_pri and configured_pri in online_hosts) else online_hosts[0]
+
+    try:
+        c_prim = MongoClient(f"mongodb://{chosen_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=600)
+        cfg_rs = c_prim.admin.command("replSetGetConfig")["config"]
+        cfg_rs["version"] += 1
+        for m in cfg_rs["members"]:
+            if m["host"] == chosen_primary:
+                m["votes"] = 1
+                m["priority"] = 1.0
+            else:
+                m["votes"] = 0
+                m["priority"] = 0.0
+        c_prim.admin.command("replSetReconfig", cfg_rs, force=True)
+
+        t_wait = time.time()
+        while time.time() - t_wait < 2.5:
+            time.sleep(0.2)
+            try:
+                h_chk = c_prim.admin.command("hello")
+                if h_chk.get("isWritablePrimary") or h_chk.get("ismaster"):
+                    break
+            except Exception:
+                pass
+        c_prim.close()
+        set_active_mongo_primary(chosen_primary)
+    except Exception as e:
+        print(f"[MONGO_ELECTION_ERROR] {e}")
 
 
 def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
@@ -857,48 +827,26 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
         except Exception:
             continue
 
-    # TỰ ĐỘNG HỒI PHỤC QUORUM CHO MONGODB KHI MẤT ĐA SỐ (Tương tự MySQL group_replication_force_members):
-    # Nếu không có node nào đang là PRIMARY (do các node khác bị tắt, mất Quorum nên node sống tự hạ cấp về SECONDARY)
-    # và chỉ có đúng 1 node LAN trực tuyến:
-    if not primary_client and len(online_lan_hosts) == 1:
-        try:
-            c_u, h_u, _ = online_lan_hosts[0]
-            cfg = c_u.admin.command("replSetGetConfig")["config"]
-            cfg["version"] += 1
-            for m in cfg["members"]:
-                if m["host"] == h_u:
-                    m["votes"] = 1
-                    m["priority"] = 1.0
-                else:
-                    m["votes"] = 0
-                    m["priority"] = 0.0
-            c_u.admin.command("replSetReconfig", cfg, force=True)
+    # KHI ĐÃ CÓ PRIMARY: Giữ nguyên, không bầu lại!
+    if primary_client:
+        set_active_mongo_primary(primary_host)
+    else:
+        # KHI CHƯA CÓ PRIMARY: Mới gọi bầu chọn lại
+        if online_lan_hosts:
+            try:
+                ensure_mongo_primary_priority()
+            except Exception as e:
+                print(f"[MONGO_PRIMARY_RECOVERY] {e}")
 
-            # Polling chờ Node hoàn tất bầu chọn (tối đa 3.5s)
-            t_wait = time.time()
-            while time.time() - t_wait < 3.5:
-                time.sleep(0.3)
+            # Thử tìm lại primary sau khi bầu chọn
+            for c_cand, h_cand, _ in online_lan_hosts:
                 try:
-                    hello = c_u.admin.command("hello")
-                    if hello.get("isWritablePrimary") or hello.get("ismaster"):
-                        primary_client, primary_host = c_u, h_u
+                    h_c = c_cand.admin.command("hello")
+                    if h_c.get("isWritablePrimary") or h_c.get("ismaster"):
+                        primary_client, primary_host = c_cand, h_cand
                         break
                 except Exception:
                     pass
-            try:
-                c_u.admin.command("setDefaultRWConcern", defaultWriteConcern={"w": 1})
-            except Exception:
-                pass
-        except Exception as e:
-            print(f"[MONGO_QUORUM_RECOVERY] {e}")
-
-    # Nếu có từ 2 node LAN trực tuyến trở lên:
-    # Tự động đảm bảo Node 1 (192.168.1.221) có priority=2.0 nếu Node 1 online, và khôi phục votes=1 cho toàn bộ node online
-    if len(online_lan_hosts) >= 2:
-        try:
-            ensure_mongo_primary_priority()
-        except Exception:
-            pass
 
     if not primary_client and online_lan_hosts:
         # Nếu đang ở chế độ primary mà chưa tìm thấy node writable primary, chờ thêm tối đa 2s để election hoàn tất
@@ -1128,12 +1076,13 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
 def detect_active_primaries():
     """
     Tự động phát hiện Node Primary thực tế đang hoạt động (ONLINE) của cả MySQL và MongoDB.
-    Đảm bảo nếu Node 1 (192.168.1.221) OFFLINE thì sẽ tự động nhận diện Node 2 (192.168.1.222) làm Primary,
-    và các node còn lại (Node 3, 4) làm Replicas.
+    Đọc cấu hình từ cluster_config.json, không gán cứng trong code.
+    Khi đã có node chính thì giữ nguyên, không bầu lại.
     """
+    load_cluster_config()
+
     # 1. Phát hiện MySQL Primary
     mysql_p = None
-    mysql_secs = []
     try:
         conn, meta = get_mysql_connection(mode="primary")
         mysql_p = meta.get("host")
@@ -1142,18 +1091,25 @@ def detect_active_primaries():
         pass
 
     if not mysql_p:
-        for node in CLUSTER_CONFIG["mysql_nodes"]:
+        act_my = get_active_mysql_primary()
+        if act_my:
+            h = act_my.split(":")[0]
+            p = int(act_my.split(":")[1]) if ":" in act_my else 3306
+            if is_port_open(h, p, timeout=0.25):
+                mysql_p = act_my
+
+    if not mysql_p:
+        for node in CLUSTER_CONFIG.get("mysql_nodes", []):
             h = node.split(":")[0]
             p = int(node.split(":")[1]) if ":" in node else 3306
             if is_port_open(h, p, timeout=0.25):
                 mysql_p = node
                 break
 
-    if not mysql_p:
-        mysql_p = CLUSTER_CONFIG["mysql_nodes"][0] if CLUSTER_CONFIG["mysql_nodes"] else "192.168.1.221"
+    if not mysql_p and CLUSTER_CONFIG.get("mysql_nodes"):
+        mysql_p = CLUSTER_CONFIG["mysql_nodes"][0]
 
-    # 1. Toàn bộ các Node còn lại trong cụm MySQL là Replicas (Node 1, 3, 4)
-    mysql_secs = [n for n in CLUSTER_CONFIG["mysql_nodes"] if n != mysql_p]
+    mysql_secs = [n for n in CLUSTER_CONFIG.get("mysql_nodes", []) if n != mysql_p]
 
     # 2. Phát hiện MongoDB Primary
     mongo_p = None
@@ -1165,18 +1121,25 @@ def detect_active_primaries():
         pass
 
     if not mongo_p:
-        for node in CLUSTER_CONFIG["mongo_nodes"]:
+        act_mg = get_active_mongo_primary()
+        if act_mg:
+            h = act_mg.split(":")[0]
+            p = int(act_mg.split(":")[1]) if ":" in act_mg else 27017
+            if is_port_open(h, p, timeout=0.25):
+                mongo_p = act_mg
+
+    if not mongo_p:
+        for node in CLUSTER_CONFIG.get("mongo_nodes", []):
             h = node.split(":")[0]
             p = int(node.split(":")[1]) if ":" in node else 27017
             if is_port_open(h, p, timeout=0.25):
                 mongo_p = node
                 break
 
-    if not mongo_p:
-        mongo_p = CLUSTER_CONFIG["mongo_nodes"][0] if CLUSTER_CONFIG["mongo_nodes"] else "192.168.1.221:27017"
+    if not mongo_p and CLUSTER_CONFIG.get("mongo_nodes"):
+        mongo_p = CLUSTER_CONFIG["mongo_nodes"][0]
 
-    # Toàn bộ các Node còn lại trong cụm MongoDB là Replicas (Node 1, 3, 4)
-    mongo_secs = [n for n in CLUSTER_CONFIG["mongo_nodes"] if n != mongo_p]
+    mongo_secs = [n for n in CLUSTER_CONFIG.get("mongo_nodes", []) if n != mongo_p]
 
     return mysql_p, mysql_secs, mongo_p, mongo_secs
 
@@ -2135,7 +2098,8 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
             new_stock = int(prod["stock_quantity"] - req.quantity)
 
             # Đo lường trạng thái nhân bản thực tế từ MySQL
-            meas = measure_mysql_replicas_for_log(conn, mysql_meta.get("host", "192.168.1.222"), t0)
+            meas_host = mysql_meta.get("host") or get_active_mysql_primary() or "localhost"
+            meas = measure_mysql_replicas_for_log(conn, meas_host, t0)
             gtid_val = meas.get("gtid", f"GTID-{int(time.time())}")
 
             chi_tiet = [
@@ -2176,7 +2140,7 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
                 summary=f"Sản phẩm: {prod['product_name']} (SL: {req.quantity}) · KH {req.user_id} · Tổng: {total_fmt} · PT: {req.payment_method} · 4 bảng",
                 data_payload=f"Mã đơn: #{order_id} · GTID: {gtid_val} · SP: {prod['product_name']} (ID {req.product_id}, SL: {req.quantity}, Đơn giá: {unit_price_fmt}) · Khách: {req.user_id} · Tổng: {total_fmt} · Phương thức: {req.payment_method}",
                 affected_tables="orders (1), order_items (1), payments (1), products (1)",
-                source_node=mysql_meta.get("host", "192.168.1.222"),
+                source_node=meas_host,
                 target_nodes=meas.get("target_nodes", []),
                 mechanism="Paxos Consensus (XCom 33061) + Binary Log GTID",
                 detail=f"Mở Transaction ACID trên Primary ({mysql_meta.get('host')}): Khóa dòng FOR UPDATE SP {req.product_id}, trừ tồn kho, INSERT orders, order_items, payments. GTID: {gtid_val}.",
@@ -3092,7 +3056,8 @@ def bulk_import_demo_api(count: int = Query(500, ge=10, le=2000)):
     conn.close()
 
     gtid_range = f"{gtid_start} -> {gtid_end}" if gtid_start and gtid_end else (gtid_end or f"GTID-BULK-{int(time.time())}")
-    meas = measure_mysql_replicas_for_log(None, mysql_meta.get("host", "192.168.1.222"), t_commit_perf)
+    meas_bulk_host = mysql_meta.get("host") or get_active_mysql_primary() or "localhost"
+    meas = measure_mysql_replicas_for_log(None, meas_bulk_host, t_commit_perf)
     elapsed_total_ms = round((time.perf_counter() - t0) * 1000, 1)
     avg_per_item = round(elapsed_total_ms / max(1, actual_count), 2)
 
@@ -3112,7 +3077,7 @@ def bulk_import_demo_api(count: int = Query(500, ge=10, le=2000)):
         summary=f"Cập nhật tồn kho {actual_count} sản phẩm · GTID: {gtid_range} · Thời gian: {elapsed_total_ms} ms · TB: {avg_per_item} ms/SP",
         data_payload=f"Thao tác lô: Cập nhật tồn kho {actual_count} sản phẩm · Dải GTID: {gtid_range} · Thời gian thực thi: {elapsed_total_ms} ms · Độ trễ TB: {avg_per_item} ms/dòng",
         affected_tables=f"products ({actual_count} UPDATE)",
-        source_node=mysql_meta.get("host", "192.168.1.222"),
+        source_node=meas_bulk_host,
         target_nodes=meas.get("target_nodes", []),
         mechanism="Paxos Consensus (XCom 33061) + Binary Log GTID",
         detail=f"Cập nhật đồng loạt {actual_count} bản ghi trên Primary ({mysql_meta.get('host')}). Write-set được phát tán qua kênh Paxos XCom. Dải GTID: {gtid_range}.",
