@@ -3922,7 +3922,7 @@
               replicaBadges = l.target_statuses.map((st) => {
                 const dotClass = st.state === "ONLINE" ? "dot-online" : "dot-offline";
                 const textClass = st.state === "ONLINE" ? "text-dark" : "text-muted";
-                const msgText = st.state === "ONLINE" ? "Đã nhận" : "Ngoại tuyến";
+                const msgText = st.message || (st.state === "ONLINE" ? "Đã nhận" : "Ngoại tuyến");
                 return `<span class="d-inline-flex align-items-center me-3 mb-1 font-monospace small ${textClass}" style="font-size: 12px;">
                   <span class="status-dot ${dotClass} me-1"></span><strong>${st.label}</strong>&nbsp;(${st.host}):&nbsp;${msgText}
                 </span>`;
