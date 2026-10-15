@@ -1997,7 +1997,7 @@ def get_recent_orders(
     """Lấy danh sách các đơn hàng từ cụm MySQL (JOIN 5 bảng + Gom nhóm theo đơn hàng + Bộ lọc + Phân trang)"""
     t0 = time.perf_counter()
     conn, meta = get_mysql_connection(mode=read_mode)
-    cur = conn.cursor(dictionary=True)
+    cur = conn.cursor(dictionary=True, buffered=True)
 
     where_clauses = ["1=1"]
     params = []
@@ -2110,7 +2110,7 @@ def get_recent_orders(
 def get_order_detail(order_id: int):
     """Lấy chi tiết đầy đủ của đơn hàng từ cụm MySQL (các mặt hàng, thanh toán, khách hàng)"""
     conn, meta = get_mysql_connection(mode="secondary_preferred")
-    cur = conn.cursor(dictionary=True)
+    cur = conn.cursor(dictionary=True, buffered=True)
     cur.execute("""
         SELECT o.order_id, o.user_id, u.full_name, u.email, u.phone, u.city,
                o.total_amount, o.status, o.shipping_region, o.created_at,
