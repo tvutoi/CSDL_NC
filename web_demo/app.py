@@ -610,7 +610,14 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
                 except Exception:
                     pass
         if with_meta:
-            return client_obj, {"host": host_str, "role": role_str}
+            role_vn = "Node chính" if role_str == "PRIMARY" else ("Node phụ" if role_str == "SECONDARY" else role_str)
+            node_lbl = get_node_label(host_str, "mongo")
+            return client_obj, {
+                "host": host_str,
+                "role": role_str,
+                "role_vn": role_vn,
+                "node_name": node_lbl
+            }
         return client_obj, host_str
 
     if online_lan_hosts:
@@ -726,11 +733,15 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
                     pass
 
         role_str = "PRIMARY" if chosen[1] == primary_item[1] else "SECONDARY"
+        role_vn = "Node chính" if role_str == "PRIMARY" else "Node phụ"
+        node_lbl = get_node_label(chosen[1], "mysql")
         return chosen[0], {
             "host": chosen[1],
             "server_id": chosen[2]["server_id"],
             "hostname": chosen[2]["hostname"],
-            "role": role_str
+            "node_name": node_lbl,
+            "role": role_str,
+            "role_vn": role_vn
         }
 
     # Fallback sang 127.0.0.1 nếu các IP LAN chưa bật hoặc đang demo trên 1 máy
@@ -756,11 +767,18 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
             except Exception:
                 pass
         cur.close()
+        is_p = (meta["read_only"] == 0)
+        role_str = "PRIMARY" if is_p else "SECONDARY"
+        role_vn = "Node chính" if is_p else "Node phụ"
+        sid = meta.get("server_id")
+        node_lbl = f"Node {sid}" if sid in [1, 2, 3, 4] else "Node 1"
         return conn, {
             "host": "127.0.0.1 (Localhost)",
-            "server_id": meta["server_id"],
+            "server_id": sid,
             "hostname": meta["hostname"],
-            "role": "PRIMARY (Local)"
+            "node_name": node_lbl,
+            "role": role_str,
+            "role_vn": role_vn
         }
     except Exception as e:
         raise HTTPException(
@@ -1574,6 +1592,8 @@ def get_polyglot_products(
             "mysql_node": mysql_meta,
             "mongo_node": mongo_node_used,
             "mongo_role": mongo_role_used,
+            "mongo_role_vn": mongo_meta.get("role_vn", "Node chính" if mongo_role_used == "PRIMARY" else "Node phụ"),
+            "mongo_node_name": mongo_meta.get("node_name", get_node_label(mongo_node_used, "mongo")),
             "mysql_latency_ms": mysql_ms,
             "mongo_latency_ms": mongo_ms,
             "total_polyglot_ms": total_ms
@@ -1895,6 +1915,8 @@ def get_product_reviews_list(
             "avg_rating": avg_rating,
             "mongo_node": active_host,
             "mongo_role": active_role,
+            "mongo_role_vn": mongo_meta.get("role_vn", "Node chính" if active_role == "PRIMARY" else "Node phụ"),
+            "mongo_node_name": mongo_meta.get("node_name", get_node_label(active_host, "mongo")),
             "latency_ms": elapsed_ms,
             "reviews": reviews
         }
@@ -2126,9 +2148,10 @@ def get_recent_orders(
 
 
 @app.get("/api/orders/{order_id}")
-def get_order_detail(order_id: int):
+def get_order_detail(order_id: int, read_mode: Optional[str] = Query(None)):
     """Lấy chi tiết đầy đủ của đơn hàng từ cụm MySQL (các mặt hàng, thanh toán, khách hàng)"""
-    conn, meta = get_mysql_connection(mode="secondary_preferred")
+    mode = read_mode if read_mode in ["primary", "secondary_preferred", "round_robin"] else "secondary_preferred"
+    conn, meta = get_mysql_connection(mode=mode)
     cur = conn.cursor(dictionary=True, buffered=True)
     cur.execute("""
         SELECT o.order_id, o.user_id, u.full_name, u.email, u.phone, u.city,

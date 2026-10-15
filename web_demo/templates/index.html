@@ -857,15 +857,9 @@
                     >Chế độ đọc dữ liệu (Read Routing)</label
                   >
                   <select id="filter-readmode" class="form-select">
-                    <option value="secondary_preferred">
-                      Ưu tiên đọc Node Phụ (Secondary)
-                    </option>
-                    <option value="round_robin">
-                      Phân tải xoay vòng (Round-Robin)
-                    </option>
-                    <option value="primary">
-                      Chỉ đọc từ Node Chính (Primary)
-                    </option>
+                    <option value="secondary_preferred">Ưu tiên đọc Node phụ</option>
+                    <option value="round_robin">Phân tải xoay vòng</option>
+                    <option value="primary">Chỉ đọc Node chính</option>
                   </select>
                 </div>
                 <div class="col-md-2">
@@ -978,15 +972,9 @@
                         onchange="
                           loadProductReviews(currentReviewProductId, 1)
                         ">
-                        <option value="secondary_preferred">
-                          Ưu tiên đọc Node Phụ (Secondary)
-                        </option>
-                        <option value="nearest">
-                          Đọc Node gần nhất (Nearest)
-                        </option>
-                        <option value="primary">
-                          Chỉ đọc Node Chính (Primary)
-                        </option>
+                        <option value="secondary_preferred">Ưu tiên đọc Node phụ</option>
+                        <option value="nearest">Đọc Node gần nhất</option>
+                        <option value="primary">Chỉ đọc Node chính</option>
                       </select>
                     </div>
                     <div class="col-md-2">
@@ -2116,6 +2104,42 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         return `<span class="status-pill status-pill-failed">${mapOrderStatus(s)}</span>`;
       }
 
+      function formatNodeBadge(node, dbType = "mysql") {
+        if (!node) return '<span class="text-muted">-</span>';
+        if (typeof node === "string") {
+          node = { host: node };
+        }
+        const host = node.host || "N/A";
+        let nodeLbl = node.node_name || "";
+        if (!nodeLbl && node.server_id) {
+          nodeLbl = `Node ${node.server_id}`;
+        }
+        if (!nodeLbl) {
+          if (host.includes(":3307") || host.includes(":27018")) nodeLbl = "Node 3";
+          else if (host.includes(":3308") || host.includes(":27019")) nodeLbl = "Node 4";
+          else if (host.includes(".222")) nodeLbl = "Node 2";
+          else if (host.includes(".221")) nodeLbl = "Node 1";
+          else nodeLbl = "";
+        }
+        const role = String(node.role_vn || node.role || "").toUpperCase();
+        let roleText = "Node phụ";
+        let roleClass = "text-success fw-medium";
+        if (role === "PRIMARY" || role === "NODE CHÍNH" || role === "NODE CHINH") {
+          roleText = "Node chính";
+          roleClass = "text-primary fw-bold";
+        } else if (role === "OFFLINE" || role === "MẤT KẾT NỐI" || role === "MAT KET NOI" || role === "UNREACHABLE") {
+          roleText = "Mất kết nối";
+          roleClass = "text-danger fw-medium";
+        } else {
+          roleText = "Node phụ";
+          roleClass = "text-success fw-medium";
+        }
+        if (nodeLbl) {
+          return `<strong class="text-dark">${nodeLbl}</strong> (${host} &middot; <span class="${roleClass}">${roleText}</span>)`;
+        }
+        return `<strong>${host}</strong> &middot; <span class="${roleClass}">${roleText}</span>`;
+      }
+
       // TỰ ĐỘNG TÌM KIẾM ĐƠN HÀNG (DEBOUNCE 350MS) & ĐẶT LẠI BỘ LỌC
       let orderSearchTimer = null;
       function debounceOrderSearch() {
@@ -2375,7 +2399,9 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         modal.show();
 
         try {
-          const res = await fetch(`/api/orders/${orderId}`);
+          const rmEl = document.getElementById("orders-readmode");
+          const readMode = rmEl ? rmEl.value : "secondary_preferred";
+          const res = await fetch(`/api/orders/${orderId}?read_mode=${readMode}`);
           if (!res.ok) {
             throw new Error("Không tìm thấy dữ liệu đơn hàng.");
           }
@@ -2427,7 +2453,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
           const node = data.node || {};
           document.getElementById("detail-node-info").innerHTML =
-            `<i class="bi bi-server me-1"></i>Node phục vụ: <strong>${node.host || "N/A"}</strong> (${node.role || ""})`;
+            `<i class="bi bi-server me-1"></i>Node phục vụ: ${formatNodeBadge(node, "mysql")}`;
           document.getElementById("detail-order-item-count").innerText = `Tổng cộng: ${items.length} mặt hàng`;
 
           document.getElementById("detail-loading-spinner").style.display = "none";
@@ -2735,10 +2761,10 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             <tr>
               <td class="fw-semibold">${r.name}</td>
               <td>${r.db}</td>
-              <td class="text-end mono-text">${onlineStates[0] ? (r.v1 !== undefined && r.v1 !== null ? r.v1.toLocaleString("vi-VN") : "0") : '<span class="text-muted">OFFLINE</span>'}</td>
-              <td class="text-end mono-text">${onlineStates[1] ? (r.v2 !== undefined && r.v2 !== null ? r.v2.toLocaleString("vi-VN") : "0") : '<span class="text-muted">OFFLINE</span>'}</td>
-              <td class="text-end mono-text">${onlineStates[2] ? (r.v3 !== undefined && r.v3 !== null ? r.v3.toLocaleString("vi-VN") : "0") : '<span class="text-muted">OFFLINE</span>'}</td>
-              <td class="text-end mono-text">${onlineStates[3] ? (r.v4 !== undefined && r.v4 !== null ? r.v4.toLocaleString("vi-VN") : "0") : '<span class="text-muted">OFFLINE</span>'}</td>
+              <td class="text-end mono-text">${onlineStates[0] ? (r.v1 !== undefined && r.v1 !== null ? r.v1.toLocaleString("vi-VN") : "0") : '<span class="text-muted">Mất kết nối</span>'}</td>
+              <td class="text-end mono-text">${onlineStates[1] ? (r.v2 !== undefined && r.v2 !== null ? r.v2.toLocaleString("vi-VN") : "0") : '<span class="text-muted">Mất kết nối</span>'}</td>
+              <td class="text-end mono-text">${onlineStates[2] ? (r.v3 !== undefined && r.v3 !== null ? r.v3.toLocaleString("vi-VN") : "0") : '<span class="text-muted">Mất kết nối</span>'}</td>
+              <td class="text-end mono-text">${onlineStates[3] ? (r.v4 !== undefined && r.v4 !== null ? r.v4.toLocaleString("vi-VN") : "0") : '<span class="text-muted">Mất kết nối</span>'}</td>
               <td class="text-center">${syncLabel}</td>
             </tr>
           `;
@@ -2875,7 +2901,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                 : "";
             let tgtHtml = "";
             if (l.status === "PENDING") {
-              tgtHtml = `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-medium" title="${tgtTitle}"><i class="bi bi-clock-history me-1"></i>${l.target_display || "Chờ Replicas (Offline)"}</span>`;
+              tgtHtml = `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-medium" title="${tgtTitle}"><i class="bi bi-clock-history me-1"></i>${l.target_display || "Chờ Node phụ (Mất kết nối)"}</span>`;
             } else if (l.status === "PARTIAL") {
               tgtHtml = `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-medium" title="${tgtTitle}"><i class="bi bi-arrow-repeat me-1"></i>${l.target_display || "Một phần"}</span>`;
             } else {
@@ -2885,9 +2911,9 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             // Trạng thái đồng bộ: Hiển thị động theo kết nối thực tế của Replicas
             let statusHtml = "";
             if (l.status === "PENDING") {
-              statusHtml = `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-medium" title="Toàn bộ Replicas ngoại tuyến, dữ liệu đã ghi cục bộ trên Primary và chờ nhân bản bù"><i class="bi bi-hourglass-split me-1"></i>${l.status_text || "Chờ nhân bản"}</span>`;
+              statusHtml = `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-medium" title="Toàn bộ Node phụ mất kết nối, dữ liệu đã ghi cục bộ trên Node chính và chờ nhân bản bù"><i class="bi bi-hourglass-split me-1"></i>${l.status_text || "Chờ nhân bản"}</span>`;
             } else if (l.status === "PARTIAL") {
-              statusHtml = `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-medium" title="Đã nhân bản tới các node trực tuyến, node ngoại tuyến đang chờ bù"><i class="bi bi-arrow-repeat me-1"></i>${l.status_text || "Đồng bộ một phần"}</span>`;
+              statusHtml = `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-medium" title="Đã nhân bản tới các node trực tuyến, node mất kết nối đang chờ bù"><i class="bi bi-arrow-repeat me-1"></i>${l.status_text || "Đồng bộ một phần"}</span>`;
             } else {
               const cleanSt = l.status_text === "REPLICATED_OK" ? "Đã đồng bộ" : (l.status_text || "Đã đồng bộ");
               statusHtml = `<span class="badge bg-success-subtle text-success border border-success-subtle fw-medium" title="Tất cả các node Replicas đã nhận dữ liệu"><i class="bi bi-check-circle me-1"></i>${cleanSt}</span>`;
@@ -2904,7 +2930,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             const offlineAlertHtml = (l.status === "PENDING" || (l.target_statuses && l.target_statuses.some(s => s.state === "OFFLINE")))
               ? `<div class="alert alert-warning py-1.5 px-2.5 mt-2 mb-0 small" style="font-size: 11.5px; border-left: 3px solid #ffc107;">
                   <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
-                  <strong>Cảnh báo phân tán:</strong> ${l.status === "PENDING" ? "Toàn bộ Node Secondary hiện đang ngoại tuyến (OFFLINE). Dữ liệu đã ghi bền vững (Durability) tại Node Primary và sẽ tự động bù đồng bộ (Catch-up / State Transfer) ngay khi các node khởi động lại." : "Một số Node Secondary đang ngoại tuyến và sẽ tự động nhận bù dữ liệu khi trực tuyến trở lại."}
+                  <strong>Cảnh báo phân tán:</strong> ${l.status === "PENDING" ? "Toàn bộ Node phụ hiện đang mất kết nối. Dữ liệu đã ghi bền vững tại Node chính và sẽ tự động bù đồng bộ ngay khi các node khởi động lại." : "Một số Node phụ đang mất kết nối và sẽ tự động nhận bù dữ liệu khi trực tuyến trở lại."}
                  </div>`
               : "";
 
@@ -3015,12 +3041,12 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                     </div>
                     <div class="col-md-5 border-start ps-3">
                       <div>
-                        <strong>Node Khởi tạo (Primary):</strong> 
+                        <strong>Node Khởi tạo (Node chính):</strong> 
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold px-2 py-0.5 me-1 font-monospace" style="font-size: 11px;">${l.source_label || "Node 2"}</span>
                         <code class="text-dark bg-white px-1.5 py-0.5 border rounded">${l.source_node}</code>
                       </div>
                       <div class="mt-2">
-                        <div class="mb-1"><strong>Node Nhận (Replicas):</strong></div>
+                        <div class="mb-1"><strong>Node Nhận (Node phụ / Replicas):</strong></div>
                         <div class="d-flex flex-wrap align-items-center">${replicaBadges}</div>
                       </div>
                       <div class="mt-2 pt-2 border-top text-secondary small" style="font-size: 11.5px;">
@@ -3350,9 +3376,15 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
           const meta = data.execution_metadata || {};
           const mNode = meta.mysql_node || {};
+          const mgNode = {
+            host: meta.mongo_node,
+            role: meta.mongo_role,
+            role_vn: meta.mongo_role_vn,
+            node_name: meta.mongo_node_name
+          };
           document.getElementById("polyglot-route-info").innerHTML =
-            `MySQL: <strong>${mNode.host || "N/A"}</strong> (${mNode.role || ""}) [${meta.mysql_latency_ms || 0} ms] &nbsp;|&nbsp; ` +
-            `MongoDB: <strong>${meta.mongo_node || "N/A"}</strong> (${meta.mongo_role || "PRIMARY"}) [${meta.mongo_latency_ms || 0} ms]`;
+            `MySQL: ${formatNodeBadge(mNode, "mysql")} [${meta.mysql_latency_ms || 0} ms] &nbsp;|&nbsp; ` +
+            `MongoDB: ${formatNodeBadge(mgNode, "mongo")} [${meta.mongo_latency_ms || 0} ms]`;
 
           const tbody = document.getElementById("product-table-body");
           if (cachedProducts.length === 0) {
@@ -3823,7 +3855,13 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             : `Sản phẩm ${currentReviewProductId}`;
           const nodeInfoEl = document.getElementById("reviews-node-info");
           if (nodeInfoEl) {
-            nodeInfoEl.innerHTML = `MongoDB: <strong>${data.mongo_node || "N/A"}</strong> (${data.mongo_role || "PRIMARY"}) [${data.latency_ms || 0} ms]`;
+            const mgNode = {
+              host: data.mongo_node,
+              role: data.mongo_role,
+              role_vn: data.mongo_role_vn,
+              node_name: data.mongo_node_name
+            };
+            nodeInfoEl.innerHTML = `MongoDB: ${formatNodeBadge(mgNode, "mongo")} [${data.latency_ms || 0} ms]`;
           }
           document.getElementById("selected-review-product-label").innerHTML =
             `<span><strong class="text-dark">${pName}</strong></span>` +
@@ -4003,7 +4041,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           });
           const data = await res.json();
           if (res.ok) {
-            const hostInfo = data.executed_on_node ? data.executed_on_node.host : "Primary";
+            const hostInfo = formatNodeBadge(data.executed_on_node || { host: "192.168.1.222", role: "PRIMARY" }, "mysql");
             if (fb) {
               fb.innerHTML = `
               <div class="alert alert-success py-2.5 px-3 mb-0 small border-success">
@@ -4016,7 +4054,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                 </div>
                 <div>Tổng thanh toán: <strong class="text-dark">${fmtMoney(data.total)}</strong></div>
                 <div class="tech-detail text-muted small mt-1">
-                  Xử lý tại Node MySQL: <code>${hostInfo}</code> (${data.latency_ms || 0} ms)
+                  Xử lý tại Node MySQL: ${hostInfo} (${data.latency_ms || 0} ms)
                 </div>
               </div>
             `;
@@ -4121,7 +4159,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           const node = data.node || {};
           const nodeInfoEl = document.getElementById("orders-node-info");
           if (nodeInfoEl) {
-            nodeInfoEl.innerHTML = `MySQL: <strong>${node.host || "N/A"}</strong> (${node.role || ""}) [${data.latency_ms || 0} ms]`;
+            nodeInfoEl.innerHTML = `MySQL: ${formatNodeBadge(node, "mysql")} [${data.latency_ms || 0} ms]`;
           }
 
           const orders = data.orders || [];
