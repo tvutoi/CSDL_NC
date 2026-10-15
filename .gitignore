@@ -218,3 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Binaries and local tunnels
+tools/
+web_demo/tools/
+*.exe

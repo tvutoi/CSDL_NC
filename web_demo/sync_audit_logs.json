@@ -1,5 +1,177 @@
 [
   {
+    "id": "SYNC-ee832859",
+    "thoi_diem": "2026-10-15 19:47:01.221",
+    "he_csdl": "MONGO_RS",
+    "loai_su_kien": "CATCHUP_SYNC",
+    "ma_nhom_giao_dich": "CATCHUP-SYNC-a27c07fa-Node 1",
+    "gtid_hoac_optime": "Timestamp(1792068404, 1)",
+    "node_nguon": "Node 2 (192.168.1.222:27017)",
+    "node_dich": [
+      {
+        "node": "Node 1",
+        "host": "192.168.1.221:27017",
+        "thoi_diem_ap_dung": "19:47:01.147",
+        "do_tre_ms": 12.0,
+        "trang_thai": "APPLIED"
+      }
+    ],
+    "trang_thai": "SYNCED",
+    "so_ban_ghi": 1,
+    "chi_tiet": [
+      {
+        "bang": "product_reviews",
+        "so_ban_ghi": 1,
+        "mau_ban_ghi": [
+          {
+            "review_id": "6ad0cb34ec2bc81011be39e5",
+            "product_id": 7,
+            "rating": 5,
+            "title": "Sản phẩm đúng mô tả, dùng ổn định",
+            "author": "Khách hàng #1",
+            "packaging": "Nguyên hộp, bọc chống sốc",
+            "comment": "test"
+          }
+        ]
+      }
+    ],
+    "log_id": "SYNC-ee832859",
+    "time": "19:47:01",
+    "date": "15/10/2026",
+    "timestamp": "19:47:01",
+    "start_time": "19:47:01.147",
+    "end_time": "19:47:01.147",
+    "db_type": "MONGO_RS",
+    "action": "CATCHUP_SYNC",
+    "title": "Đồng bộ bù Oplog qua Node 1",
+    "summary": "Node 1 trực tuyến trở lại · Nhận bù Oplog từ Node 2",
+    "data_payload": "Đồng bộ bù Oplog sự kiện #SYNC-a27c07fa (Đánh giá SP #7) sang Node 1 (192.168.1.221:27017)",
+    "affected_tables": "product_reviews (1 Document)",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:27017",
+    "target_display": "Node 1",
+    "target_nodes": [
+      "Node 1"
+    ],
+    "target_hosts": [
+      "192.168.1.221:27017"
+    ],
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:27017",
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
+      }
+    ],
+    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs Catch-up)",
+    "detail": "Node 1 (192.168.1.221:27017) sau khi trực tuyến trở lại đã tự động kết nối và streaming bù toàn bộ Oplog còn thiếu từ Primary (Node 2 192.168.1.222:27017). Dữ liệu đã được áp dụng an toàn và cụm đạt trạng thái nhất quán hoàn toàn.",
+    "latency_ms": 12.0,
+    "status": "SYNCED",
+    "status_text": "Đã đồng bộ bù thành công"
+  },
+  {
+    "id": "SYNC-a27c07fa",
+    "thoi_diem": "2026-10-15 19:46:44.809",
+    "he_csdl": "MONGO_RS",
+    "loai_su_kien": "INSERT_REVIEW",
+    "ma_nhom_giao_dich": "REV-6ad0cb34ec2bc81011be39e5",
+    "gtid_hoac_optime": "Timestamp(1792068404, 1)",
+    "node_nguon": "Node 2 (192.168.1.222:27017)",
+    "node_dich": [
+      {
+        "node": "Node 1",
+        "host": "192.168.1.221:27017",
+        "thoi_diem_ap_dung": "19:47:01.147",
+        "do_tre_ms": 12.0,
+        "trang_thai": "APPLIED"
+      },
+      {
+        "node": "Node 3",
+        "host": "192.168.1.222:27018",
+        "thoi_diem_ap_dung": "19:46:44.808",
+        "do_tre_ms": 0.0,
+        "trang_thai": "APPLIED"
+      },
+      {
+        "node": "Node 4",
+        "host": "192.168.1.222:27019",
+        "thoi_diem_ap_dung": "19:46:44.808",
+        "do_tre_ms": 0.0,
+        "trang_thai": "APPLIED"
+      }
+    ],
+    "trang_thai": "SYNCED",
+    "so_ban_ghi": 1,
+    "chi_tiet": [
+      {
+        "bang": "product_reviews",
+        "so_ban_ghi": 1,
+        "mau_ban_ghi": [
+          {
+            "review_id": "6ad0cb34ec2bc81011be39e5",
+            "product_id": 7,
+            "rating": 5,
+            "title": "Sản phẩm đúng mô tả, dùng ổn định",
+            "author": "Khách hàng #1",
+            "packaging": "Nguyên hộp, bọc chống sốc",
+            "comment": "test"
+          }
+        ]
+      }
+    ],
+    "log_id": "SYNC-a27c07fa",
+    "time": "19:46:44",
+    "date": "15/10/2026",
+    "timestamp": "19:46:44",
+    "start_time": "19:46:44.809",
+    "end_time": "19:46:44.809",
+    "db_type": "MONGO_RS",
+    "action": "INSERT_REVIEW",
+    "title": "Đánh giá SP #7",
+    "summary": "Đánh giá: 5 sao (★★★★★) · Khách: Khách hàng #1 · Tiêu đề: 'Sản phẩm đúng mô tả, dùng ổn định' · Đóng gói: Nguyên hộp, bọc chống sốc",
+    "data_payload": "SP ID: #7 · Review ID: 6ad0cb34ec2bc81011be39e5 · Optime: Timestamp(1792068404, 1) · Đánh giá: 5 sao · Bình luận: 'test' · Đóng gói: Nguyên hộp, bọc chống sốc",
+    "affected_tables": "product_reviews (1 Document)",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:27017",
+    "target_display": "Node 1, Node 3, Node 4",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:27017",
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:27018",
+        "state": "ONLINE",
+        "message": "Đã nhận"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:27019",
+        "state": "ONLINE",
+        "message": "Đã nhận"
+      }
+    ],
+    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
+    "detail": "Ghi BSON Document vào collection product_reviews tại Primary (192.168.1.222:27017). Luồng Oplog phát tán tới các Secondary. Optime: Timestamp(1792068404, 1).",
+    "latency_ms": 0.0,
+    "status": "SYNCED",
+    "status_text": "Đã đồng bộ 3/3 node phụ (Node 1 đã nhận bù)"
+  },
+  {
     "id": "SYNC-d7ad46fd",
     "thoi_diem": "2026-10-15 19:44:36.493",
     "he_csdl": "MONGO_RS",
