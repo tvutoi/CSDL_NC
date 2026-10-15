@@ -1370,11 +1370,10 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         <tr>
                           <th>Node</th>
                           <th>Địa chỉ IP</th>
-                          <th class="text-center">Server ID</th>
                           <th class="text-center">Vai trò</th>
                           <th class="text-center">Trạng thái</th>
-                          <th class="text-end">Ping</th>
-                          <th class="tech-detail">GTID Executed</th>
+                          <th class="text-end">Đơn hàng</th>
+                          <th class="text-end">Sản phẩm</th>
                         </tr>
                       </thead>
                       <tbody id="cluster-mysql-table"></tbody>
@@ -2625,11 +2624,10 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             <tr>
               <td class="fw-semibold">${n.node_name}</td>
               <td class="mono-text">${n.host}</td>
-              <td class="text-center">${n.server_id}</td>
               <td class="text-center">${roleBadge}</td>
               <td class="text-center">${stateBadge}</td>
-              <td class="text-end">${n.ping_ms !== null ? n.ping_ms + " ms" : "-"}</td>
-              <td class="mono-text text-muted tech-detail">${n.gtid}</td>
+              <td class="text-end mono-text">${isOnline ? (n.counts?.orders || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
+              <td class="text-end mono-text">${isOnline ? (n.counts?.products || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
             </tr>
           `;
             })
@@ -2655,8 +2653,8 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               <td class="mono-text">${n.host}</td>
               <td class="text-center">${roleBadge}</td>
               <td class="text-center">${stateBadge}</td>
-              <td class="text-end">${(n.reviews_count || 0).toLocaleString("vi-VN")}</td>
-              <td class="text-end">${(n.logs_count || 0).toLocaleString("vi-VN")}</td>
+              <td class="text-end mono-text">${isOnline ? (n.reviews_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
+              <td class="text-end mono-text">${isOnline ? (n.logs_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
             </tr>
           `;
               })
