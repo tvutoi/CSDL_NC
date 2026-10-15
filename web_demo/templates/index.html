@@ -1131,9 +1131,9 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                   >
                 </div>
                 <div class="panel-body">
-                  <!-- Bộ lọc tìm kiếm Đơn hàng tách biệt -->
+                  <!-- Bộ lọc tìm kiếm & Phân loại Đơn hàng trên cùng 1 hàng -->
                   <div class="row g-2 mb-3 align-items-end">
-                    <div class="col-md-4">
+                    <div class="col-md-5">
                       <label class="form-label">Tìm kiếm đơn hàng</label>
                       <div class="input-group">
                         <input
@@ -1149,36 +1149,30 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         </button>
                       </div>
                     </div>
-                    <div class="col-md-2">
-                      <label class="form-label">Khu vực</label>
-                      <select id="orders-filter-region" class="form-select" onchange="loadRecentOrders(1)" style="height: 38px;">
-                        <option value="ALL">Tất cả khu vực</option>
-                        <option value="MIEN_BAC">Miền Bắc</option>
-                        <option value="MIEN_TRUNG">Miền Trung</option>
-                        <option value="MIEN_NAM">Miền Nam</option>
+                    <div class="col-md">
+                      <label class="form-label">Phân loại & Trạng thái</label>
+                      <select id="orders-filter-group" class="form-select" onchange="loadRecentOrders(1)" style="height: 38px;">
+                        <option value="ALL">Tất cả đơn hàng</option>
+                        <optgroup label="── Trạng thái đơn hàng ──">
+                          <option value="STATUS:COMPLETED">Trạng thái: Hoàn tất</option>
+                          <option value="STATUS:PROCESSING">Trạng thái: Đang giao</option>
+                          <option value="STATUS:PENDING">Trạng thái: Chờ xử lý</option>
+                          <option value="STATUS:CANCELLED">Trạng thái: Đã hủy</option>
+                        </optgroup>
+                        <optgroup label="── Phương thức thanh toán ──">
+                          <option value="PAY:COD">Thanh toán: Tiền mặt (COD)</option>
+                          <option value="PAY:E-WALLET">Thanh toán: Ví điện tử</option>
+                          <option value="PAY:BANK_TRANSFER">Thanh toán: Chuyển khoản</option>
+                          <option value="PAY:CREDIT_CARD">Thanh toán: Thẻ tín dụng</option>
+                        </optgroup>
+                        <optgroup label="── Khu vực giao hàng ──">
+                          <option value="REGION:MIEN_BAC">Khu vực: Miền Bắc</option>
+                          <option value="REGION:MIEN_TRUNG">Khu vực: Miền Trung</option>
+                          <option value="REGION:MIEN_NAM">Khu vực: Miền Nam</option>
+                        </optgroup>
                       </select>
                     </div>
-                    <div class="col-md-3">
-                      <label class="form-label">Phương thức thanh toán</label>
-                      <select id="orders-filter-payment" class="form-select" onchange="loadRecentOrders(1)" style="height: 38px;">
-                        <option value="ALL">Tất cả phương thức</option>
-                        <option value="COD">Tiền mặt (COD)</option>
-                        <option value="E-WALLET">Ví điện tử</option>
-                        <option value="BANK_TRANSFER">Chuyển khoản</option>
-                        <option value="CREDIT_CARD">Thẻ tín dụng</option>
-                      </select>
-                    </div>
-                    <div class="col-md-3">
-                      <label class="form-label">Trạng thái</label>
-                      <select id="orders-filter-status" class="form-select" onchange="loadRecentOrders(1)" style="height: 38px;">
-                        <option value="ALL">Tất cả trạng thái</option>
-                        <option value="COMPLETED">Hoàn tất</option>
-                        <option value="CANCELLED">Đã hủy</option>
-                        <option value="PENDING">Chờ xử lý</option>
-                        <option value="PROCESSING">Đang giao</option>
-                      </select>
-                    </div>
-                    <div class="col-md-3 tech-detail mt-2">
+                    <div class="col-md-3 tech-detail">
                       <label class="form-label">Định tuyến đọc CSDL</label>
                       <select id="orders-readmode" class="form-select" onchange="loadRecentOrders(1)" style="height: 38px;">
                         <option value="secondary_preferred">Ưu tiên Node phụ</option>
@@ -2134,12 +2128,8 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       function resetOrdersFilter() {
         const kw = document.getElementById("orders-filter-keyword");
         if (kw) kw.value = "";
-        const reg = document.getElementById("orders-filter-region");
-        if (reg) reg.value = "ALL";
-        const pay = document.getElementById("orders-filter-payment");
-        if (pay) pay.value = "ALL";
-        const st = document.getElementById("orders-filter-status");
-        if (st) st.value = "ALL";
+        const grp = document.getElementById("orders-filter-group");
+        if (grp) grp.value = "ALL";
         loadRecentOrders(1);
       }
 
@@ -4111,12 +4101,8 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         const readMode = rmEl ? rmEl.value : "secondary_preferred";
         const kwEl = document.getElementById("orders-filter-keyword");
         const keyword = kwEl ? kwEl.value.trim() : "";
-        const regEl = document.getElementById("orders-filter-region");
-        const region = regEl ? regEl.value : "ALL";
-        const payEl = document.getElementById("orders-filter-payment");
-        const paymentMethod = payEl ? payEl.value : "ALL";
-        const stEl = document.getElementById("orders-filter-status");
-        const status = stEl ? stEl.value : "ALL";
+        const groupEl = document.getElementById("orders-filter-group");
+        const filterGroup = groupEl ? groupEl.value : "ALL";
 
         try {
           const params = new URLSearchParams({
@@ -4126,9 +4112,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             _t: Date.now(),
           });
           if (keyword) params.set("keyword", keyword);
-          if (region && region !== "ALL") params.set("region", region);
-          if (paymentMethod && paymentMethod !== "ALL") params.set("payment_method", paymentMethod);
-          if (status && status !== "ALL") params.set("status", status);
+          if (filterGroup && filterGroup !== "ALL") params.set("filter_group", filterGroup);
 
           const res = await fetch("/api/orders/recent?" + params.toString(), {
             cache: "no-store",
