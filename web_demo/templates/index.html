@@ -232,6 +232,118 @@
         border: 1px solid transparent;
         vertical-align: middle;
       }
+      /* BỐ CỤC GRID KHUNG TRẠNG THÁI CỤM MÁY CHỦ */
+      .cluster-col-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 6px;
+      }
+      .cluster-col {
+        padding: 0 8px;
+      }
+      .cluster-node-header {
+        display: grid;
+        grid-template-columns: 64px minmax(190px, 1fr) 96px 104px 76px;
+        column-gap: 12px;
+        align-items: center;
+        height: 28px;
+        font-size: 12px;
+        color: #9ca3af;
+        font-weight: 500;
+        border-bottom: 1px solid #eef0f2;
+      }
+      .cluster-node-row {
+        display: grid;
+        grid-template-columns: 64px minmax(190px, 1fr) 96px 104px 76px;
+        column-gap: 12px;
+        align-items: center;
+        height: 34px;
+        border-bottom: 1px solid #eef0f2;
+      }
+      .cluster-node-row:last-child {
+        border-bottom: none;
+      }
+      .cluster-node-row.is-offline {
+        opacity: 0.75;
+      }
+      .cluster-node-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: #111827;
+        white-space: nowrap;
+      }
+      .cluster-node-ip {
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 13px;
+        font-weight: 400;
+        color: #4b5563;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .cluster-node-role {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .cluster-node-role .badge-pill {
+        width: 100%;
+        max-width: 88px;
+        min-width: unset;
+        padding: 3px 0;
+        text-align: center;
+      }
+      .cluster-node-status {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .cluster-node-status .badge-pill {
+        width: 100%;
+        max-width: 96px;
+        min-width: unset;
+        padding: 3px 0;
+        text-align: center;
+      }
+      .cluster-node-ping {
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 12px;
+        color: #6b7280;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      @media (min-width: 992px) {
+        .border-start-lg {
+          border-left: 1px solid #eef0f2 !important;
+        }
+        .cluster-col.pe-lg-3 {
+          padding-right: 16px !important;
+        }
+        .cluster-col.ps-lg-3 {
+          padding-left: 16px !important;
+        }
+      }
+      @media (max-width: 991.98px) {
+        .cluster-grid-container > .col-lg-6:not(:last-child) {
+          margin-bottom: 20px;
+        }
+        .border-start-lg {
+          border-left: none !important;
+        }
+      }
+      @media (max-width: 575.98px) {
+        .cluster-node-header,
+        .cluster-node-row {
+          grid-template-columns: 60px minmax(130px, 1fr) 88px 96px;
+          column-gap: 8px;
+        }
+        .cluster-col-ping,
+        .cluster-node-ping {
+          display: none !important;
+        }
+      }
       /* CHẾ ĐỘ KỸ THUẬT & CHẾ ĐỘ BÌNH THƯỜNG */
       .tech-detail {
         display: none !important;
@@ -878,18 +990,28 @@
             </button>
           </div>
         </div>
-        <div class="row g-4 align-items-start">
-          <div class="col-md-6 border-end pe-md-4">
-            <div class="fw-bold text-secondary mb-2 small text-uppercase" style="letter-spacing: 0.3px;">
-              Cụm MySQL Group Replication
+        <div class="row g-0 cluster-grid-container">
+          <div class="col-lg-6 cluster-col pe-lg-3">
+            <div class="cluster-col-title">Cụm MySQL Group Replication</div>
+            <div class="cluster-node-header">
+              <span>Node</span>
+              <span>Địa chỉ</span>
+              <span class="text-center">Vai trò</span>
+              <span class="text-center">Trạng thái</span>
+              <span class="text-end cluster-col-ping">Ping</span>
             </div>
-            <div id="summary-mysql-nodes" class="ps-1">Đang kiểm tra...</div>
+            <div id="summary-mysql-nodes">Đang kiểm tra...</div>
           </div>
-          <div class="col-md-6 ps-md-4">
-            <div class="fw-bold text-secondary mb-2 small text-uppercase" style="letter-spacing: 0.3px;">
-              Cụm MongoDB Replica Set
+          <div class="col-lg-6 cluster-col ps-lg-3 border-start-lg">
+            <div class="cluster-col-title">Cụm MongoDB Replica Set</div>
+            <div class="cluster-node-header">
+              <span>Node</span>
+              <span>Địa chỉ</span>
+              <span class="text-center">Vai trò</span>
+              <span class="text-center">Trạng thái</span>
+              <span class="text-end cluster-col-ping">Ping</span>
             </div>
-            <div id="summary-mongo-nodes" class="ps-1">Đang kiểm tra...</div>
+            <div id="summary-mongo-nodes">Đang kiểm tra...</div>
           </div>
         </div>
       </div>
@@ -3011,20 +3133,28 @@
           const mysqlSummary = data.mysql
             .map((n, idx) => {
               const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
-              const nodeLabel = n.node_name || `Node ${idx + 1}`;
-              const pingHtml = (n.ping_ms !== null && n.ping_ms !== undefined)
-                ? `<span class="tech-detail text-muted font-monospace text-end" style="min-width: 75px; font-size: 12px;">${n.ping_ms} ms</span>`
-                : `<span class="tech-detail text-muted text-end" style="min-width: 75px; font-size: 12px;">-</span>`;
+              const nodeLabel = (n.node_name || `Node ${idx + 1}`).replace(":", "").trim();
+              const rowClass = isOnline ? "cluster-node-row" : "cluster-node-row is-offline";
               const roleHtml = !isOnline
-                ? `<span class="badge-pill-placeholder">-</span>`
-                : n.role === "PRIMARY"
-                  ? `<span class="badge-pill badge-pill--primary">Node chính</span>`
-                  : `<span class="badge-pill badge-pill--muted">Node phụ</span>`;
+                ? `<div class="cluster-node-role"></div>`
+                : (n.role === "PRIMARY"
+                  ? `<div class="cluster-node-role"><span class="badge-pill badge-pill--primary">Node chính</span></div>`
+                  : `<div class="cluster-node-role"><span class="badge-pill badge-pill--muted">Node phụ</span></div>`);
               const stateHtml = !isOnline
-                ? `<span class="badge-pill badge-pill--danger">Mất kết nối</span>`
-                : `<span class="badge-pill badge-pill--ok">Sẵn sàng</span>`;
+                ? `<div class="cluster-node-status"><span class="badge-pill badge-pill--danger">Mất kết nối</span></div>`
+                : `<div class="cluster-node-status"><span class="badge-pill badge-pill--ok">Sẵn sàng</span></div>`;
+              const pingFormatted = (isOnline && n.ping_ms !== null && n.ping_ms !== undefined)
+                ? Number(n.ping_ms).toFixed(1) + " ms"
+                : "–";
+              const pingHtml = `<div class="cluster-node-ping text-muted">${pingFormatted}</div>`;
 
-              return `<div class="py-1.5 border-bottom border-light d-flex justify-content-between align-items-center"><div class="d-flex align-items-center"><strong class="me-2 text-dark" style="min-width: 60px;">${nodeLabel}:</strong> <span class="node-ip">${n.host}</span></div><div class="d-flex align-items-center gap-2 flex-shrink-0">${pingHtml}${roleHtml}${stateHtml}</div></div>`;
+              return `<div class="${rowClass}">
+                <div class="cluster-node-name">${nodeLabel}</div>
+                <div class="cluster-node-ip">${n.host}</div>
+                ${roleHtml}
+                ${stateHtml}
+                ${pingHtml}
+              </div>`;
             })
             .join("");
           document.getElementById("summary-mysql-nodes").innerHTML = mysqlSummary;
@@ -3032,21 +3162,29 @@
           const mongoSummary = data.mongodb
             .map((n, idx) => {
               const isOnline = n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1;
-              const nodeLabel = n.node_name || `Node ${idx + 1}`;
-              const pingHtml = (n.ping_ms !== null && n.ping_ms !== undefined)
-                ? `<span class="tech-detail text-muted font-monospace text-end" style="min-width: 75px; font-size: 12px;">${n.ping_ms} ms</span>`
-                : `<span class="tech-detail text-muted text-end" style="min-width: 75px; font-size: 12px;">-</span>`;
+              const nodeLabel = (n.node_name || `Node ${idx + 1}`).replace(":", "").trim();
+              const rowClass = isOnline ? "cluster-node-row" : "cluster-node-row is-offline";
               const isPrimary = n.state === "PRIMARY";
               const roleHtml = !isOnline
-                ? `<span class="badge-pill-placeholder">-</span>`
-                : isPrimary
-                  ? `<span class="badge-pill badge-pill--primary">Node chính</span>`
-                  : `<span class="badge-pill badge-pill--muted">Node phụ</span>`;
+                ? `<div class="cluster-node-role"></div>`
+                : (isPrimary
+                  ? `<div class="cluster-node-role"><span class="badge-pill badge-pill--primary">Node chính</span></div>`
+                  : `<div class="cluster-node-role"><span class="badge-pill badge-pill--muted">Node phụ</span></div>`);
               const stateHtml = !isOnline
-                ? `<span class="badge-pill badge-pill--danger">Mất kết nối</span>`
-                : `<span class="badge-pill badge-pill--ok">Sẵn sàng</span>`;
+                ? `<div class="cluster-node-status"><span class="badge-pill badge-pill--danger">Mất kết nối</span></div>`
+                : `<div class="cluster-node-status"><span class="badge-pill badge-pill--ok">Sẵn sàng</span></div>`;
+              const pingFormatted = (isOnline && n.ping_ms !== null && n.ping_ms !== undefined)
+                ? Number(n.ping_ms).toFixed(1) + " ms"
+                : "–";
+              const pingHtml = `<div class="cluster-node-ping text-muted">${pingFormatted}</div>`;
 
-              return `<div class="py-1.5 border-bottom border-light d-flex justify-content-between align-items-center"><div class="d-flex align-items-center"><strong class="me-2 text-dark" style="min-width: 60px;">${nodeLabel}:</strong> <span class="node-ip">${n.host}</span></div><div class="d-flex align-items-center gap-2 flex-shrink-0">${pingHtml}${roleHtml}${stateHtml}</div></div>`;
+              return `<div class="${rowClass}">
+                <div class="cluster-node-name">${nodeLabel}</div>
+                <div class="cluster-node-ip">${n.host}</div>
+                ${roleHtml}
+                ${stateHtml}
+                ${pingHtml}
+              </div>`;
             })
             .join("");
           document.getElementById("summary-mongo-nodes").innerHTML = mongoSummary;
