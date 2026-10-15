@@ -1197,24 +1197,22 @@
                   <span class="label-tag tag-secondary tech-detail">ecommerce_nosql</span>
                 </div>
                 <div class="panel-body">
-                  <div class="row g-2 mb-2 align-items-end">
-                    <div class="col-7">
-                      <label class="form-label text-truncate d-block">Sản phẩm đánh giá</label>
-                      <select
-                        id="review-product-id"
-                        class="form-select"></select>
-                    </div>
-                    <div class="col-5">
-                      <label class="form-label">Mức điểm</label>
-                      <input type="hidden" id="review-rating" value="5" />
-                      <div class="d-flex align-items-center gap-0.5 pt-1" id="star-picker" onmouseleave="resetStarPickerHover()">
-                        <span class="star-picker-item" data-value="1" onclick="setStarPickerRating(1)" onmouseenter="hoverStarPicker(1)" style="font-size: 20px; cursor: pointer; color: #f59e0b; user-select: none;">★</span>
-                        <span class="star-picker-item" data-value="2" onclick="setStarPickerRating(2)" onmouseenter="hoverStarPicker(2)" style="font-size: 20px; cursor: pointer; color: #f59e0b; user-select: none;">★</span>
-                        <span class="star-picker-item" data-value="3" onclick="setStarPickerRating(3)" onmouseenter="hoverStarPicker(3)" style="font-size: 20px; cursor: pointer; color: #f59e0b; user-select: none;">★</span>
-                        <span class="star-picker-item" data-value="4" onclick="setStarPickerRating(4)" onmouseenter="hoverStarPicker(4)" style="font-size: 20px; cursor: pointer; color: #f59e0b; user-select: none;">★</span>
-                        <span class="star-picker-item" data-value="5" onclick="setStarPickerRating(5)" onmouseenter="hoverStarPicker(5)" style="font-size: 20px; cursor: pointer; color: #f59e0b; user-select: none;">★</span>
-                        <span class="small text-muted ms-1" id="star-picker-label" style="font-size: 11.5px;">5 sao</span>
-                      </div>
+                  <div class="mb-2">
+                    <label class="form-label">Sản phẩm đánh giá</label>
+                    <select
+                      id="review-product-id"
+                      class="form-select"></select>
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label">Mức điểm</label>
+                    <input type="hidden" id="review-rating" value="5" />
+                    <div class="d-flex align-items-center gap-1 pt-0.5" id="star-picker" onmouseleave="resetStarPickerHover()">
+                      <span class="star-picker-item" data-value="1" onclick="setStarPickerRating(1)" onmouseenter="hoverStarPicker(1)" style="font-size: 22px; cursor: pointer; color: #f59e0b; user-select: none;">★</span>
+                      <span class="star-picker-item" data-value="2" onclick="setStarPickerRating(2)" onmouseenter="hoverStarPicker(2)" style="font-size: 22px; cursor: pointer; color: #f59e0b; user-select: none;">★</span>
+                      <span class="star-picker-item" data-value="3" onclick="setStarPickerRating(3)" onmouseenter="hoverStarPicker(3)" style="font-size: 22px; cursor: pointer; color: #f59e0b; user-select: none;">★</span>
+                      <span class="star-picker-item" data-value="4" onclick="setStarPickerRating(4)" onmouseenter="hoverStarPicker(4)" style="font-size: 22px; cursor: pointer; color: #f59e0b; user-select: none;">★</span>
+                      <span class="star-picker-item" data-value="5" onclick="setStarPickerRating(5)" onmouseenter="hoverStarPicker(5)" style="font-size: 22px; cursor: pointer; color: #f59e0b; user-select: none;">★</span>
+                      <span class="small text-muted ms-2 fw-medium" id="star-picker-label">5 sao (Rất tốt)</span>
                     </div>
                   </div>
                   <div class="mb-2">
@@ -1223,7 +1221,7 @@
                       type="text"
                       id="review-title"
                       class="form-control"
-                      placeholder="Cảm nhận chung về sản phẩm..." />
+                      placeholder="Ví dụ: Máy dùng mượt, pin trâu" />
                   </div>
                   <div class="mb-2">
                     <label class="form-label">Nội dung chi tiết</label>
@@ -4615,7 +4613,7 @@
           });
           const data = await res.json();
           if (res.ok) {
-            showToastNotification("Đã gửi đánh giá thành công!", "success");
+            showToastNotification("Đã gửi đánh giá", "success");
 
             // Reset form sau khi gửi thành công
             const titleInput = document.getElementById("review-title");
