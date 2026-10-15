@@ -67,10 +67,28 @@
         align-items: center;
         gap: 8px;
         background: transparent;
+      }
+      .nav-tabs-custom .nav-link .tab-step {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background-color: #f1f5f9;
+        color: #64748b;
+        font-size: 11.5px;
+        font-weight: 700;
+        transition: all 0.15s ease-in-out;
+      }
       .nav-tabs-custom .nav-link:hover {
         background-color: transparent;
         color: #004b87;
         border-bottom-color: #cbd5e1;
+      }
+      .nav-tabs-custom .nav-link:hover .tab-step {
+        background-color: #e2e8f0;
+        color: #004b87;
       }
       .nav-tabs-custom .nav-link.active {
         color: #004b87;
@@ -78,6 +96,10 @@
         background: transparent;
         border-bottom: 2px solid #004b87;
         box-shadow: none;
+      }
+      .nav-tabs-custom .nav-link.active .tab-step {
+        background-color: #e0f2fe;
+        color: #0284c7;
       }
       .panel-box {
         background-color: #ffffff;
@@ -154,14 +176,7 @@
         transition: background-color 0.15s ease;
       }
       #tab-orders .table-custom tbody tr:hover td {
-        background-color: #f8fafc !important;
-      }
-      .order-id-link {
-        cursor: pointer;
-        text-decoration: none;
-      }
-      #tab-orders .table-custom tbody tr:hover .order-id-link {
-        text-decoration: underline;
+        background-color: #f8fafc;
       }
       .status-dot {
         display: inline-block;
@@ -669,11 +684,10 @@
             >
           </button>
           <button
-            class="btn btn-sm btn-outline-light tech-detail"
+            class="btn btn-sm btn-outline-light"
             data-bs-toggle="modal"
             data-bs-target="#configModal"
-            onclick="loadClusterConfig()"
-            title="Cấu hình địa chỉ IP các node máy chủ trong mạng LAN">
+            onclick="loadClusterConfig()">
             Cấu hình IP LAN
           </button>
           <span class="text-white-50 small ms-1 me-1" style="font-size: 12px;">Cập nhật: <strong id="header-last-updated" class="text-white">--:--:--</strong></span>
@@ -691,17 +705,14 @@
       <!-- THANH TRẠNG THÁI GỌN (CHẾ ĐỘ BÌNH THƯỜNG - HÌNH 1) -->
       <div id="compactStatusBar" class="d-flex flex-wrap justify-content-between align-items-center py-2 px-3 bg-white border rounded mb-3 shadow-sm" style="font-size: 13px;">
         <div class="d-flex flex-wrap align-items-center gap-3">
-          <span id="bar-mysql-summary" title="Cụm hoạt động bình thường"><span class="status-dot dot-online"></span>MySQL: <strong>--/-- node</strong></span>
+          <span id="bar-mysql-summary"><span class="status-dot dot-online"></span>MySQL: <strong>--/-- node</strong></span>
           <span class="text-muted">&middot;</span>
-          <span id="bar-mongo-summary" title="Cụm hoạt động bình thường"><span class="status-dot dot-online"></span>MongoDB: <strong>--/-- node</strong></span>
+          <span id="bar-mongo-summary"><span class="status-dot dot-online"></span>MongoDB: <strong>--/-- node</strong></span>
           <span class="text-muted">&middot;</span>
-          <span id="bar-data-summary" class="text-muted small">-- dòng MySQL &middot; -- tài liệu MongoDB</span>
+          <span id="bar-data-summary" class="text-secondary"><strong>-- dòng MySQL &middot; -- tài liệu MongoDB</strong></span>
         </div>
         <div class="d-flex align-items-center gap-2">
-          <a href="javascript:void(0)" onclick="toggleTechMode(true)" class="text-primary small text-decoration-none fw-medium d-inline-flex align-items-center gap-1" title="Xem chi tiết trạng thái cụm máy chủ">
-            <span>Xem chi tiết cụm</span>
-            <i class="bi bi-chevron-down" style="font-size: 11px;"></i>
-          </a>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" onclick="toggleTechMode(true)" style="font-size: 12px;">Xem chi tiết cụm &#9662;</button>
         </div>
       </div>
 
@@ -748,6 +759,7 @@
               type="button"
               role="tab"
               onclick="loadRecentOrders()">
+              <span class="tab-step">1</span>
               <span>Đặt hàng & Danh sách Đơn hàng</span>
             </button>
           </li>
@@ -759,6 +771,7 @@
               data-bs-target="#tab-reviews"
               type="button"
               role="tab">
+              <span class="tab-step">2</span>
               <span>Nhận xét & Hình ảnh thực tế</span>
             </button>
           </li>
@@ -771,6 +784,7 @@
               type="button"
               role="tab"
               onclick="fetchClusterStatus(); loadSyncLogs();">
+              <span class="tab-step">3</span>
               <span>Trạng thái Cụm Server (LAN)</span>
             </button>
           </li>
@@ -782,6 +796,7 @@
               data-bs-target="#tab-benchmark"
               type="button"
               role="tab">
+              <span class="tab-step">4</span>
               <span>Đo kiểm Hiệu năng Truy vấn</span>
             </button>
           </li>
@@ -793,6 +808,7 @@
               data-bs-target="#tab-catalog"
               type="button"
               role="tab">
+              <span class="tab-step">5</span>
               <span>Danh mục Hàng hóa</span>
             </button>
           </li>
@@ -1117,16 +1133,30 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                 <div class="panel-body">
                   <!-- Bộ lọc tìm kiếm Đơn hàng tách biệt -->
                   <div class="row g-2 mb-3 align-items-end">
-                    <div class="col-md-5">
+                    <div class="col-md-4">
                       <label class="form-label">Tìm kiếm đơn hàng</label>
-                      <input
-                        type="text"
-                        id="orders-filter-keyword"
-                        class="form-control"
-                        placeholder="Mã ĐH, tên KH, tỉnh/TP, sản phẩm..."
-                        oninput="debounceOrderSearch()"
-                        onkeydown="if (event.key === 'Enter') loadRecentOrders(1);"
-                        style="height: 38px;" />
+                      <div class="input-group">
+                        <input
+                          type="text"
+                          id="orders-filter-keyword"
+                          class="form-control"
+                          placeholder="Mã ĐH, tên KH, tỉnh/TP, sản phẩm..."
+                          oninput="debounceOrderSearch()"
+                          onkeydown="if (event.key === 'Enter') loadRecentOrders(1);"
+                          style="height: 38px;" />
+                        <button class="btn btn-outline-secondary" type="button" onclick="resetOrdersFilter()" title="Đặt lại bộ lọc" style="height: 38px;">
+                          &#x21bb; Đặt lại
+                        </button>
+                      </div>
+                    </div>
+                    <div class="col-md-2">
+                      <label class="form-label">Khu vực</label>
+                      <select id="orders-filter-region" class="form-select" onchange="loadRecentOrders(1)" style="height: 38px;">
+                        <option value="ALL">Tất cả khu vực</option>
+                        <option value="MIEN_BAC">Miền Bắc</option>
+                        <option value="MIEN_TRUNG">Miền Trung</option>
+                        <option value="MIEN_NAM">Miền Nam</option>
+                      </select>
                     </div>
                     <div class="col-md-3">
                       <label class="form-label">Phương thức thanh toán</label>
@@ -1138,7 +1168,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         <option value="CREDIT_CARD">Thẻ tín dụng</option>
                       </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                       <label class="form-label">Trạng thái</label>
                       <select id="orders-filter-status" class="form-select" onchange="loadRecentOrders(1)" style="height: 38px;">
                         <option value="ALL">Tất cả trạng thái</option>
@@ -1148,21 +1178,13 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         <option value="PROCESSING">Đang giao</option>
                       </select>
                     </div>
-                    <div class="col-md-2">
-                      <label class="form-label d-none d-md-block">&nbsp;</label>
-                      <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center" type="button" onclick="resetOrdersFilter()" title="Đặt lại toàn bộ bộ lọc" style="height: 38px;">
-                        <i class="bi bi-arrow-counterclockwise me-1"></i>Đặt lại
-                      </button>
-                    </div>
-                    <div class="col-12 tech-detail mt-1">
-                      <div class="d-flex align-items-center gap-2">
-                        <span class="small text-muted text-nowrap">Định tuyến đọc CSDL:</span>
-                        <select id="orders-readmode" class="form-select form-select-sm" onchange="loadRecentOrders(1)" style="max-width: 200px; height: 32px;">
-                          <option value="secondary_preferred">Ưu tiên Node phụ</option>
-                          <option value="round_robin">Phân tải xoay vòng</option>
-                          <option value="primary">Chỉ đọc Node chính</option>
-                        </select>
-                      </div>
+                    <div class="col-md-3 tech-detail mt-2">
+                      <label class="form-label">Định tuyến đọc CSDL</label>
+                      <select id="orders-readmode" class="form-select" onchange="loadRecentOrders(1)" style="height: 38px;">
+                        <option value="secondary_preferred">Ưu tiên Node phụ</option>
+                        <option value="round_robin">Phân tải xoay vòng</option>
+                        <option value="primary">Chỉ đọc Node chính</option>
+                      </select>
                     </div>
                   </div>
 
@@ -1173,19 +1195,20 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                       class="table table-hover table-custom align-middle">
                       <thead class="sticky-top">
                         <tr>
-                          <th style="width: 85px;">Mã ĐH</th>
-                          <th style="min-width: 130px;">Khách hàng</th>
-                          <th style="min-width: 190px;">Sản phẩm</th>
-                          <th class="text-end pe-3" style="width: 70px;">SL</th>
-                          <th class="text-end pe-3" style="min-width: 125px;">Tổng tiền</th>
-                          <th class="text-center" style="min-width: 95px; white-space: nowrap;">Phương thức TT</th>
-                          <th class="text-center" style="min-width: 105px; white-space: nowrap;">Trạng thái</th>
-                          <th class="text-end pe-3" style="min-width: 110px; white-space: nowrap;">Thời gian</th>
+                          <th>Mã ĐH</th>
+                          <th>Khách hàng</th>
+                          <th>Tỉnh / Thành phố</th>
+                          <th>Sản phẩm</th>
+                          <th class="text-end">Tổng SL</th>
+                          <th class="text-end">Tổng tiền (VNĐ)</th>
+                          <th class="text-center">Phương thức TT</th>
+                          <th class="text-center">Trạng thái</th>
+                          <th class="text-end pe-3">Thời gian</th>
                         </tr>
                       </thead>
                       <tbody id="recent-orders-body">
                         <tr>
-                          <td colspan="8" class="text-center py-3 text-muted">
+                          <td colspan="9" class="text-center py-3 text-muted">
                             Đang tải lịch sử đơn hàng...
                           </td>
                         </tr>
@@ -1218,7 +1241,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                     </div>
                     <nav aria-label="Phân trang đơn hàng">
                       <ul
-                        class="pagination pagination-sm mb-0 align-items-center"
+                        class="pagination pagination-sm mb-0"
                         id="orders-pagination"></ul>
                     </nav>
                   </div>
@@ -1250,10 +1273,10 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         style="height: 38px;" />
                       <button class="btn btn-outline-secondary" type="button" onclick="clearProductSearch()" title="Xóa chọn">&#x2715;</button>
                     </div>
-                    <input type="hidden" id="order-product-id" value="" data-price="0" />
-                    <div id="order-product-stock-hint" class="small text-muted mt-1.5 d-flex justify-content-between align-items-center" style="display: none !important;">
-                      <span>Còn lại: <strong id="order-product-stock-qty" class="text-dark">0</strong> sản phẩm</span>
-                      <span id="order-product-price-badge" class="badge bg-light text-primary border" style="font-size: 11px;">0 đ</span>
+                    <input type="hidden" id="order-product-id" value="1" data-price="28000000" />
+                    <div id="order-product-stock-hint" class="small text-muted mt-1.5 d-flex justify-content-between align-items-center">
+                      <span>Còn lại: <strong id="order-product-stock-qty" class="text-dark">495</strong> sản phẩm</span>
+                      <span id="order-product-price-badge" class="badge bg-light text-primary border" style="font-size: 11px;">28.000.000 đ</span>
                     </div>
                     <div id="order-product-suggestions" class="suggest-dropdown"></div>
                   </div>
@@ -1274,7 +1297,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         style="height: 38px;" />
                       <button class="btn btn-outline-secondary" type="button" onclick="clearUserSearch()" title="Xóa chọn">&#x2715;</button>
                     </div>
-                    <input type="hidden" id="order-user-id" value="" />
+                    <input type="hidden" id="order-user-id" value="15" />
                     <div id="order-user-suggestions" class="suggest-dropdown"></div>
                   </div>
 
@@ -1318,8 +1341,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                     class="btn btn-navy w-100 py-2 fw-semibold"
                     id="btn-submit-order"
                     onclick="submitOrder()"
-                    style="height: 40px;"
-                    disabled>
+                    style="height: 40px;">
                     Xác nhận Đặt hàng
                   </button>
                   <div id="order-feedback" class="mt-2"></div>
@@ -2065,39 +2087,39 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       }
 
       function renderPaymentMethod(p) {
-        if (!p || p === "-" || p === "Chưa có thông tin") return '<span class="text-muted text-nowrap">-</span>';
+        if (!p) return '<span class="text-muted">-</span>';
         const norm = String(p).toUpperCase();
         if (norm === "COD") {
-          return '<span class="text-body d-inline-flex align-items-center text-nowrap"><i class="bi bi-cash-stack text-success me-1"></i>COD</span>';
+          return '<span class="text-body d-inline-flex align-items-center"><i class="bi bi-cash-stack text-success me-1"></i>Tiền mặt (COD)</span>';
         } else if (
           norm === "E-WALLET" ||
           norm === "E_WALLET" ||
           norm === "MOMO" ||
           norm === "ZALOPAY"
         ) {
-          return '<span class="text-body d-inline-flex align-items-center text-nowrap"><i class="bi bi-phone text-primary me-1"></i>Ví điện tử</span>';
+          return '<span class="text-body d-inline-flex align-items-center"><i class="bi bi-phone text-primary me-1"></i>Ví điện tử</span>';
         } else if (norm === "BANK_TRANSFER" || norm === "ATM") {
-          return '<span class="text-body d-inline-flex align-items-center text-nowrap"><i class="bi bi-bank text-info me-1"></i>Chuyển khoản</span>';
+          return '<span class="text-body d-inline-flex align-items-center"><i class="bi bi-bank text-info me-1"></i>Chuyển khoản</span>';
         } else if (norm === "CREDIT_CARD") {
-          return '<span class="text-body d-inline-flex align-items-center text-nowrap"><i class="bi bi-credit-card text-warning me-1"></i>Thẻ tín dụng</span>';
+          return '<span class="text-body d-inline-flex align-items-center"><i class="bi bi-credit-card text-warning me-1"></i>Thẻ tín dụng</span>';
         }
-        return `<span class="text-body text-nowrap">${mapPaymentMethod(p)}</span>`;
+        return `<span class="text-body">${mapPaymentMethod(p)}</span>`;
       }
 
       function renderOrderStatus(s) {
         const norm = String(s || "COMPLETED").toUpperCase();
         if (norm === "COMPLETED") {
-          return '<span class="d-inline-flex align-items-center text-secondary text-nowrap" style="font-size: 13px; white-space: nowrap;"><span class="status-dot dot-online" style="background-color: #10b981; width: 7px; height: 7px; margin-right: 6px;"></span>Hoàn tất</span>';
+          return '<span class="d-inline-flex align-items-center text-secondary" style="font-size: 13px;"><span class="status-dot dot-online" style="background-color: #10b981; width: 7px; height: 7px; margin-right: 6px;"></span>Hoàn tất</span>';
         } else if (norm === "CANCELLED") {
-          return '<span class="status-pill status-pill-cancelled text-nowrap" style="white-space: nowrap;">Đã hủy</span>';
+          return '<span class="status-pill status-pill-cancelled">Đã hủy</span>';
         } else if (norm === "PENDING") {
-          return '<span class="status-pill status-pill-pending text-nowrap" style="white-space: nowrap;">Chờ xử lý</span>';
+          return '<span class="status-pill status-pill-pending">Chờ xử lý</span>';
         } else if (norm === "PROCESSING") {
-          return '<span class="status-pill status-pill-processing text-nowrap" style="white-space: nowrap;">Đang giao</span>';
+          return '<span class="status-pill status-pill-processing">Đang giao</span>';
         } else if (norm === "FAILED") {
-          return '<span class="status-pill status-pill-failed text-nowrap" style="white-space: nowrap;">Thất bại</span>';
+          return '<span class="status-pill status-pill-failed">Thất bại</span>';
         }
-        return `<span class="status-pill status-pill-failed text-nowrap" style="white-space: nowrap;">${mapOrderStatus(s)}</span>`;
+        return `<span class="status-pill status-pill-failed">${mapOrderStatus(s)}</span>`;
       }
 
       // TỰ ĐỘNG TÌM KIẾM ĐƠN HÀNG (DEBOUNCE 350MS) & ĐẶT LẠI BỘ LỌC
@@ -2112,6 +2134,8 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       function resetOrdersFilter() {
         const kw = document.getElementById("orders-filter-keyword");
         if (kw) kw.value = "";
+        const reg = document.getElementById("orders-filter-region");
+        if (reg) reg.value = "ALL";
         const pay = document.getElementById("orders-filter-payment");
         if (pay) pay.value = "ALL";
         const st = document.getElementById("orders-filter-status");
@@ -2204,19 +2228,10 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           stockHint.style.removeProperty("display");
           stockHint.style.display = "flex";
         }
-        const stock = p.stock_quantity ?? 0;
         const stockEl = document.getElementById("order-product-stock-qty");
-        if (stockEl) stockEl.innerText = stock;
+        if (stockEl) stockEl.innerText = p.stock_quantity ?? 0;
         const priceBadge = document.getElementById("order-product-price-badge");
         if (priceBadge) priceBadge.innerText = fmtMoney(p.price);
-
-        const qtyEl = document.getElementById("order-qty");
-        if (qtyEl) {
-          qtyEl.max = stock > 0 ? stock : 1;
-          if (parseInt(qtyEl.value, 10) > stock && stock > 0) {
-            qtyEl.value = stock;
-          }
-        }
         if (drop) drop.style.display = "none";
         updateOrderTotalPreview();
       }
@@ -2234,8 +2249,6 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           if (stockEl) stockEl.innerText = "0";
           const priceBadge = document.getElementById("order-product-price-badge");
           if (priceBadge) priceBadge.innerText = "0 đ";
-          const fb = document.getElementById("order-feedback");
-          if (fb) fb.innerHTML = "";
           updateOrderTotalPreview();
         }
         filterProductSuggestions(val);
@@ -2260,8 +2273,6 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         if (stockEl) stockEl.innerText = "0";
         const priceBadge = document.getElementById("order-product-price-badge");
         if (priceBadge) priceBadge.innerText = "0 đ";
-        const fb = document.getElementById("order-feedback");
-        if (fb) fb.innerHTML = "";
         updateOrderTotalPreview();
         showProductSuggestions();
       }
@@ -2276,7 +2287,6 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         if (!val || !val.trim()) {
           const idInput = document.getElementById("order-user-id");
           if (idInput) idInput.value = "";
-          updateOrderTotalPreview();
         }
         filterUserSuggestions(val);
       }
@@ -2289,7 +2299,6 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           searchInput.focus();
         }
         if (idInput) idInput.value = "";
-        updateOrderTotalPreview();
         showUserSuggestions();
       }
 
@@ -2339,17 +2348,13 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         if (searchInput) searchInput.value = `${u.full_name} (${u.city || "-"} - ${u.phone || ""})`;
         if (idInput) idInput.value = u.user_id;
         if (drop) drop.style.display = "none";
-        updateOrderTotalPreview();
       }
 
       function changeOrderQty(delta) {
         const el = document.getElementById("order-qty");
         if (!el) return;
         let val = parseInt(el.value, 10) || 1;
-        const stockEl = document.getElementById("order-product-stock-qty");
-        const stock = parseInt(stockEl ? stockEl.innerText : "99", 10) || 99;
-        const maxLimit = stock > 0 ? stock : 50;
-        val = Math.max(1, Math.min(maxLimit, val + delta));
+        val = Math.max(1, Math.min(50, val + delta));
         el.value = val;
         updateOrderTotalPreview();
       }
@@ -2567,24 +2572,17 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           if (barMysqlEl) {
             const dotClass = mysqlOnline === mysqlTotal ? "dot-online" : mysqlOnline > 0 ? "dot-warning" : "dot-offline";
             barMysqlEl.innerHTML = `<span class="status-dot ${dotClass}"></span>MySQL: <strong>${mysqlOnline}/${mysqlTotal} node</strong>`;
-            barMysqlEl.title = mysqlOnline === mysqlTotal
-              ? "Tất cả các node MySQL đang hoạt động bình thường"
-              : `Cụm hoạt động bình thường (${mysqlTotal - mysqlOnline} node mất kết nối)`;
           }
 
           const barMongoEl = document.getElementById("bar-mongo-summary");
           if (barMongoEl) {
             const dotClass = mongoOnline === mongoTotal ? "dot-online" : mongoOnline > 0 ? "dot-warning" : "dot-offline";
             barMongoEl.innerHTML = `<span class="status-dot ${dotClass}"></span>MongoDB: <strong>${mongoOnline}/${mongoTotal} node</strong>`;
-            barMongoEl.title = mongoOnline === mongoTotal
-              ? "Tất cả các node MongoDB đang hoạt động bình thường"
-              : `Cụm hoạt động bình thường (${mongoTotal - mongoOnline} node mất kết nối)`;
           }
 
           const barDataEl = document.getElementById("bar-data-summary");
           if (barDataEl) {
-            barDataEl.className = "text-muted small";
-            barDataEl.innerHTML = `${sqlFmt} dòng MySQL &middot; ${mongoFmt} tài liệu MongoDB`;
+            barDataEl.innerHTML = `<strong>${sqlFmt} dòng MySQL &middot; ${mongoFmt} tài liệu MongoDB</strong>`;
           }
 
           // Bảng chi tiết MySQL ở Tab 3
@@ -3667,7 +3665,12 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           const products = data.products || [];
           allProductsCatalog = products;
           catalogProducts = products;
-          updateOrderTotalPreview();
+
+          const searchInput = document.getElementById("order-product-search");
+          if (searchInput && !searchInput.value) {
+            const defProd = products.find((x) => x.product_id === 1) || products[0];
+            if (defProd) chooseProduct(defProd.product_id);
+          }
 
           const countLbl = document.getElementById("order-product-count-label");
           if (countLbl) {
@@ -3930,7 +3933,6 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
       function updateOrderTotalPreview() {
         const prodEl = document.getElementById("order-product-id");
-        const prodId = prodEl ? prodEl.value : "";
         let price = 0;
         if (prodEl) {
           if (prodEl.options && prodEl.selectedIndex >= 0) {
@@ -3940,46 +3942,12 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             price = parseFloat(prodEl.getAttribute("data-price") || "0");
           }
         }
-        const userEl = document.getElementById("order-user-id");
-        const userId = userEl ? userEl.value : "";
         const qtyEl = document.getElementById("order-qty");
-        let qty = parseInt(qtyEl ? qtyEl.value : "1", 10);
-        if (isNaN(qty) || qty < 1) qty = 1;
-
-        const stockEl = document.getElementById("order-product-stock-qty");
-        const stock = parseInt(stockEl ? stockEl.innerText : "0", 10) || 0;
-
-        // Tự động giới hạn số lượng nếu đã chọn sản phẩm có tồn kho cụ thể
-        if (prodId && stock > 0 && qty > stock) {
-          qty = stock;
-          if (qtyEl) qtyEl.value = qty;
-        }
-
+        const qty = parseInt(qtyEl ? qtyEl.value : "1", 10) || 1;
         const total = price * qty;
         const prevEl = document.getElementById("order-total-preview");
         if (prevEl) {
           prevEl.innerText = fmtMoney(total);
-        }
-
-        // Tự động vô hiệu hóa (disabled) nút Xác nhận Đặt hàng nếu chưa chọn đủ hoặc tổng tiền 0 đ
-        const btn = document.getElementById("btn-submit-order");
-        const fb = document.getElementById("order-feedback");
-        if (btn) {
-          const hasProd = Boolean(prodId && price > 0);
-          const hasUser = Boolean(userId);
-          const hasStock = (!hasProd) || (stock >= qty && stock > 0);
-
-          if (hasProd && hasUser && total > 0 && hasStock) {
-            btn.disabled = false;
-            if (fb && (fb.innerHTML.includes("vượt quá") || fb.innerHTML.includes("hết hàng") || fb.innerHTML.includes("Vui lòng chọn"))) {
-              fb.innerHTML = "";
-            }
-          } else {
-            btn.disabled = true;
-            if (hasProd && stock <= 0) {
-              if (fb) fb.innerHTML = `<div class="alert alert-warning py-1.5 px-2.5 small mb-0 mt-2">Sản phẩm hiện đang tạm hết hàng.</div>`;
-            }
-          }
         }
       }
 
@@ -3990,7 +3958,12 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           const data = await res.json();
           const users = data.users || [];
           catalogUsers = users;
-          updateOrderTotalPreview();
+
+          const searchInput = document.getElementById("order-user-search");
+          if (searchInput && !searchInput.value) {
+            const defUser = users.find((u) => u.user_id === 15) || users[0];
+            if (defUser) chooseUser(defUser.user_id);
+          }
         } catch (e) {
           console.error("Load users error:", e);
         }
@@ -4070,8 +4043,8 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           if (fb) fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Không thể kết nối máy chủ: ${e.message}</div>`;
         } finally {
           if (btn) {
+            btn.disabled = false;
             btn.innerHTML = "Xác nhận Đặt hàng";
-            updateOrderTotalPreview();
           }
         }
       }
@@ -4138,6 +4111,8 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         const readMode = rmEl ? rmEl.value : "secondary_preferred";
         const kwEl = document.getElementById("orders-filter-keyword");
         const keyword = kwEl ? kwEl.value.trim() : "";
+        const regEl = document.getElementById("orders-filter-region");
+        const region = regEl ? regEl.value : "ALL";
         const payEl = document.getElementById("orders-filter-payment");
         const paymentMethod = payEl ? payEl.value : "ALL";
         const stEl = document.getElementById("orders-filter-status");
@@ -4151,6 +4126,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             _t: Date.now(),
           });
           if (keyword) params.set("keyword", keyword);
+          if (region && region !== "ALL") params.set("region", region);
           if (paymentMethod && paymentMethod !== "ALL") params.set("payment_method", paymentMethod);
           if (status && status !== "ALL") params.set("status", status);
 
@@ -4171,7 +4147,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
           const tbody = document.getElementById("recent-orders-body");
           if (orders.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted">Không tìm thấy đơn hàng phù hợp với điều kiện lọc.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted">Không tìm thấy đơn hàng phù hợp với điều kiện lọc.</td></tr>`;
             renderOrdersPagination(1, 1, 0, limit);
             return;
           }
@@ -4183,28 +4159,23 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                 .replace(/\s*#[0-9]+/g, "")
                 .trim();
               const prodTitle = o.items_detail || o.product_display || o.product_name || "";
-              const prodDisplay = o.product_display || o.product_name || ("SP #" + o.product_id);
               const shortDate = o.created_at_short || o.created_at || "-";
               const fullDate = o.created_at_full || o.created_at || "";
 
               return `
           <tr onclick="openOrderDetail(${o.order_id})" title="Nhấp để xem chi tiết đơn hàng #${o.order_id}">
             <td class="text-nowrap">
-              <span class="fw-semibold text-primary order-id-link">#${o.order_id}</span>
+              <span class="fw-semibold text-primary">#${o.order_id}</span>
             </td>
-            <td class="text-nowrap">
-              <div class="fw-semibold text-dark">${custName}</div>
-              <div class="text-muted" style="font-size: 11.5px; line-height: 1.2;">${o.city || "-"}</div>
+            <td class="fw-medium text-dark">${custName}</td>
+            <td>${o.city || "-"}</td>
+            <td>
+              <span title="${prodTitle}">${o.product_display || o.product_name || "SP " + o.product_id}</span>
             </td>
-            <td style="max-width: 220px;">
-              <div class="text-truncate" title="${prodTitle}">
-                ${prodDisplay}
-              </div>
-            </td>
-            <td class="text-end pe-3 fw-medium">${o.total_quantity || o.quantity || 1}</td>
-            <td class="text-end pe-3 fw-semibold text-dark text-nowrap">${fmtMoney(o.total_amount)}</td>
-            <td class="text-center text-nowrap">${renderPaymentMethod(o.payment_method)}</td>
-            <td class="text-center text-nowrap" style="min-width: 105px;">${renderOrderStatus(st)}</td>
+            <td class="text-end pe-2">${o.total_quantity || o.quantity || 1}</td>
+            <td class="text-end fw-semibold text-dark">${fmtMoney(o.total_amount)}</td>
+            <td class="text-center">${renderPaymentMethod(o.payment_method)}</td>
+            <td class="text-center">${renderOrderStatus(st)}</td>
             <td class="text-end pe-3 text-secondary text-nowrap" title="${fullDate}" style="font-size: 12.5px;">${shortDate}</td>
           </tr>
         `;
@@ -4236,22 +4207,31 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         const endIdx = Math.min(page * limit, totalItems);
         infoEl.innerHTML = `<span class="text-secondary"><strong>${startIdx.toLocaleString("vi-VN")}&ndash;${endIdx.toLocaleString("vi-VN")}</strong> / <strong>${totalItems.toLocaleString("vi-VN")}</strong></span>`;
 
+        let html = "";
         const prevDisabled = page <= 1 ? "disabled" : "";
-        const nextDisabled = page >= totalPages ? "disabled" : "";
+        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="loadRecentOrders(${page - 1})">&lsaquo; Trước</button></li>`;
 
-        let html = `
-          <li class="page-item ${prevDisabled}">
-            <button class="page-link" onclick="loadRecentOrders(${page - 1})" title="Trang trước">&lsaquo; Trước</button>
-          </li>
-          <li class="page-item d-flex align-items-center px-2">
-            <span class="small text-secondary me-1">Trang</span>
-            <input type="number" min="1" max="${totalPages}" value="${page}" class="form-control form-control-sm text-center px-1" style="width: 52px; height: 30px; font-weight: 600;" onkeydown="if(event.key==='Enter'){const v=parseInt(this.value,10);if(v>=1&&v<=${totalPages})loadRecentOrders(v);}" onblur="const v=parseInt(this.value,10);if(v>=1&&v<=${totalPages}&&v!==${page})loadRecentOrders(v);" />
-            <span class="small text-secondary ms-1">/ ${totalPages.toLocaleString("vi-VN")}</span>
-          </li>
-          <li class="page-item ${nextDisabled}">
-            <button class="page-link" onclick="loadRecentOrders(${page + 1})" title="Trang sau">Sau &rsaquo;</button>
-          </li>
-        `;
+        const startPage = Math.max(1, page - 2);
+        const endPage = Math.min(totalPages, page + 2);
+        if (startPage > 1) {
+          html += `<li class="page-item"><button class="page-link" onclick="loadRecentOrders(1)">1</button></li>`;
+          if (startPage > 2) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+          }
+        }
+        for (let p = startPage; p <= endPage; p++) {
+          const activeCls = p === page ? "active" : "";
+          html += `<li class="page-item ${activeCls}"><button class="page-link" onclick="loadRecentOrders(${p})">${p}</button></li>`;
+        }
+        if (endPage < totalPages) {
+          if (endPage < totalPages - 1) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+          }
+          html += `<li class="page-item"><button class="page-link" onclick="loadRecentOrders(${totalPages})">${totalPages}</button></li>`;
+        }
+
+        const nextDisabled = page >= totalPages ? "disabled" : "";
+        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="loadRecentOrders(${page + 1})">Sau &rsaquo;</button></li>`;
         navEl.innerHTML = html;
       }
 
