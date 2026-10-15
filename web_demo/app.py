@@ -2096,8 +2096,11 @@ def get_recent_orders(
         # Hiển thị gom sản phẩm: làm rõ số mặt hàng khác và số lượng
         items_cnt = int(r.get("total_items_count") or 0)
         first_prod = r.get("first_product_name") or "Chưa có thông tin"
+        first_prod = re.sub(r"\s*Series Pro Gen \d+\s*-\s*Model #\d+", "", first_prod).strip()
+        if r.get("items_detail"):
+            r["items_detail"] = re.sub(r"\s*Series Pro Gen \d+\s*-\s*Model #\d+", "", r["items_detail"]).strip()
         if items_cnt > 1:
-            r["product_display"] = f"{first_prod} (+{items_cnt - 1} mặt hàng khác)"
+            r["product_display"] = f"{first_prod} (+{items_cnt - 1} khác)"
         else:
             r["product_display"] = first_prod
 
@@ -2163,6 +2166,8 @@ def get_order_detail(order_id: int):
     for it in items:
         it["unit_price"] = float(it["unit_price"] or 0)
         it["line_total"] = float(it["line_total"] or 0)
+        if it.get("product_name"):
+            it["product_name"] = re.sub(r"\s*Series Pro Gen \d+\s*-\s*Model #\d+", "", it["product_name"]).strip()
 
     if items:
         order["total_amount"] = sum(it["line_total"] for it in items)
