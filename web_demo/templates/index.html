@@ -278,6 +278,17 @@
         color: #b91c1c;
         border-color: #fecaca;
       }
+      .order-id-link {
+        font-weight: 600;
+        color: #0d6efd;
+        cursor: pointer;
+        text-decoration: none;
+        transition: color 0.15s ease-in-out;
+      }
+      .order-id-link:hover {
+        color: #0a58ca;
+        text-decoration: underline !important;
+      }
       .form-label {
         font-weight: 600;
         font-size: 12.5px;
@@ -1052,14 +1063,13 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                           <th class="text-center">SL</th>
                           <th class="text-end">Tổng tiền (VNĐ)</th>
                           <th class="text-center">Phương thức TT</th>
-                          <th class="text-center">Khu vực</th>
                           <th class="text-center">Trạng thái</th>
-                          <th>Thời gian giao dịch</th>
+                          <th class="text-end pe-3">Thời gian giao dịch</th>
                         </tr>
                       </thead>
                       <tbody id="recent-orders-body">
                         <tr>
-                          <td colspan="10" class="text-center py-3 text-muted">
+                          <td colspan="9" class="text-center py-3 text-muted">
                             Đang tải lịch sử đơn hàng...
                           </td>
                         </tr>
@@ -1749,6 +1759,118 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       </div>
     </div>
 
+    <!-- MODAL XEM CHI TIẾT ĐƠN HÀNG (Tab 1) -->
+    <div
+      class="modal fade"
+      id="orderDetailModal"
+      tabindex="-1"
+      aria-labelledby="orderDetailModalLabel"
+      aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content shadow-lg border-0">
+          <div class="modal-header bg-light py-2 px-3 border-bottom">
+            <div>
+              <h6 class="modal-title fw-bold text-navy mb-0" id="orderDetailModalLabel">
+                <i class="bi bi-receipt me-1 text-primary"></i>Chi tiết đơn hàng #<span id="detail-order-id">-</span>
+              </h6>
+              <div class="small text-muted" id="detail-order-time" style="font-size: 0.8rem">
+                Thời gian đặt: -
+              </div>
+            </div>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-3" id="orderDetailModalBody">
+            <div class="text-center py-4 text-muted" id="detail-loading-spinner">
+              <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+              Đang tải chi tiết đơn hàng...
+            </div>
+            <div id="detail-content" style="display: none;">
+              <!-- Thông tin người mua & Thanh toán -->
+              <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                  <div class="card h-100 border-0 bg-light-subtle shadow-none p-2 border">
+                    <div class="fw-semibold text-dark small mb-1 border-bottom pb-1">
+                      <i class="bi bi-person-circle me-1 text-primary"></i>Thông tin người mua
+                    </div>
+                    <div class="small">
+                      <div class="mb-1"><strong>Họ tên:</strong> <span id="detail-cust-name">-</span></div>
+                      <div class="mb-1"><strong>Số ĐT:</strong> <span id="detail-cust-phone">-</span></div>
+                      <div class="mb-1"><strong>Email:</strong> <span id="detail-cust-email">-</span></div>
+                      <div><strong>Địa chỉ:</strong> <span id="detail-cust-address">-</span></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="card h-100 border-0 bg-light-subtle shadow-none p-2 border">
+                    <div class="fw-semibold text-dark small mb-1 border-bottom pb-1">
+                      <i class="bi bi-credit-card-2-front me-1 text-primary"></i>Thanh toán & Trạng thái
+                    </div>
+                    <div class="small">
+                      <div class="d-flex align-items-center mb-1">
+                        <strong class="me-2">Trạng thái đơn:</strong>
+                        <span id="detail-status-badge">-</span>
+                      </div>
+                      <div class="d-flex align-items-center mb-1">
+                        <strong class="me-2">Phương thức:</strong>
+                        <span id="detail-payment-method">-</span>
+                      </div>
+                      <div class="d-flex align-items-center mb-1">
+                        <strong class="me-2">Giao dịch TT:</strong>
+                        <span id="detail-payment-status">-</span>
+                      </div>
+                      <div>
+                        <strong>Khu vực giao:</strong> <span id="detail-shipping-region">-</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Danh sách mặt hàng -->
+              <div class="fw-semibold text-dark small mb-2">
+                <i class="bi bi-box-seam me-1 text-primary"></i>Danh sách sản phẩm trong đơn hàng
+              </div>
+              <div class="table-responsive border rounded mb-2">
+                <table class="table table-sm table-hover align-middle mb-0" style="font-size: 13px;">
+                  <thead class="table-light">
+                    <tr>
+                      <th class="text-center" style="width: 45px;">STT</th>
+                      <th style="width: 110px;">Mã SKU</th>
+                      <th>Tên sản phẩm</th>
+                      <th class="text-end" style="width: 120px;">Đơn giá</th>
+                      <th class="text-center" style="width: 60px;">SL</th>
+                      <th class="text-end" style="width: 130px;">Thành tiền</th>
+                    </tr>
+                  </thead>
+                  <tbody id="detail-items-body">
+                  </tbody>
+                  <tfoot class="table-light border-top">
+                    <tr>
+                      <th colspan="5" class="text-end fw-bold">Tổng tiền thanh toán:</th>
+                      <th class="text-end fw-bold text-danger fs-6" id="detail-total-amount">0 đ</th>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <!-- Tech Mode / Node info -->
+              <div class="text-muted small d-flex justify-content-between align-items-center pt-1" style="font-size: 11.5px;">
+                <span id="detail-node-info"><i class="bi bi-server me-1"></i>Truy vấn từ MySQL Node</span>
+                <span id="detail-order-item-count">-</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer py-2 px-3 bg-light border-top">
+            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Phục vụ Offline 100% qua /static -->
     <script src="/static/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -1790,6 +1912,124 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           FAILED: "Thất bại",
         };
         return map[s] || s;
+      }
+
+      function renderPaymentMethod(p) {
+        if (!p) return '<span class="text-muted">-</span>';
+        const norm = String(p).toUpperCase();
+        if (norm === "COD") {
+          return '<span class="text-body d-inline-flex align-items-center"><i class="bi bi-cash-stack text-success me-1"></i>Tiền mặt (COD)</span>';
+        } else if (
+          norm === "E-WALLET" ||
+          norm === "E_WALLET" ||
+          norm === "MOMO" ||
+          norm === "ZALOPAY"
+        ) {
+          return '<span class="text-body d-inline-flex align-items-center"><i class="bi bi-phone text-primary me-1"></i>Ví điện tử</span>';
+        } else if (norm === "BANK_TRANSFER" || norm === "ATM") {
+          return '<span class="text-body d-inline-flex align-items-center"><i class="bi bi-bank text-info me-1"></i>Chuyển khoản</span>';
+        } else if (norm === "CREDIT_CARD") {
+          return '<span class="text-body d-inline-flex align-items-center"><i class="bi bi-credit-card text-warning me-1"></i>Thẻ tín dụng</span>';
+        }
+        return `<span class="text-body">${mapPaymentMethod(p)}</span>`;
+      }
+
+      function renderOrderStatus(s) {
+        const norm = String(s || "COMPLETED").toUpperCase();
+        if (norm === "COMPLETED") {
+          return '<span class="d-inline-flex align-items-center text-secondary small" style="font-size: 13px;"><span class="d-inline-block rounded-circle bg-success me-1" style="width: 7px; height: 7px; margin-right: 6px;"></span>Hoàn tất</span>';
+        } else if (norm === "CANCELLED") {
+          return '<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-0.5"><i class="bi bi-x-circle me-1"></i>Đã hủy</span>';
+        } else if (norm === "PENDING") {
+          return '<span class="badge bg-warning-subtle text-dark border border-warning-subtle px-2 py-0.5"><i class="bi bi-clock-history me-1"></i>Chờ xử lý</span>';
+        } else if (norm === "PROCESSING") {
+          return '<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5"><i class="bi bi-truck me-1"></i>Đang giao</span>';
+        } else if (norm === "FAILED") {
+          return '<span class="badge bg-secondary text-white px-2 py-0.5">Thất bại</span>';
+        }
+        return `<span class="text-secondary small">${mapOrderStatus(s)}</span>`;
+      }
+
+      async function openOrderDetail(orderId) {
+        const modalEl = document.getElementById("orderDetailModal");
+        if (!modalEl) return;
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+        document.getElementById("detail-order-id").innerText = orderId;
+        document.getElementById("detail-loading-spinner").style.display = "block";
+        document.getElementById("detail-loading-spinner").innerHTML = `
+          <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+          Đang tải chi tiết đơn hàng...
+        `;
+        document.getElementById("detail-content").style.display = "none";
+        modal.show();
+
+        try {
+          const res = await fetch(`/api/orders/${orderId}`);
+          if (!res.ok) {
+            throw new Error("Không tìm thấy dữ liệu đơn hàng.");
+          }
+          const data = await res.json();
+          document.getElementById("detail-order-id").innerText = data.order_id;
+          document.getElementById("detail-order-time").innerText = `Thời gian đặt hàng: ${data.created_at_str || "-"}`;
+
+          document.getElementById("detail-cust-name").innerText = data.full_name || `Khách hàng #${data.user_id}`;
+          document.getElementById("detail-cust-phone").innerText = data.phone || "-";
+          document.getElementById("detail-cust-email").innerText = data.email || "-";
+          document.getElementById("detail-cust-address").innerText = `${data.city || "-"} (${mapShippingRegion(data.shipping_region)})`;
+
+          document.getElementById("detail-status-badge").innerHTML = renderOrderStatus(data.status);
+          document.getElementById("detail-payment-method").innerHTML = renderPaymentMethod(data.payment_method);
+
+          const paySt = data.transaction_status || "SUCCESS";
+          const payStText =
+            paySt === "SUCCESS"
+              ? '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Thành công</span>'
+              : `<span class="text-danger">${paySt}</span>`;
+          document.getElementById("detail-payment-status").innerHTML = payStText;
+          document.getElementById("detail-shipping-region").innerText = mapShippingRegion(data.shipping_region);
+
+          const items = data.items || [];
+          const itemsBody = document.getElementById("detail-items-body");
+          if (items.length === 0) {
+            itemsBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-2">Không có dữ liệu mặt hàng</td></tr>`;
+          } else {
+            itemsBody.innerHTML = items
+              .map(
+                (it, idx) => `
+              <tr>
+                <td class="text-center text-muted">${idx + 1}</td>
+                <td><code class="text-secondary small">${it.sku || "-"}</code></td>
+                <td>
+                  <div class="fw-medium text-dark">${it.product_name || "Sản phẩm #" + it.product_id}</div>
+                  ${it.category ? `<span class="badge bg-light text-secondary border" style="font-size: 11px;">${it.category}</span>` : ""}
+                </td>
+                <td class="text-end">${fmtMoney(it.unit_price)}</td>
+                <td class="text-center fw-semibold">${it.quantity}</td>
+                <td class="text-end fw-bold text-dark">${fmtMoney(it.line_total)}</td>
+              </tr>
+            `,
+              )
+              .join("");
+          }
+
+          document.getElementById("detail-total-amount").innerText = fmtMoney(data.total_amount);
+
+          const node = data.node || {};
+          document.getElementById("detail-node-info").innerHTML =
+            `<i class="bi bi-server me-1"></i>Node phục vụ: <strong>${node.host || "N/A"}</strong> (${node.role || ""})`;
+          document.getElementById("detail-order-item-count").innerText = `Tổng cộng: ${items.length} mặt hàng`;
+
+          document.getElementById("detail-loading-spinner").style.display = "none";
+          document.getElementById("detail-content").style.display = "block";
+        } catch (e) {
+          console.error("Open order detail error:", e);
+          document.getElementById("detail-loading-spinner").innerHTML = `
+            <div class="alert alert-danger py-2 mb-0 small">
+              <i class="bi bi-exclamation-triangle me-1"></i>Lỗi: ${e.message || "Không thể tải chi tiết đơn hàng."}
+            </div>
+          `;
+        }
       }
 
       // CHẾ ĐỘ KỸ THUẬT (BẬT KHI DEMO THẦY CÔ / TẮT MẶC ĐỊNH CHO GIAO DIỆN SẢN PHẨM)
@@ -3469,7 +3709,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
           const tbody = document.getElementById("recent-orders-body");
           if (orders.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="10" class="text-center py-3 text-muted">Không tìm thấy đơn hàng phù hợp với điều kiện lọc.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center py-3 text-muted">Không tìm thấy đơn hàng phù hợp với điều kiện lọc.</td></tr>`;
             renderOrdersPagination(1, 1, 0, limit);
             return;
           }
@@ -3477,19 +3717,30 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           tbody.innerHTML = orders
             .map((o) => {
               const st = o.status || "COMPLETED";
-              const stTag = st === "CANCELLED" ? "tag-offline" : "tag-online";
+              const custName = (o.full_name || "Khách " + o.user_id)
+                .replace(/\s*#[0-9]+/g, "")
+                .trim();
+              const prodTitle = o.items_detail || o.product_display || o.product_name || "";
+              const shortDate = o.created_at_short || o.created_at || "-";
+              const fullDate = o.created_at_full || o.created_at || "";
+
               return `
           <tr>
-            <td class="text-nowrap"><span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace fw-bold px-2 py-1">${o.order_id}</span></td>
-            <td>${o.full_name || "Khách " + o.user_id}</td>
+            <td class="text-nowrap">
+              <a href="javascript:void(0)" class="order-id-link" onclick="openOrderDetail(${o.order_id})" title="Nhấp để xem chi tiết đơn hàng #${o.order_id}">
+                ${o.order_id}
+              </a>
+            </td>
+            <td>${custName}</td>
             <td>${o.city || "-"}</td>
-            <td>${o.product_name || "SP " + o.product_id}</td>
-            <td class="text-center">${o.quantity || 1}</td>
+            <td>
+              <span title="${prodTitle}">${o.product_display || o.product_name || "SP " + o.product_id}</span>
+            </td>
+            <td class="text-center">${o.total_quantity || o.quantity || 1}</td>
             <td class="text-end fw-semibold">${fmtMoney(o.total_amount)}</td>
-            <td class="text-center"><span class="label-tag tag-secondary">${mapPaymentMethod(o.payment_method)}</span></td>
-            <td class="text-center">${mapShippingRegion(o.shipping_region)}</td>
-            <td class="text-center"><span class="label-tag ${stTag}">${mapOrderStatus(st)}</span></td>
-            <td class="mono-text text-muted">${o.created_at}</td>
+            <td class="text-center">${renderPaymentMethod(o.payment_method)}</td>
+            <td class="text-center">${renderOrderStatus(st)}</td>
+            <td class="text-end pe-3 text-secondary text-nowrap" title="${fullDate}" style="font-size: 12.5px;">${shortDate}</td>
           </tr>
         `;
             })
@@ -3512,7 +3763,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         if (!infoEl || !navEl) return;
 
         if (totalItems === 0) {
-          infoEl.innerHTML = `Hiển thị <strong>0</strong> dòng đơn hàng`;
+          infoEl.innerHTML = `Hiển thị <strong>0</strong> đơn hàng`;
           navEl.innerHTML = "";
           return;
         }
@@ -3520,7 +3771,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         const endIdx = Math.min(page * limit, totalItems);
         infoEl.innerHTML =
           `Hiển thị <strong>${startIdx.toLocaleString("vi-VN")} &ndash; ${endIdx.toLocaleString("vi-VN")}</strong> ` +
-          `trên tổng số <strong>${totalItems.toLocaleString("vi-VN")}</strong> dòng đơn hàng (Trang ${page.toLocaleString("vi-VN")}/${totalPages.toLocaleString("vi-VN")})`;
+          `trên tổng số <strong>${totalItems.toLocaleString("vi-VN")}</strong> đơn hàng (Trang ${page.toLocaleString("vi-VN")}/${totalPages.toLocaleString("vi-VN")})`;
 
         let html = "";
         const prevDisabled = page <= 1 ? "disabled" : "";

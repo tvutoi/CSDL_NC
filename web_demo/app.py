@@ -1975,6 +1975,9 @@ def get_users_list(
     rows = cur.fetchall()
     cur.close()
     conn.close()
+    for r in rows:
+        if r.get("full_name"):
+            r["full_name"] = re.sub(r"\s*#[0-9]+", "", r["full_name"]).strip()
     return {
         "node": meta["host"],
         "total_count": total_count,
@@ -1991,7 +1994,7 @@ def get_recent_orders(
     keyword: Optional[str] = Query(None, description="Tìm theo mã ĐH, tên KH, tỉnh/TP, tên sản phẩm"),
     filter_group: Optional[str] = Query(None, description="ALL | REGION:... | PAY:... | STATUS:...")
 ):
-    """Lấy danh sách các đơn hàng và thanh toán từ cụm MySQL (JOIN 5 bảng + Bộ lọc + Phân trang)"""
+    """Lấy danh sách các đơn hàng từ cụm MySQL (JOIN 5 bảng + Gom nhóm theo đơn hàng + Bộ lọc + Phân trang)"""
     t0 = time.perf_counter()
     conn, meta = get_mysql_connection(mode=read_mode)
     cur = conn.cursor(dictionary=True)
@@ -1999,7 +2002,7 @@ def get_recent_orders(
     where_clauses = ["1=1"]
     params = []
 
-    if filter_group and filter_group != "ALL":
+    if filter_group and isinstance(filter_group, str) and filter_group != "ALL":
         if filter_group.startswith("REGION:"):
             where_clauses.append("o.shipping_region = %s")
             params.append(filter_group.split(":", 1)[1])
@@ -2010,7 +2013,7 @@ def get_recent_orders(
             where_clauses.append("o.status = %s")
             params.append(filter_group.split(":", 1)[1])
 
-    if keyword and keyword.strip():
+    if keyword and isinstance(keyword, str) and keyword.strip():
         kw_raw = keyword.strip().lstrip("#")
         kw_like = f"%{kw_raw}%"
         where_clauses.append(
@@ -2021,13 +2024,13 @@ def get_recent_orders(
     where_sql = " AND ".join(where_clauses)
 
     if len(where_clauses) == 1:
-        cur.execute("SELECT COUNT(*) AS total FROM order_items")
+        cur.execute("SELECT COUNT(*) AS total FROM orders")
     else:
         count_sql = f"""
-            SELECT COUNT(*) AS total
-            FROM order_items oi
-            INNER JOIN orders o ON oi.order_id = o.order_id
+            SELECT COUNT(DISTINCT o.order_id) AS total
+            FROM orders o
             LEFT JOIN users u ON o.user_id = u.user_id
+            LEFT JOIN order_items oi ON o.order_id = oi.order_id
             LEFT JOIN products p ON oi.product_id = p.product_id
             LEFT JOIN payments pay ON o.order_id = pay.order_id
             WHERE {where_sql}
@@ -2042,17 +2045,24 @@ def get_recent_orders(
 
     query_sql = f"""
         SELECT 
-            o.order_id, o.user_id, u.full_name, u.city,
+            o.order_id, o.user_id,
+            MAX(u.full_name) AS full_name,
+            MAX(u.city) AS city,
             o.total_amount, o.status, o.shipping_region, o.created_at,
-            oi.product_id, p.product_name, oi.quantity, oi.unit_price,
-            pay.payment_method, pay.transaction_status
-        FROM order_items oi
-        INNER JOIN orders o ON oi.order_id = o.order_id
+            COUNT(oi.item_id) AS total_items_count,
+            COALESCE(SUM(oi.quantity), 1) AS total_quantity,
+            SUBSTRING_INDEX(GROUP_CONCAT(p.product_name ORDER BY oi.item_id SEPARATOR '|||'), '|||', 1) AS first_product_name,
+            GROUP_CONCAT(CONCAT(p.product_name, ' (x', oi.quantity, ')') ORDER BY oi.item_id SEPARATOR '; ') AS items_detail,
+            MAX(pay.payment_method) AS payment_method,
+            MAX(pay.transaction_status) AS transaction_status
+        FROM orders o
         LEFT JOIN users u ON o.user_id = u.user_id
+        LEFT JOIN order_items oi ON o.order_id = oi.order_id
         LEFT JOIN products p ON oi.product_id = p.product_id
         LEFT JOIN payments pay ON o.order_id = pay.order_id
         WHERE {where_sql}
-        ORDER BY oi.order_id DESC, oi.item_id DESC
+        GROUP BY o.order_id, o.user_id, o.total_amount, o.status, o.shipping_region, o.created_at
+        ORDER BY o.order_id DESC
         LIMIT %s OFFSET %s
     """
     query_params = list(params) + [limit, offset]
@@ -2060,10 +2070,31 @@ def get_recent_orders(
     rows = cur.fetchall()
     cur.close()
     conn.close()
+
     for r in rows:
         r["total_amount"] = float(r["total_amount"] or 0)
-        r["unit_price"] = float(r["unit_price"] or 0)
-        r["created_at"] = r["created_at"].strftime("%d/%m/%Y %H:%M:%S") if r.get("created_at") else ""
+        # Loại bỏ đuôi #id khỏi tên khách hàng (vd: "Lê Văn Châu #1002" -> "Lê Văn Châu")
+        if r.get("full_name"):
+            r["full_name"] = re.sub(r"\s*#[0-9]+", "", r["full_name"]).strip()
+
+        # Hiển thị gom sản phẩm: nếu nhiều món thì hiện "iPhone 15 Pro Max (+2 sản phẩm)"
+        items_cnt = int(r.get("total_items_count") or 1)
+        first_prod = r.get("first_product_name") or "Sản phẩm"
+        if items_cnt > 1:
+            r["product_display"] = f"{first_prod} (+{items_cnt - 1} sản phẩm)"
+        else:
+            r["product_display"] = first_prod
+
+        raw_dt = r.get("created_at")
+        if raw_dt:
+            r["created_at_full"] = raw_dt.strftime("%d/%m/%Y %H:%M:%S")
+            r["created_at_short"] = raw_dt.strftime("%d/%m %H:%M")
+            r["created_at"] = raw_dt.strftime("%d/%m %H:%M")
+        else:
+            r["created_at_full"] = ""
+            r["created_at_short"] = ""
+            r["created_at"] = ""
+
     return {
         "node": meta,
         "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
@@ -2073,6 +2104,53 @@ def get_recent_orders(
         "total_pages": total_pages,
         "orders": rows
     }
+
+
+@app.get("/api/orders/{order_id}")
+def get_order_detail(order_id: int):
+    """Lấy chi tiết đầy đủ của đơn hàng từ cụm MySQL (các mặt hàng, thanh toán, khách hàng)"""
+    conn, meta = get_mysql_connection(mode="secondary_preferred")
+    cur = conn.cursor(dictionary=True)
+    cur.execute("""
+        SELECT o.order_id, o.user_id, u.full_name, u.email, u.phone, u.city,
+               o.total_amount, o.status, o.shipping_region, o.created_at,
+               pay.payment_method, pay.transaction_status, pay.payment_id
+        FROM orders o
+        LEFT JOIN users u ON o.user_id = u.user_id
+        LEFT JOIN payments pay ON o.order_id = pay.order_id
+        WHERE o.order_id = %s
+    """, (order_id,))
+    order = cur.fetchone()
+    if not order:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
+
+    cur.execute("""
+        SELECT oi.item_id, oi.product_id, p.sku, p.product_name, p.category,
+               oi.quantity, oi.unit_price, (oi.quantity * oi.unit_price) AS line_total
+        FROM order_items oi
+        LEFT JOIN products p ON oi.product_id = p.product_id
+        WHERE oi.order_id = %s
+        ORDER BY oi.item_id ASC
+    """, (order_id,))
+    items = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    if order.get("full_name"):
+        order["full_name"] = re.sub(r"\s*#[0-9]+", "", order["full_name"]).strip()
+    order["total_amount"] = float(order["total_amount"] or 0)
+    raw_dt = order.get("created_at")
+    order["created_at_str"] = raw_dt.strftime("%d/%m/%Y %H:%M:%S") if raw_dt else ""
+
+    for it in items:
+        it["unit_price"] = float(it["unit_price"] or 0)
+        it["line_total"] = float(it["line_total"] or 0)
+
+    order["items"] = items
+    order["node"] = meta
+    return order
 
 
 # =====================================================================================
