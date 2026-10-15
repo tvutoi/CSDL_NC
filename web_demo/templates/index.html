@@ -197,6 +197,8 @@
         line-height: 1.25;
         white-space: nowrap;
         vertical-align: middle;
+        text-align: center;
+        min-width: 84px;
         border: 1px solid transparent;
       }
       .badge-pill--ok {
@@ -218,6 +220,17 @@
         background-color: #f1f3f5;
         border-color: #d0d5db;
         color: #4b5563;
+      }
+      .badge-pill-placeholder {
+        display: inline-block;
+        min-width: 84px;
+        text-align: center;
+        color: #94a3b8;
+        font-size: 13px;
+        line-height: 1.25;
+        padding: 3px 0;
+        border: 1px solid transparent;
+        vertical-align: middle;
       }
       /* CHẾ ĐỘ KỸ THUẬT & CHẾ ĐỘ BÌNH THƯỜNG */
       .tech-detail {
@@ -3000,17 +3013,18 @@
               const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
               const nodeLabel = n.node_name || `Node ${idx + 1}`;
               const pingHtml = (n.ping_ms !== null && n.ping_ms !== undefined)
-                ? `<span class="tech-detail text-muted font-monospace text-end" style="min-width: 80px; font-size: 12px;">${n.ping_ms} ms</span>`
-                : `<span class="tech-detail text-muted text-end" style="min-width: 80px; font-size: 12px;">-</span>`;
-              let roleHtml = "";
-              if (!isOnline) {
-                roleHtml = `<span class="text-danger fw-medium d-inline-flex align-items-center"><span class="status-dot dot-offline"></span>Mất kết nối</span>`;
-              } else if (n.role === "PRIMARY") {
-                roleHtml = `<span class="text-primary fw-bold d-inline-flex align-items-center"><span class="status-dot dot-online" style="background-color: #0284c7;"></span>Node chính</span>`;
-              } else {
-                roleHtml = `<span class="text-success fw-medium d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Node phụ</span>`;
-              }
-              return `<div class="py-1.5 border-bottom border-light d-flex justify-content-between align-items-center"><div class="d-flex align-items-center"><strong class="me-2 text-dark" style="min-width: 60px;">${nodeLabel}:</strong> <span class="node-ip">${n.host}</span></div><div class="d-flex align-items-center gap-3">${pingHtml}<div style="min-width: 105px; text-align: right;">${roleHtml}</div></div></div>`;
+                ? `<span class="tech-detail text-muted font-monospace text-end" style="min-width: 75px; font-size: 12px;">${n.ping_ms} ms</span>`
+                : `<span class="tech-detail text-muted text-end" style="min-width: 75px; font-size: 12px;">-</span>`;
+              const roleHtml = !isOnline
+                ? `<span class="badge-pill-placeholder">-</span>`
+                : n.role === "PRIMARY"
+                  ? `<span class="badge-pill badge-pill--primary">Node chính</span>`
+                  : `<span class="badge-pill badge-pill--muted">Node phụ</span>`;
+              const stateHtml = !isOnline
+                ? `<span class="badge-pill badge-pill--danger">Mất kết nối</span>`
+                : `<span class="badge-pill badge-pill--ok">Sẵn sàng</span>`;
+
+              return `<div class="py-1.5 border-bottom border-light d-flex justify-content-between align-items-center"><div class="d-flex align-items-center"><strong class="me-2 text-dark" style="min-width: 60px;">${nodeLabel}:</strong> <span class="node-ip">${n.host}</span></div><div class="d-flex align-items-center gap-2 flex-shrink-0">${pingHtml}${roleHtml}${stateHtml}</div></div>`;
             })
             .join("");
           document.getElementById("summary-mysql-nodes").innerHTML = mysqlSummary;
@@ -3020,17 +3034,19 @@
               const isOnline = n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1;
               const nodeLabel = n.node_name || `Node ${idx + 1}`;
               const pingHtml = (n.ping_ms !== null && n.ping_ms !== undefined)
-                ? `<span class="tech-detail text-muted font-monospace text-end" style="min-width: 80px; font-size: 12px;">${n.ping_ms} ms</span>`
-                : `<span class="tech-detail text-muted text-end" style="min-width: 80px; font-size: 12px;">-</span>`;
-              let roleHtml = "";
-              if (!isOnline) {
-                roleHtml = `<span class="text-danger fw-medium d-inline-flex align-items-center"><span class="status-dot dot-offline"></span>Mất kết nối</span>`;
-              } else if (n.state === "PRIMARY") {
-                roleHtml = `<span class="text-primary fw-bold d-inline-flex align-items-center"><span class="status-dot dot-online" style="background-color: #0284c7;"></span>Node chính</span>`;
-              } else {
-                roleHtml = `<span class="text-success fw-medium d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Node phụ</span>`;
-              }
-              return `<div class="py-1.5 border-bottom border-light d-flex justify-content-between align-items-center"><div class="d-flex align-items-center"><strong class="me-2 text-dark" style="min-width: 60px;">${nodeLabel}:</strong> <span class="node-ip">${n.host}</span></div><div class="d-flex align-items-center gap-3">${pingHtml}<div style="min-width: 105px; text-align: right;">${roleHtml}</div></div></div>`;
+                ? `<span class="tech-detail text-muted font-monospace text-end" style="min-width: 75px; font-size: 12px;">${n.ping_ms} ms</span>`
+                : `<span class="tech-detail text-muted text-end" style="min-width: 75px; font-size: 12px;">-</span>`;
+              const isPrimary = n.state === "PRIMARY";
+              const roleHtml = !isOnline
+                ? `<span class="badge-pill-placeholder">-</span>`
+                : isPrimary
+                  ? `<span class="badge-pill badge-pill--primary">Node chính</span>`
+                  : `<span class="badge-pill badge-pill--muted">Node phụ</span>`;
+              const stateHtml = !isOnline
+                ? `<span class="badge-pill badge-pill--danger">Mất kết nối</span>`
+                : `<span class="badge-pill badge-pill--ok">Sẵn sàng</span>`;
+
+              return `<div class="py-1.5 border-bottom border-light d-flex justify-content-between align-items-center"><div class="d-flex align-items-center"><strong class="me-2 text-dark" style="min-width: 60px;">${nodeLabel}:</strong> <span class="node-ip">${n.host}</span></div><div class="d-flex align-items-center gap-2 flex-shrink-0">${pingHtml}${roleHtml}${stateHtml}</div></div>`;
             })
             .join("");
           document.getElementById("summary-mongo-nodes").innerHTML = mongoSummary;

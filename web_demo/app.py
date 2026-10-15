@@ -126,7 +126,7 @@ def load_sync_logs_from_file() -> List[Dict[str, Any]]:
     """Đọc toàn bộ nhật ký đồng bộ từ file sync_audit_logs.json"""
     if os.path.exists(SYNC_LOGS_FILE):
         try:
-            with open(SYNC_LOGS_FILE, "r", encoding="utf-8") as f:
+            with open(SYNC_LOGS_FILE, "r", encoding="utf-8-sig") as f:
                 data = json.load(f)
                 if isinstance(data, list):
                     return data
