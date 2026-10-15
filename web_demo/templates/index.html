@@ -344,6 +344,114 @@
           display: none !important;
         }
       }
+      /* SEGMENTED CONTROL CHO BỘ LỌC DÒNG SỰ KIỆN ĐỒNG BỘ */
+      .seg-filter {
+        display: inline-flex;
+        align-items: center;
+        background-color: #f1f3f5;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 2px 3px;
+        gap: 2px;
+        box-sizing: border-box;
+        height: 34px;
+      }
+      .seg-filter__tab {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 30px;
+        padding: 0 14px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #6b7280;
+        background-color: transparent;
+        border: none;
+        white-space: nowrap;
+        min-width: 72px;
+        text-align: center;
+        cursor: pointer;
+        user-select: none;
+        line-height: 1;
+        transition: all 0.15s ease;
+      }
+      .seg-filter__tab:hover {
+        color: #374151;
+        background-color: rgba(255, 255, 255, 0.6);
+      }
+      .seg-filter__tab.active,
+      .seg-filter__tab.is-active {
+        background-color: #ffffff;
+        color: #0b4a8f;
+        font-weight: 600;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      }
+      .seg-filter__tab:focus-visible {
+        outline: 2px solid #0b4a8f;
+        outline-offset: 2px;
+        z-index: 1;
+      }
+      .seg-filter__count {
+        font-size: 12px;
+        color: #9ca3af;
+        margin-left: 6px;
+        font-variant-numeric: tabular-nums;
+        transition: color 0.15s ease;
+      }
+      .seg-filter__tab.active .seg-filter__count,
+      .seg-filter__tab.is-active .seg-filter__count {
+        color: rgba(11, 74, 143, 0.7);
+      }
+      .seg-filter__count.is-zero {
+        color: #d1d5db !important;
+      }
+
+      /* HÀNG ĐIỀU KHIỂN ĐỒNG BỘ */
+      .sync-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .sync-toolbar .form-control,
+      .sync-toolbar .btn-outline-secondary {
+        height: 34px;
+      }
+      .btn-clear-logs {
+        margin-left: 16px;
+        color: #6b7280;
+        background: transparent;
+        border: none;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 0 8px;
+        display: inline-flex;
+        align-items: center;
+        height: 34px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: color 0.15s ease;
+      }
+      .btn-clear-logs:hover {
+        color: #dc2626 !important;
+        text-decoration: none;
+      }
+      @media (max-width: 767.98px) {
+        .sync-toolbar {
+          width: 100%;
+          flex-wrap: wrap;
+        }
+        .sync-toolbar .seg-filter {
+          width: 100%;
+          order: 1;
+        }
+        .sync-toolbar .seg-filter__tab {
+          flex: 1;
+        }
+        .sync-toolbar .btn-clear-logs {
+          margin-left: auto;
+        }
+      }
       /* CHẾ ĐỘ KỸ THUẬT & CHẾ ĐỘ BÌNH THƯỜNG */
       .tech-detail {
         display: none !important;
@@ -1805,43 +1913,28 @@
             <div
               class="panel-header d-flex flex-wrap justify-content-between align-items-center gap-2" style="min-height: 48px;">
               <div class="fw-bold">Dòng sự kiện đồng bộ</div>
-              <div class="d-flex align-items-center gap-2">
-                <div class="btn-group btn-group-sm" role="group">
+              <div class="sync-toolbar flex-wrap align-items-center">
+                <div class="seg-filter" role="tablist">
                   <button
                     type="button"
-                    class="btn btn-outline-secondary active"
+                    class="seg-filter__tab active"
                     id="btn-sync-all"
                     onclick="filterSyncLogs('ALL')">
-                    Tất cả
-                    <span
-                      class="badge rounded-pill bg-light text-secondary border fw-normal ms-1 px-2"
-                      id="tab-cnt-all"
-                      >0</span
-                    >
+                    Tất cả<span class="seg-filter__count" id="tab-cnt-all">0</span>
                   </button>
                   <button
                     type="button"
-                    class="btn btn-outline-secondary"
+                    class="seg-filter__tab"
                     id="btn-sync-mysql"
                     onclick="filterSyncLogs('MYSQL_GR')">
-                    MySQL
-                    <span
-                      class="badge rounded-pill bg-light text-secondary border fw-normal ms-1 px-2"
-                      id="tab-cnt-mysql"
-                      >0</span
-                    >
+                    MySQL<span class="seg-filter__count" id="tab-cnt-mysql">0</span>
                   </button>
                   <button
                     type="button"
-                    class="btn btn-outline-secondary"
+                    class="seg-filter__tab"
                     id="btn-sync-mongo"
                     onclick="filterSyncLogs('MONGO_RS')">
-                    MongoDB
-                    <span
-                      class="badge rounded-pill bg-light text-secondary border fw-normal ms-1 px-2"
-                      id="tab-cnt-mongo"
-                      >0</span
-                    >
+                    MongoDB<span class="seg-filter__count" id="tab-cnt-mongo">0</span>
                   </button>
                 </div>
                 <input
@@ -1858,7 +1951,7 @@
                   <i class="bi bi-arrow-clockwise me-1"></i>Làm mới
                 </button>
                 <button
-                  class="btn btn-sm btn-link text-secondary text-decoration-none py-0 px-2 ms-3"
+                  class="btn-clear-logs"
                   onclick="confirmClearSyncLogs()"
                   title="Xóa lịch sử sự kiện đồng bộ">
                   <i class="bi bi-trash3 me-1"></i>Xóa nhật ký
@@ -2127,42 +2220,27 @@
             <div
               class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
               <div class="d-flex align-items-center gap-2">
-                <div class="btn-group btn-group-sm" role="group">
+                <div class="seg-filter" role="tablist">
                   <button
                     type="button"
-                    class="btn btn-outline-secondary active"
+                    class="seg-filter__tab active"
                     id="modal-btn-sync-all"
                     onclick="filterSyncLogs('ALL')">
-                    Tất cả
-                    <span
-                      class="badge rounded-pill bg-light text-secondary border fw-normal ms-1 px-2"
-                      id="modal-cnt-all"
-                      >0</span
-                    >
+                    Tất cả<span class="seg-filter__count" id="modal-cnt-all">0</span>
                   </button>
                   <button
                     type="button"
-                    class="btn btn-outline-secondary"
+                    class="seg-filter__tab"
                     id="modal-btn-sync-mysql"
                     onclick="filterSyncLogs('MYSQL_GR')">
-                    MySQL
-                    <span
-                      class="badge rounded-pill bg-light text-secondary border fw-normal ms-1 px-2"
-                      id="modal-cnt-mysql"
-                      >0</span
-                    >
+                    MySQL<span class="seg-filter__count" id="modal-cnt-mysql">0</span>
                   </button>
                   <button
                     type="button"
-                    class="btn btn-outline-secondary"
+                    class="seg-filter__tab"
                     id="modal-btn-sync-mongo"
                     onclick="filterSyncLogs('MONGO_RS')">
-                    MongoDB
-                    <span
-                      class="badge rounded-pill bg-light text-secondary border fw-normal ms-1 px-2"
-                      id="modal-cnt-mongo"
-                      >0</span
-                    >
+                    MongoDB<span class="seg-filter__count" id="modal-cnt-mongo">0</span>
                   </button>
                 </div>
                 <input
@@ -3716,15 +3794,24 @@
 
         ["modal-cnt-all", "tab-cnt-all"].forEach((id) => {
           const el = document.getElementById(id);
-          if (el) el.innerText = cntAll;
+          if (el) {
+            el.innerText = cntAll;
+            el.classList.toggle("is-zero", cntAll === 0);
+          }
         });
         ["modal-cnt-mysql", "tab-cnt-mysql"].forEach((id) => {
           const el = document.getElementById(id);
-          if (el) el.innerText = cntMySQL;
+          if (el) {
+            el.innerText = cntMySQL;
+            el.classList.toggle("is-zero", cntMySQL === 0);
+          }
         });
         ["modal-cnt-mongo", "tab-cnt-mongo"].forEach((id) => {
           const el = document.getElementById(id);
-          if (el) el.innerText = cntMongo;
+          if (el) {
+            el.innerText = cntMongo;
+            el.classList.toggle("is-zero", cntMongo === 0);
+          }
         });
 
         let filtered = cachedSyncLogs;
