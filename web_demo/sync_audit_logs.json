@@ -1,5 +1,113 @@
 [
   {
+    "log_id": "SYNC-036922",
+    "time": "11:18:23",
+    "date": "15/10/2026",
+    "timestamp": "11:18:23",
+    "start_time": "11:18:22.087",
+    "end_time": "11:18:23.692",
+    "db_type": "MONGO_RS",
+    "action": "INSERT_REVIEW",
+    "title": "Đánh giá & Nhận xét SP 1",
+    "summary": "Tiêu đề: 'Sản phẩm mới tinh vừa mở hộp' | Bình luận: 'Thiết kế đẹp mắt, cấu hình mạnh mẽ, giao...' | Đóng gói: Nguyên seal chính hãng",
+    "data_payload": "Sản phẩm ID: 1 | Đánh giá: 5 sao (★★★★★) | Tiêu đề: 'Sản phẩm mới tinh vừa mở hộp' | Bình luận: 'Thiết kế đẹp mắt, cấu hình mạnh mẽ, giao hàng nhanh.' | Đóng gói: Nguyên seal chính hãng",
+    "affected_tables": "product_reviews (1 BSON Document)",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:27017",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:27017",
+      "192.168.1.222:27018",
+      "192.168.1.222:27019"
+    ],
+    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
+    "detail": "Giao dịch đã đồng bộ thành công qua Oplog tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động streaming bù Oplog ngay khi trực tuyến trở lại.",
+    "latency_ms": 1604.6,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 node phụ",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:27017",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:27018",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:27019",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-689001",
+    "time": "11:17:48",
+    "date": "15/10/2026",
+    "timestamp": "11:17:48",
+    "start_time": "11:17:47.278",
+    "end_time": "11:17:48.900",
+    "db_type": "MONGO_RS",
+    "action": "INSERT_REVIEW",
+    "title": "Đánh giá & Nhận xét SP 1",
+    "summary": "Tiêu đề: 'Sản phẩm tuyệt vời trong tầm giá' | Bình luận: 'Thiết kế đẹp mắt, cấu hình mạnh mẽ, giao...' | Đóng gói: Nguyên seal chính hãng",
+    "data_payload": "Sản phẩm ID: 1 | Đánh giá: 5 sao (★★★★★) | Tiêu đề: 'Sản phẩm tuyệt vời trong tầm giá' | Bình luận: 'Thiết kế đẹp mắt, cấu hình mạnh mẽ, giao hàng nhanh.' | Đóng gói: Nguyên seal chính hãng",
+    "affected_tables": "product_reviews (1 BSON Document)",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:27017",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:27017",
+      "192.168.1.222:27018",
+      "192.168.1.222:27019"
+    ],
+    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
+    "detail": "Giao dịch đã đồng bộ thành công qua Oplog tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động streaming bù Oplog ngay khi trực tuyến trở lại.",
+    "latency_ms": 1621.6,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 node phụ",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:27017",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:27018",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:27019",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
     "log_id": "SYNC-589201",
     "time": "09:56:18",
     "date": "15/10/2026",

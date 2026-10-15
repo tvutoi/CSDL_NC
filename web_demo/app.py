@@ -1807,8 +1807,21 @@ def add_review(req: ReviewRequest):
             "verified_purchase": True,
             "helpful_votes": 1
         },
-        "created_at": datetime.utcnow()
+        "created_at": datetime.now()
     }
+
+    try:
+        conn_u = get_mysql_connection("primary")
+        with conn_u.cursor(dictionary=True) as cur_u:
+            cur_u.execute("SELECT full_name FROM users WHERE user_id = %s", (req.user_id,))
+            urow = cur_u.fetchone()
+            if urow and urow.get("full_name"):
+                doc["user_name"] = re.sub(r"\s*#[0-9]+", "", urow["full_name"]).strip()
+                doc["author_name"] = doc["user_name"]
+        conn_u.close()
+    except Exception:
+        doc["user_name"] = f"Khách hàng #{req.user_id}"
+        doc["author_name"] = doc["user_name"]
 
     last_err = None
     res = None
@@ -1870,9 +1883,11 @@ def get_product_reviews_list(
     product_id: int = Query(1, ge=1),
     page: int = Query(1, ge=1),
     limit: int = Query(5, ge=3, le=50),
-    read_mode: str = Query("secondary_preferred")
+    read_mode: str = Query("secondary_preferred"),
+    rating: Optional[int] = Query(None, ge=1, le=5),
+    sort_by: Optional[str] = Query("newest")
 ):
-    """Lấy đầy đủ danh sách nhận xét của 1 sản phẩm từ MongoDB Replica Set kèm phân trang"""
+    """Lấy đầy đủ danh sách nhận xét của 1 sản phẩm từ MongoDB Replica Set kèm phân trang, lọc sao & sắp xếp"""
     t0 = time.perf_counter()
     try:
         m_client, mongo_meta = get_mongo_client(read_mode, with_meta=True)
@@ -1881,23 +1896,27 @@ def get_product_reviews_list(
         mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
         col = mdb["product_reviews"]
 
+        base_filter = {"product_id": product_id}
         query_filter = {"product_id": product_id}
+        if rating is not None and rating >= 1 and rating <= 5:
+            query_filter["rating"] = rating
+
         total_items = col.count_documents(query_filter)
         total_pages = max(1, (total_items + limit - 1) // limit)
         if page > total_pages:
             page = total_pages
         offset = (page - 1) * limit
 
-        # Tính điểm đánh giá trung bình của sản phẩm này
+        # Tính điểm đánh giá trung bình của sản phẩm này (trên toàn bộ đánh giá)
         avg_res = list(col.aggregate([
-            {"$match": query_filter},
+            {"$match": base_filter},
             {"$group": {"_id": "$product_id", "avg_rating": {"$avg": "$rating"}}}
         ]))
         avg_rating = round(float(avg_res[0]["avg_rating"]), 2) if avg_res else 0.0
 
-        # Thống kê phân bố số sao (1 đến 5 sao)
+        # Thống kê phân bố số sao (1 đến 5 sao) trên toàn bộ sản phẩm
         dist_res = list(col.aggregate([
-            {"$match": query_filter},
+            {"$match": base_filter},
             {"$group": {"_id": "$rating", "cnt": {"$sum": 1}}}
         ]))
         rating_dist = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
@@ -1906,15 +1925,25 @@ def get_product_reviews_list(
             if r_val in rating_dist:
                 rating_dist[r_val] = d.get("cnt", 0)
 
-        cursor = col.find(query_filter).sort("created_at", -1).skip(offset).limit(limit)
+        # Cấu hình sắp xếp
+        if sort_by in ("rating_desc", "highest"):
+            sort_spec = [("rating", -1), ("created_at", -1)]
+        elif sort_by in ("rating_asc", "lowest"):
+            sort_spec = [("rating", 1), ("created_at", -1)]
+        else:
+            sort_spec = [("created_at", -1)]
+
+        cursor = col.find(query_filter).sort(sort_spec).skip(offset).limit(limit)
         reviews = []
         for doc in cursor:
             created_val = doc.get("created_at")
             created_str = created_val.strftime("%d/%m/%Y %H:%M:%S") if hasattr(created_val, "strftime") else ""
+            author_name = doc.get("user_name") or doc.get("author_name") or f"Khách hàng #{doc.get('user_id', 1)}"
             reviews.append({
                 "review_id": str(doc.get("_id", "")),
                 "product_id": doc.get("product_id"),
                 "user_id": doc.get("user_id"),
+                "user_name": author_name,
                 "rating": doc.get("rating", 5),
                 "title": doc.get("title", "Nhận xét khách hàng"),
                 "comment": doc.get("comment", ""),
@@ -1930,6 +1959,7 @@ def get_product_reviews_list(
             "limit": limit,
             "total_items": total_items,
             "total_pages": total_pages,
+            "total_all_reviews": sum(rating_dist.values()),
             "avg_rating": avg_rating,
             "rating_distribution": rating_dist,
             "mongo_node": active_host,

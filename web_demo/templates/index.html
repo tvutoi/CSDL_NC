@@ -598,6 +598,88 @@
         border: 1px solid #cbd5e1;
         color: #475569;
       }
+      /* TAB 2: CHIP ĐÓNG GÓI, VÙNG KÉO THẢ ẢNH & SAO ĐÁNH GIÁ TƯƠNG TÁC */
+      .packaging-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 32px;
+        padding: 4px 13px;
+        font-size: 12.5px;
+        border-radius: 9999px;
+        border: 1px solid #cbd5e1;
+        background-color: #f8fafc;
+        color: #475569;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        user-select: none;
+      }
+      .packaging-chip:hover {
+        background-color: #f1f5f9;
+        border-color: #94a3b8;
+      }
+      .packaging-chip.active {
+        background-color: #e0f2fe !important;
+        border-color: #0284c7 !important;
+        color: #0284c7 !important;
+        font-weight: 600;
+      }
+      .star-picker-item {
+        color: #f59e0b;
+        transition: color 0.1s ease, transform 0.1s ease;
+        user-select: none;
+      }
+      .star-picker-item:hover {
+        transform: scale(1.15);
+      }
+      .review-item-card {
+        border-bottom: 1px solid #f1f5f9;
+        padding: 14px 0;
+      }
+      .review-item-card:last-child {
+        border-bottom: none;
+      }
+      .review-avatar-circle {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background-color: #e0f2fe;
+        color: #0284c7;
+        font-weight: 700;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .review-thumb-img {
+        width: 68px;
+        height: 68px;
+        border-radius: 6px;
+        object-fit: cover;
+        border: 1px solid #e2e8f0;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        flex-shrink: 0;
+      }
+      .review-thumb-img:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      }
+      .review-dropzone-box {
+        border: 2px dashed #cbd5e1;
+        border-radius: 8px;
+        background-color: #f8fafc;
+        padding: 14px 12px;
+        text-align: center;
+        cursor: pointer;
+        transition: border-color 0.15s ease, background-color 0.15s ease;
+      }
+      .review-dropzone-box:hover,
+      .review-dropzone-box.dragover {
+        border-color: #004b87;
+        background-color: #f0f7ff;
+      }
       /* HUY HIỆU ĐẾM NHẬT KÝ ĐỒNG BỘ TRÊN HEADER (RÕ RÀNG, DỄ PHÂN BIỆT, KHÔNG DÍNH VIỀN NÚT) */
       .sync-badge {
         display: inline-flex;
@@ -702,7 +784,7 @@
             class="btn btn-sm btn-light text-dark fw-semibold"
             id="btn-refresh-all"
             onclick="refreshAll(true)">
-            Làm mới dữ liệu
+            <i class="bi bi-arrow-clockwise me-1"></i>Làm mới dữ liệu
           </button>
         </div>
       </div>
@@ -939,7 +1021,7 @@
               <div class="panel-box">
                 <div class="panel-header flex-wrap gap-2">
                   <span
-                    >Nhận xét và hình ảnh thực tế từ khách hàng <span class="tech-detail text-muted small ms-1">(Lưu trữ trên MongoDB Replica Set)</span></span
+                    >Nhận xét từ khách hàng <span class="tech-detail text-muted small ms-1">(Lưu trữ trên MongoDB Replica Set)</span></span
                   >
                   <span
                     class="small text-muted fw-normal tech-detail"
@@ -949,11 +1031,11 @@
                 </div>
                 <div class="panel-body">
                   <div class="row g-2 align-items-end mb-2 pb-2 border-bottom">
-                    <div class="col-md-6">
+                    <div class="col-md-6 flex-grow-1">
                       <label class="form-label"
-                        >Chọn sản phẩm cần xem nhận xét
+                        >Chọn sản phẩm
                         <span
-                          class="text-muted fw-normal"
+                          class="text-muted fw-normal tech-detail"
                           id="review-view-prod-count"></span
                         >:</label
                       >
@@ -966,7 +1048,7 @@
                     </div>
                     <div class="col-md-4 tech-detail">
                       <label class="form-label"
-                        >Chế độ đọc MongoDB (Read Preference)</label
+                        >Chế độ đọc MongoDB <span class="text-muted fw-normal">(Read Preference)</span></label
                       >
                       <select
                         id="reviews-readmode"
@@ -979,64 +1061,91 @@
                         <option value="primary">Chỉ đọc Node chính</option>
                       </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-auto">
                       <button
-                        class="btn btn-navy w-100"
+                        class="btn btn-navy px-3"
                         onclick="loadProductReviews(currentReviewProductId, 1)">
-                        Tải lại
+                        Làm mới
                       </button>
                     </div>
                   </div>
 
                   <div
-                    class="d-flex flex-wrap justify-content-between align-items-center mb-2 pb-2 border-bottom small text-secondary"
+                    class="mb-2 pb-1 border-bottom small text-secondary"
                     id="selected-review-product-label">
-                    Sản phẩm #1
+                    <strong class="text-dark">Sản phẩm #1</strong>
                   </div>
 
                   <!-- Khối tổng quan đánh giá nổi bật (Số lớn + Thanh phân bố 5-1 sao) -->
                   <div class="rating-overview-card bg-light border rounded-2 p-3 mb-3 d-flex flex-wrap align-items-center gap-4">
                     <div class="text-center pe-md-4 border-md-end" style="min-width: 130px;">
-                      <div class="display-5 fw-bold text-dark mb-0" id="rating-big-number">4.8</div>
-                      <div class="text-warning fs-5" id="rating-big-stars">★★★★★</div>
-                      <div class="text-secondary small mt-1" id="rating-total-reviews">50 đánh giá</div>
+                      <div class="display-5 fw-bold text-dark mb-0" id="rating-big-number">4.4</div>
+                      <div class="fs-5 d-flex justify-content-center align-items-center gap-0.5" id="rating-big-stars">
+                        <span style="color: #f59e0b;">★</span>
+                        <span style="color: #f59e0b;">★</span>
+                        <span style="color: #f59e0b;">★</span>
+                        <span style="color: #f59e0b;">★</span>
+                        <span style="color: #cbd5e1;">★</span>
+                      </div>
+                      <div class="text-secondary small mt-1" id="rating-total-reviews">28 đánh giá</div>
                     </div>
-                    <div class="flex-grow-1" style="min-width: 220px; max-width: 420px;" id="rating-distribution-container">
-                      <div class="d-flex align-items-center gap-2 mb-1" style="font-size: 12.5px;">
-                        <span style="width: 42px;">5 sao</span>
-                        <div class="progress flex-grow-1" style="height: 7px;">
-                          <div class="progress-bar bg-warning" id="bar-5-star" style="width: 80%"></div>
+                    <div class="flex-grow-1" style="min-width: 220px;" id="rating-distribution-container">
+                      <div class="d-flex align-items-center gap-2 mb-1" style="font-size: 13px;">
+                        <span style="width: 44px; text-align: right; color: #475569;" class="text-nowrap">5 sao</span>
+                        <div class="progress flex-grow-1" style="height: 8px;">
+                          <div class="progress-bar" id="bar-5-star" style="width: 61%; background-color: #f59e0b;"></div>
                         </div>
-                        <span class="text-secondary small" style="width: 35px; text-align: right;" id="pct-5-star">80%</span>
+                        <span class="text-secondary small text-end font-monospace" style="width: 72px;" id="pct-5-star">17 (61%)</span>
                       </div>
-                      <div class="d-flex align-items-center gap-2 mb-1" style="font-size: 12.5px;">
-                        <span style="width: 42px;">4 sao</span>
-                        <div class="progress flex-grow-1" style="height: 7px;">
-                          <div class="progress-bar bg-warning" id="bar-4-star" style="width: 15%"></div>
+                      <div class="d-flex align-items-center gap-2 mb-1" style="font-size: 13px;">
+                        <span style="width: 44px; text-align: right; color: #475569;" class="text-nowrap">4 sao</span>
+                        <div class="progress flex-grow-1" style="height: 8px;">
+                          <div class="progress-bar" id="bar-4-star" style="width: 25%; background-color: #f59e0b;"></div>
                         </div>
-                        <span class="text-secondary small" style="width: 35px; text-align: right;" id="pct-4-star">15%</span>
+                        <span class="text-secondary small text-end font-monospace" style="width: 72px;" id="pct-4-star">7 (25%)</span>
                       </div>
-                      <div class="d-flex align-items-center gap-2 mb-1" style="font-size: 12.5px;">
-                        <span style="width: 42px;">3 sao</span>
-                        <div class="progress flex-grow-1" style="height: 7px;">
-                          <div class="progress-bar bg-warning" id="bar-3-star" style="width: 5%"></div>
+                      <div class="d-flex align-items-center gap-2 mb-1" style="font-size: 13px;">
+                        <span style="width: 44px; text-align: right; color: #475569;" class="text-nowrap">3 sao</span>
+                        <div class="progress flex-grow-1" style="height: 8px;">
+                          <div class="progress-bar" id="bar-3-star" style="width: 7%; background-color: #f59e0b;"></div>
                         </div>
-                        <span class="text-secondary small" style="width: 35px; text-align: right;" id="pct-3-star">5%</span>
+                        <span class="text-secondary small text-end font-monospace" style="width: 72px;" id="pct-3-star">2 (7%)</span>
                       </div>
-                      <div class="d-flex align-items-center gap-2 mb-1" style="font-size: 12.5px;">
-                        <span style="width: 42px;">2 sao</span>
-                        <div class="progress flex-grow-1" style="height: 7px;">
-                          <div class="progress-bar bg-warning" id="bar-2-star" style="width: 0%"></div>
+                      <div class="d-flex align-items-center gap-2 mb-1" style="font-size: 13px;">
+                        <span style="width: 44px; text-align: right; color: #475569;" class="text-nowrap">2 sao</span>
+                        <div class="progress flex-grow-1" style="height: 8px;">
+                          <div class="progress-bar" id="bar-2-star" style="width: 4%; background-color: #f59e0b;"></div>
                         </div>
-                        <span class="text-secondary small" style="width: 35px; text-align: right;" id="pct-2-star">0%</span>
+                        <span class="text-secondary small text-end font-monospace" style="width: 72px;" id="pct-2-star">1 (4%)</span>
                       </div>
-                      <div class="d-flex align-items-center gap-2" style="font-size: 12.5px;">
-                        <span style="width: 42px;">1 sao</span>
-                        <div class="progress flex-grow-1" style="height: 7px;">
-                          <div class="progress-bar bg-warning" id="bar-1-star" style="width: 0%"></div>
+                      <div class="d-flex align-items-center gap-2" style="font-size: 13px;">
+                        <span style="width: 44px; text-align: right; color: #475569;" class="text-nowrap">1 sao</span>
+                        <div class="progress flex-grow-1" style="height: 8px;">
+                          <div class="progress-bar" id="bar-1-star" style="width: 4%; background-color: #f59e0b;"></div>
                         </div>
-                        <span class="text-secondary small" style="width: 35px; text-align: right;" id="pct-1-star">0%</span>
+                        <span class="text-secondary small text-end font-monospace" style="width: 72px;" id="pct-1-star">1 (4%)</span>
                       </div>
+                    </div>
+                  </div>
+
+                  <!-- Thanh lọc theo số sao & sắp xếp đánh giá -->
+                  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 pb-2 border-bottom">
+                    <div class="d-flex flex-wrap align-items-center gap-1.5" id="review-star-filters">
+                      <span class="small text-secondary me-1">Lọc sao:</span>
+                      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2.5 active" data-rating="ALL" onclick="filterReviewsByStar('ALL', this)">Tất cả</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2.5" data-rating="5" onclick="filterReviewsByStar(5, this)">5 ★</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2.5" data-rating="4" onclick="filterReviewsByStar(4, this)">4 ★</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2.5" data-rating="3" onclick="filterReviewsByStar(3, this)">3 ★</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2.5" data-rating="2" onclick="filterReviewsByStar(2, this)">2 ★</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2.5" data-rating="1" onclick="filterReviewsByStar(1, this)">1 ★</button>
+                    </div>
+                    <div class="d-flex align-items-center gap-1.5 ms-auto">
+                      <label class="small text-secondary mb-0 text-nowrap">Sắp xếp:</label>
+                      <select id="reviews-sort-by" class="form-select form-select-sm" style="width: 140px;" onchange="changeReviewsSort(this.value)">
+                        <option value="newest" selected>Mới nhất</option>
+                        <option value="highest">Điểm cao nhất</option>
+                        <option value="lowest">Điểm thấp nhất</option>
+                      </select>
                     </div>
                   </div>
 
@@ -1084,26 +1193,28 @@
             <div class="col-lg-4">
               <div class="panel-box">
                 <div class="panel-header">
-                  <span>Gửi đánh giá sản phẩm <span class="tech-detail text-muted small ms-1">(MongoDB Document)</span></span>
+                  <span>Viết đánh giá <span class="tech-detail text-muted small ms-1">(MongoDB Document)</span></span>
                   <span class="label-tag tag-secondary tech-detail">ecommerce_nosql</span>
                 </div>
                 <div class="panel-body">
-                  <div class="row g-2 mb-2">
+                  <div class="row g-2 mb-2 align-items-end">
                     <div class="col-7">
-                      <label class="form-label">Sản phẩm đánh giá</label>
+                      <label class="form-label text-truncate d-block">Sản phẩm đánh giá</label>
                       <select
                         id="review-product-id"
                         class="form-select"></select>
                     </div>
                     <div class="col-5">
                       <label class="form-label">Mức điểm</label>
-                      <select id="review-rating" class="form-select">
-                        <option value="5">5 sao (Rất tốt)</option>
-                        <option value="4">4 sao (Tốt)</option>
-                        <option value="3">3 sao (Khá)</option>
-                        <option value="2">2 sao (Trung bình)</option>
-                        <option value="1">1 sao (Kém)</option>
-                      </select>
+                      <input type="hidden" id="review-rating" value="5" />
+                      <div class="d-flex align-items-center gap-0.5 pt-1" id="star-picker" onmouseleave="resetStarPickerHover()">
+                        <span class="star-picker-item" data-value="1" onclick="setStarPickerRating(1)" onmouseenter="hoverStarPicker(1)" style="font-size: 20px; cursor: pointer; color: #f59e0b; user-select: none;">★</span>
+                        <span class="star-picker-item" data-value="2" onclick="setStarPickerRating(2)" onmouseenter="hoverStarPicker(2)" style="font-size: 20px; cursor: pointer; color: #f59e0b; user-select: none;">★</span>
+                        <span class="star-picker-item" data-value="3" onclick="setStarPickerRating(3)" onmouseenter="hoverStarPicker(3)" style="font-size: 20px; cursor: pointer; color: #f59e0b; user-select: none;">★</span>
+                        <span class="star-picker-item" data-value="4" onclick="setStarPickerRating(4)" onmouseenter="hoverStarPicker(4)" style="font-size: 20px; cursor: pointer; color: #f59e0b; user-select: none;">★</span>
+                        <span class="star-picker-item" data-value="5" onclick="setStarPickerRating(5)" onmouseenter="hoverStarPicker(5)" style="font-size: 20px; cursor: pointer; color: #f59e0b; user-select: none;">★</span>
+                        <span class="small text-muted ms-1" id="star-picker-label" style="font-size: 11.5px;">5 sao</span>
+                      </div>
                     </div>
                   </div>
                   <div class="mb-2">
@@ -1112,34 +1223,44 @@
                       type="text"
                       id="review-title"
                       class="form-control"
-                      value="Sản phẩm đúng mô tả, dùng ổn định" />
+                      placeholder="Cảm nhận chung về sản phẩm..." />
                   </div>
                   <div class="mb-2">
                     <label class="form-label">Nội dung chi tiết</label>
-                    <textarea id="review-comment" class="form-control" rows="3">Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea>
+                    <textarea id="review-comment" class="form-control" rows="3" placeholder="Chia sẻ chi tiết về chất lượng, đóng gói, thời gian giao hàng..."></textarea>
                   </div>
                   <div class="mb-2">
                     <label class="form-label">Tình trạng đóng gói</label>
                     <input type="hidden" id="review-packaging" value="Nguyên hộp, bọc chống sốc" />
-                    <div class="d-flex flex-wrap gap-1.5" id="packaging-chips">
-                      <button type="button" class="btn btn-sm btn-navy text-white py-1 px-2" onclick="selectPackagingChip(this, 'Nguyên hộp, bọc chống sốc')">Nguyên hộp, bọc chống sốc</button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2" onclick="selectPackagingChip(this, 'Đóng gói 3 lớp kỹ càng')">Đóng gói 3 lớp kỹ càng</button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2" onclick="selectPackagingChip(this, 'Nguyên seal chính hãng')">Nguyên seal chính hãng</button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2" onclick="selectPackagingChip(this, 'Hộp carton tiêu chuẩn')">Hộp carton tiêu chuẩn</button>
+                    <div class="d-flex flex-wrap gap-2" id="packaging-chips">
+                      <div class="packaging-chip active" onclick="selectPackagingChip(this, 'Nguyên hộp, bọc chống sốc')">Nguyên hộp, bọc chống sốc</div>
+                      <div class="packaging-chip" onclick="selectPackagingChip(this, 'Đóng gói 3 lớp kỹ càng')">Đóng gói 3 lớp kỹ càng</div>
+                      <div class="packaging-chip" onclick="selectPackagingChip(this, 'Nguyên seal chính hãng')">Nguyên seal chính hãng</div>
+                      <div class="packaging-chip" onclick="selectPackagingChip(this, 'Hộp carton tiêu chuẩn')">Hộp carton tiêu chuẩn</div>
                     </div>
                   </div>
                   <div class="mb-3">
-                    <label class="form-label">Hình ảnh đính kèm</label>
-                    <input type="hidden" id="review-img" value="https://picsum.photos/seed/ctu1/300/200" />
-                    <div class="d-flex align-items-center gap-2">
-                      <input type="file" id="review-file-input" class="form-control form-control-sm" accept="image/*" onchange="handleReviewImageUpload(this)" />
-                      <img id="review-image-preview" src="https://picsum.photos/seed/ctu1/300/200" class="rounded border" style="width: 44px; height: 38px; object-fit: cover; flex-shrink: 0;" alt="Ảnh" />
+                    <label class="form-label">Hình ảnh thực tế</label>
+                    <input type="hidden" id="review-img" value="" />
+                    <input type="file" id="review-file-input" class="d-none" accept="image/*" onchange="handleReviewImageUpload(this)" />
+                    
+                    <div id="review-dropzone" class="review-dropzone-box" onclick="document.getElementById('review-file-input').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+                      <div id="dropzone-empty-state">
+                        <i class="bi bi-camera text-secondary fs-4 d-block mb-1"></i>
+                        <div class="small text-secondary">Kéo ảnh vào đây hoặc <span class="text-primary fw-semibold">bấm để chọn</span></div>
+                        <div class="text-muted" style="font-size: 11px;">Hỗ trợ ảnh JPG, PNG dưới 5MB</div>
+                      </div>
+                      <div id="dropzone-preview-state" class="d-none position-relative d-inline-block">
+                        <img id="review-image-preview" src="" class="rounded border shadow-sm" style="max-height: 80px; max-width: 140px; object-fit: cover;" alt="Xem trước ảnh" />
+                        <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 translate-middle-y rounded-circle p-0" style="width: 20px; height: 20px; line-height: 18px; font-size: 12px;" onclick="event.stopPropagation(); removeReviewImage();" title="Xóa ảnh">&times;</button>
+                      </div>
                     </div>
                   </div>
                   <button
+                    id="btn-submit-review"
                     class="btn btn-navy w-100 py-2 fw-semibold"
                     onclick="submitReview()">
-                    Lưu đánh giá vào MongoDB
+                    Gửi đánh giá
                   </button>
                   <div id="review-feedback" class="mt-2"></div>
                 </div>
@@ -2059,6 +2180,16 @@
       <div class="p-3 bg-light border-top text-end">
         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="offcanvas">Đóng</button>
       </div>
+    <!-- MODAL PHÓNG TO HÌNH ẢNH ĐÁNH GIÁ (LIGHTBOX) -->
+    <div class="modal fade" id="imageLightboxModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content bg-transparent border-0 shadow-none">
+          <div class="modal-body p-0 text-center position-relative">
+            <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-3 z-3" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            <img id="lightbox-modal-img" src="" class="img-fluid rounded-3 shadow-lg" style="max-height: 85vh; object-fit: contain; background: rgba(0, 0, 0, 0.85);" alt="Hình ảnh đánh giá" />
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- TOAST THÔNG BÁO ĐẶT HÀNG THÀNH CÔNG -->
@@ -2293,32 +2424,212 @@
         }
       }
 
-      function selectPackagingChip(btn, text) {
+      function selectPackagingChip(el, text) {
         const input = document.getElementById("review-packaging");
         if (input) input.value = text;
         const container = document.getElementById("packaging-chips");
         if (container) {
-          container.querySelectorAll("button").forEach((b) => {
-            b.className = "btn btn-sm btn-outline-secondary py-1 px-2";
+          container.querySelectorAll(".packaging-chip, button").forEach((b) => {
+            b.classList.remove("active");
           });
         }
-        btn.className = "btn btn-sm btn-navy text-white py-1 px-2";
+        if (el) el.classList.add("active");
       }
 
       function handleReviewImageUpload(input) {
         if (input.files && input.files[0]) {
           const reader = new FileReader();
           reader.onload = function (e) {
-            const imgInput = document.getElementById("review-img");
-            if (imgInput) imgInput.value = e.target.result;
-            const preview = document.getElementById("review-image-preview");
-            if (preview) {
-              preview.src = e.target.result;
-              preview.style.display = "block";
-            }
+            setReviewPreviewImage(e.target.result);
           };
           reader.readAsDataURL(input.files[0]);
         }
+      }
+
+      function setReviewPreviewImage(url) {
+        const imgInput = document.getElementById("review-img");
+        if (imgInput) imgInput.value = url;
+        const preview = document.getElementById("review-image-preview");
+        const emptyState = document.getElementById("dropzone-empty-state");
+        const previewState = document.getElementById("dropzone-preview-state");
+        if (preview) preview.src = url;
+        if (emptyState) emptyState.classList.add("d-none");
+        if (previewState) previewState.classList.remove("d-none");
+      }
+
+      function removeReviewImage() {
+        const fileInput = document.getElementById("review-file-input");
+        if (fileInput) fileInput.value = "";
+        const imgInput = document.getElementById("review-img");
+        if (imgInput) imgInput.value = "";
+        const preview = document.getElementById("review-image-preview");
+        const emptyState = document.getElementById("dropzone-empty-state");
+        const previewState = document.getElementById("dropzone-preview-state");
+        if (preview) preview.src = "";
+        if (emptyState) emptyState.classList.remove("d-none");
+        if (previewState) previewState.classList.add("d-none");
+      }
+
+      function handleDragOver(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const box = document.getElementById("review-dropzone");
+        if (box) box.classList.add("dragover");
+      }
+
+      function handleDragLeave(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const box = document.getElementById("review-dropzone");
+        if (box) box.classList.remove("dragover");
+      }
+
+      function handleDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const box = document.getElementById("review-dropzone");
+        if (box) box.classList.remove("dragover");
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          const file = e.dataTransfer.files[0];
+          if (file.type.startsWith("image/")) {
+            const reader = new FileReader();
+            reader.onload = function (ev) {
+              setReviewPreviewImage(ev.target.result);
+            };
+            reader.readAsDataURL(file);
+          }
+        }
+      }
+
+      let currentPickerRating = 5;
+      const ratingLabelsMap = {
+        1: "1 sao",
+        2: "2 sao",
+        3: "3 sao",
+        4: "4 sao",
+        5: "5 sao"
+      };
+
+      function setStarPickerRating(val) {
+        currentPickerRating = val;
+        const hiddenInput = document.getElementById("review-rating");
+        if (hiddenInput) hiddenInput.value = String(val);
+        updateStarPickerDisplay(val);
+        const lbl = document.getElementById("star-picker-label");
+        if (lbl) lbl.textContent = ratingLabelsMap[val] || `${val} sao`;
+      }
+
+      function hoverStarPicker(val) {
+        updateStarPickerDisplay(val);
+        const lbl = document.getElementById("star-picker-label");
+        if (lbl) lbl.textContent = ratingLabelsMap[val] || `${val} sao`;
+      }
+
+      function resetStarPickerHover() {
+        updateStarPickerDisplay(currentPickerRating);
+        const lbl = document.getElementById("star-picker-label");
+        if (lbl) lbl.textContent = ratingLabelsMap[currentPickerRating] || `${currentPickerRating} sao`;
+      }
+
+      function updateStarPickerDisplay(rating) {
+        const container = document.getElementById("star-picker");
+        if (!container) return;
+        const items = container.querySelectorAll(".star-picker-item");
+        items.forEach((item, idx) => {
+          const starVal = idx + 1;
+          if (starVal <= rating) {
+            item.style.color = "#f59e0b";
+          } else {
+            item.style.color = "#cbd5e1";
+          }
+        });
+      }
+
+      function openImageLightbox(src) {
+        const modalEl = document.getElementById("imageLightboxModal");
+        const imgEl = document.getElementById("lightbox-modal-img");
+        if (!modalEl || !imgEl || !src) return;
+        imgEl.src = src;
+        if (window.bootstrap) {
+          const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+          modal.show();
+        }
+      }
+
+      function renderReviewStars(rating) {
+        const r = Math.min(5, Math.max(1, parseInt(rating, 10) || 5));
+        let starsHtml = "";
+        for (let i = 1; i <= 5; i++) {
+          const color = i <= r ? "#f59e0b" : "#cbd5e1";
+          starsHtml += `<span style="color: ${color}; font-size: 15px; line-height: 1;">★</span>`;
+        }
+        return `<span class="d-inline-flex align-items-center me-2" style="gap: 1.5px;">${starsHtml}</span>`;
+      }
+
+      function formatRelativeTime(dateStr) {
+        if (!dateStr) return { relative: "Gần đây", full: "" };
+        try {
+          const parts = dateStr.split(" ");
+          let isoLike = dateStr;
+          if (parts.length === 2 && parts[0].includes("/")) {
+            const dp = parts[0].split("/");
+            isoLike = `${dp[2]}-${dp[1]}-${dp[0]}T${parts[1]}`;
+          }
+          const d = new Date(isoLike);
+          if (isNaN(d.getTime())) return { relative: dateStr, full: dateStr };
+          const now = new Date();
+          const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
+          const fullDate = d.toLocaleString("vi-VN", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit"
+          });
+
+          if (diffSec < 60) return { relative: "Vừa xong", full: fullDate };
+          const diffMin = Math.floor(diffSec / 60);
+          if (diffMin < 60) return { relative: `${diffMin} phút trước`, full: fullDate };
+          const diffHour = Math.floor(diffMin / 60);
+          if (diffHour < 24) return { relative: `${diffHour} giờ trước`, full: fullDate };
+          const diffDay = Math.floor(diffHour / 24);
+          if (diffDay === 1) return { relative: "Hôm qua", full: fullDate };
+          if (diffDay < 30) return { relative: `${diffDay} ngày trước`, full: fullDate };
+          const diffMonth = Math.floor(diffDay / 30);
+          if (diffMonth < 12) return { relative: `${diffMonth} tháng trước`, full: fullDate };
+          return { relative: `${Math.floor(diffMonth / 12)} năm trước`, full: fullDate };
+        } catch (e) {
+          return { relative: dateStr, full: dateStr };
+        }
+      }
+
+      function getAvatarLetter(name) {
+        if (!name || typeof name !== "string") return "K";
+        const trimmed = name.trim();
+        const parts = trimmed.split(/\s+/);
+        if (parts.length > 0) {
+          const lastWord = parts[parts.length - 1];
+          return lastWord.charAt(0).toUpperCase();
+        }
+        return trimmed.charAt(0).toUpperCase() || "K";
+      }
+
+      let currentReviewStarFilter = "ALL";
+      let currentReviewSort = "newest";
+
+      function filterReviewsByStar(star, btn) {
+        currentReviewStarFilter = star;
+        const container = document.getElementById("review-star-filters");
+        if (container) {
+          container.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+        }
+        if (btn) btn.classList.add("active");
+        loadProductReviews(currentReviewProductId, 1);
+      }
+
+      function changeReviewsSort(val) {
+        currentReviewSort = val || "newest";
+        loadProductReviews(currentReviewProductId, 1);
       }
 
       function chooseProduct(id) {
@@ -3829,11 +4140,11 @@
           }
 
           const comboItems = products.map((p) => {
-            const label = `${p.product_id} - ${p.product_name} (${fmtMoney(p.price)} &middot; Tồn: ${p.stock_quantity})`;
+            const label = `${p.product_id} - ${p.product_name} (${fmtMoney(p.price)} · Tồn: ${p.stock_quantity})`;
             const html = `
               <div class="d-flex justify-content-between align-items-center">
                 <span><strong>${p.product_id}</strong> [${p.sku}] - ${p.product_name}</span>
-                <span class="text-muted small ms-2 text-nowrap">${fmtMoney(p.price)} &middot; Tồn: ${p.stock_quantity}</span>
+                <span class="text-muted small ms-2 text-nowrap">${fmtMoney(p.price)} · Tồn: ${p.stock_quantity}</span>
               </div>
             `;
             const searchKey = removeVnAccents(
@@ -3959,8 +4270,12 @@
             page: currentReviewPage,
             limit: limit,
             read_mode: readMode,
+            sort_by: currentReviewSort,
             _t: Date.now(),
           });
+          if (currentReviewStarFilter !== "ALL") {
+            params.append("rating", currentReviewStarFilter);
+          }
           const res = await fetch("/api/reviews/list?" + params.toString(), {
             cache: "no-store",
           });
@@ -3989,8 +4304,7 @@
             nodeInfoEl.innerHTML = `MongoDB: ${formatNodeBadge(mgNode, "mongo")} [${data.latency_ms || 0} ms]`;
           }
           document.getElementById("selected-review-product-label").innerHTML =
-            `<span><strong class="text-dark">${pName}</strong></span>` +
-            `<span>Điểm TB: <strong class="text-dark">${data.avg_rating}/5</strong> (${totalItems} đánh giá)</span>`;
+            `<strong class="text-dark">${pName}</strong>`;
 
           // Cập nhật khối tổng quan đánh giá nổi bật (Số lớn + Thanh phân bố 5-1 sao)
           const avgNum = parseFloat(data.avg_rating) || 0;
@@ -3998,22 +4312,30 @@
           const bigNumEl = document.getElementById("rating-big-number");
           if (bigNumEl) bigNumEl.innerText = avgNum.toFixed(1);
           const bigStarsEl = document.getElementById("rating-big-stars");
-          if (bigStarsEl) bigStarsEl.innerText = "★".repeat(avgStars) + "☆".repeat(Math.max(0, 5 - avgStars));
+          if (bigStarsEl) {
+            let bigStarsHtml = "";
+            for (let i = 1; i <= 5; i++) {
+              const color = i <= avgStars ? "#f59e0b" : "#cbd5e1";
+              bigStarsHtml += `<span style="color: ${color};">★</span>`;
+            }
+            bigStarsEl.innerHTML = bigStarsHtml;
+          }
+          const totalAllReviews = data.total_all_reviews !== undefined ? data.total_all_reviews : totalItems;
           const totalRevEl = document.getElementById("rating-total-reviews");
-          if (totalRevEl) totalRevEl.innerText = `${totalItems.toLocaleString("vi-VN")} đánh giá`;
+          if (totalRevEl) totalRevEl.innerText = `${totalAllReviews.toLocaleString("vi-VN")} đánh giá`;
 
           const dist = data.rating_distribution || {};
           for (let s = 1; s <= 5; s++) {
-            const count = dist[s] !== undefined ? dist[s] : (s === 5 ? Math.round(totalItems * 0.72) : (s === 4 ? Math.round(totalItems * 0.18) : (s === 3 ? Math.round(totalItems * 0.08) : 0)));
-            const pct = totalItems > 0 ? Math.round((count / totalItems) * 100) : 0;
+            const count = dist[s] !== undefined ? dist[s] : 0;
+            const pct = totalAllReviews > 0 ? Math.round((count / totalAllReviews) * 100) : 0;
             const bar = document.getElementById(`bar-${s}-star`);
             const pctEl = document.getElementById(`pct-${s}-star`);
             if (bar) bar.style.width = `${pct}%`;
-            if (pctEl) pctEl.innerText = `${pct}%`;
+            if (pctEl) pctEl.innerText = `${count} (${pct}%)`;
           }
 
           if (revs.length === 0) {
-            container.innerHTML = `<div class="text-muted py-3">Chưa có nhận xét nào cho sản phẩm này.</div>`;
+            container.innerHTML = `<div class="text-muted py-4 text-center">Chưa có nhận xét nào phù hợp với bộ lọc.</div>`;
             renderReviewsPagination(1, 1, 0, limit);
             return;
           }
@@ -4021,31 +4343,40 @@
           container.innerHTML = revs
             .map((r) => {
               const attr = r.attributes || {};
-              const rStars = Math.min(5, Math.max(1, parseInt(r.rating, 10) || 5));
-              const starsHtml = `<span class="text-warning me-1.5" style="letter-spacing: 1px;">${'★'.repeat(rStars)}${'☆'.repeat(5 - rStars)}</span>`;
+              const starsHtml = renderReviewStars(r.rating);
+              const timeInfo = formatRelativeTime(r.created_at);
+              const authorName = r.user_name || (r.user_id ? `Khách hàng #${r.user_id}` : "Khách hàng");
+              const avatarLetter = getAvatarLetter(authorName);
               const imgHtml =
-                r.images && r.images.length > 0
-                  ? `<img src="${r.images[0]}" alt="review" class="rounded border ms-3" style="width: 76px; height: 56px; object-fit: cover;" onerror="this.style.display='none'" />`
+                r.images && r.images.length > 0 && r.images[0]
+                  ? `<div class="ms-3 flex-shrink-0">
+                       <img src="${r.images[0]}" alt="Ảnh thực tế" class="review-thumb-img" onclick="openImageLightbox('${r.images[0]}')" title="Bấm để phóng to" onerror="this.parentElement.remove()" />
+                     </div>`
                   : "";
-              const timeTxt = r.created_at
-                ? `<span class="ms-2">Thời gian: ${r.created_at}</span>`
-                : "";
+
               return `
-          <div class="review-item d-flex justify-content-between align-items-start py-2.5">
-            <div>
-              <div class="d-flex align-items-center mb-1">
-                ${starsHtml}
-                <strong class="text-dark">${r.title || "Nhận xét khách hàng"}</strong>
-                <span class="text-secondary small ms-2">(Khách hàng #${r.user_id || 1})</span>
+            <div class="review-item-card d-flex align-items-start justify-content-between">
+              <div class="d-flex align-items-start gap-3 flex-grow-1">
+                <div class="review-avatar-circle" title="${authorName}">${avatarLetter}</div>
+                <div class="flex-grow-1">
+                  <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                    <span class="fw-semibold text-dark" style="font-size: 14px;">${authorName}</span>
+                    <span class="text-secondary small" title="${timeInfo.full}" style="font-size: 12px; cursor: default;">${timeInfo.relative}</span>
+                  </div>
+                  <div class="d-flex align-items-center flex-wrap mb-1.5">
+                    ${starsHtml}
+                    <span class="fw-semibold text-dark" style="font-size: 15px;">${r.title || "Nhận xét sản phẩm"}</span>
+                  </div>
+                  <div class="text-dark" style="font-size: 13.5px; line-height: 1.55;">${r.comment || ""}</div>
+                  <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                    <span class="badge bg-light text-secondary border fw-normal" style="font-size: 11.5px; padding: 4px 8px;">Đóng gói: ${attr.packaging || "Nguyên hộp"}</span>
+                    <span class="badge bg-light text-secondary border fw-normal" style="font-size: 11.5px; padding: 4px 8px;">Vận chuyển: ${attr.delivery_speed || "Đúng hẹn"}</span>
+                  </div>
+                </div>
               </div>
-              <div class="mt-1 text-dark" style="line-height: 1.45;">${r.comment || ""}</div>
-              <div class="text-secondary small mt-1.5">
-                Đóng gói: ${attr.packaging || "Tiêu chuẩn"} &middot; Vận chuyển: ${attr.delivery_speed || "Đúng hẹn"} ${timeTxt}
-              </div>
+              ${imgHtml}
             </div>
-            ${imgHtml}
-          </div>
-        `;
+          `;
             })
             .join("");
 
@@ -4078,19 +4409,29 @@
 
         let html = "";
         const prevDisabled = page <= 1 ? "disabled" : "";
-        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="loadProductReviews(currentReviewProductId, 1)">&laquo; Đầu</button></li>`;
         html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="loadProductReviews(currentReviewProductId, ${page - 1})">&lsaquo; Trước</button></li>`;
 
         const startPage = Math.max(1, page - 2);
         const endPage = Math.min(totalPages, page + 2);
+        if (startPage > 1) {
+          html += `<li class="page-item"><button class="page-link" onclick="loadProductReviews(currentReviewProductId, 1)">1</button></li>`;
+          if (startPage > 2) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+          }
+        }
         for (let p = startPage; p <= endPage; p++) {
           const activeCls = p === page ? "active" : "";
           html += `<li class="page-item ${activeCls}"><button class="page-link" onclick="loadProductReviews(currentReviewProductId, ${p})">${p}</button></li>`;
         }
+        if (endPage < totalPages) {
+          if (endPage < totalPages - 1) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+          }
+          html += `<li class="page-item"><button class="page-link" onclick="loadProductReviews(currentReviewProductId, ${totalPages})">${totalPages}</button></li>`;
+        }
 
         const nextDisabled = page >= totalPages ? "disabled" : "";
         html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="loadProductReviews(currentReviewProductId, ${page + 1})">Sau &rsaquo;</button></li>`;
-        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="loadProductReviews(currentReviewProductId, ${totalPages})">Cuối &raquo;</button></li>`;
         navEl.innerHTML = html;
       }
 
@@ -4234,7 +4575,21 @@
       // 5. GỬI ĐÁNH GIÁ SẢN PHẨM (MONGODB)
       async function submitReview() {
         const fb = document.getElementById("review-feedback");
-        fb.innerHTML = `<div class="text-muted small">Đang lưu document vào MongoDB...</div>`;
+        const btn = document.getElementById("btn-submit-review");
+        const titleVal = (document.getElementById("review-title")?.value || "").trim();
+        const commentVal = (document.getElementById("review-comment")?.value || "").trim();
+
+        if (!titleVal || !commentVal) {
+          if (fb) fb.innerHTML = `<div class="alert alert-warning py-2 px-3 mb-0 small">Vui lòng nhập đầy đủ tiêu đề và nội dung nhận xét.</div>`;
+          return;
+        }
+
+        if (fb) fb.innerHTML = "";
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1.5" role="status" aria-hidden="true"></span>Đang gửi...`;
+        }
+
         const selectedProdId = parseInt(
           document.getElementById("review-product-id").value,
           10,
@@ -4242,15 +4597,16 @@
         const payload = {
           product_id: selectedProdId,
           user_id: parseInt(
-            document.getElementById("order-user-id").value || "1",
+            document.getElementById("order-user-id")?.value || "1",
             10,
           ),
           rating: parseInt(document.getElementById("review-rating").value, 10),
-          title: document.getElementById("review-title").value,
-          comment: document.getElementById("review-comment").value,
+          title: titleVal,
+          comment: commentVal,
           packaging: document.getElementById("review-packaging").value,
           image_url: document.getElementById("review-img").value,
         };
+
         try {
           const res = await fetch("/api/reviews/add", {
             method: "POST",
@@ -4259,12 +4615,32 @@
           });
           const data = await res.json();
           if (res.ok) {
+            showToastNotification("Đã gửi đánh giá thành công!", "success");
+
+            // Reset form sau khi gửi thành công
+            const titleInput = document.getElementById("review-title");
+            if (titleInput) titleInput.value = "";
+            const commentInput = document.getElementById("review-comment");
+            if (commentInput) commentInput.value = "";
+            removeReviewImage();
+            setStarPickerRating(5);
+            const firstChip = document.querySelector("#packaging-chips .packaging-chip");
+            if (firstChip) selectPackagingChip(firstChip, "Nguyên hộp, bọc chống sốc");
+
+            // Đưa bộ lọc sao về Tất cả để review mới xuất hiện ngay đầu danh sách
+            currentReviewStarFilter = "ALL";
+            const filterBtns = document.querySelectorAll("#review-star-filters button");
+            filterBtns.forEach(b => {
+              if (b.getAttribute("data-rating") === "ALL") b.classList.add("active");
+              else b.classList.remove("active");
+            });
+
             fb.innerHTML = `
-            <div class="alert alert-success py-2 px-3 mb-0 small">
-              <strong>Đã lưu đánh giá!</strong> ObjectID: <code>${data.review_id}</code><br/>
-              Ghi tại Node MongoDB: <code>${data.executed_on_mongo_node}</code> (${data.latency_ms} ms)
-            </div>
-          `;
+              <div class="tech-detail text-muted small mt-1">
+                Ghi tại Node MongoDB: <code>${data.executed_on_mongo_node}</code> (${data.latency_ms} ms) &middot; ID: <code>${data.review_id}</code>
+              </div>
+            `;
+
             await loadProducts();
             selectComboItem(
               "view-review-product-select",
@@ -4278,7 +4654,12 @@
             fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Lỗi: ${data.detail}</div>`;
           }
         } catch (e) {
-          fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Lỗi kết nối MongoDB.</div>`;
+          fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Lỗi kết nối máy chủ khi gửi đánh giá.</div>`;
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = "Gửi đánh giá";
+          }
         }
       }
 
@@ -4656,7 +5037,7 @@
         const strip = document.querySelector(".status-strip");
         if (isManual && btn) {
           btn.disabled = true;
-          btn.innerHTML = "&#x23F3; Đang làm mới...";
+          btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Đang làm mới...`;
           if (strip) strip.style.opacity = "0.6";
           const lastUpd = document.getElementById("last-updated-time");
           if (lastUpd) lastUpd.innerText = "Đang tải...";
@@ -4677,18 +5058,20 @@
           if (isManual && btn) {
             btn.classList.remove("btn-light", "text-dark");
             btn.classList.add("btn-success", "text-white");
-            btn.innerHTML = "&#x2713; Đã làm mới!";
+            btn.innerHTML = `<i class="bi bi-check2 me-1"></i>Đã làm mới!`;
             setTimeout(() => {
               btn.classList.remove("btn-success", "text-white");
               btn.classList.add("btn-light", "text-dark");
-              btn.innerHTML = "&#x21bb; Làm mới dữ liệu";
+              btn.innerHTML = `<i class="bi bi-arrow-clockwise me-1"></i>Làm mới dữ liệu`;
               btn.disabled = false;
             }, 1000);
           }
         } catch (err) {
           console.error("Refresh error:", err);
           if (isManual && btn) {
-            btn.innerHTML = "&#x21bb; Làm mới dữ liệu";
+            btn.classList.remove("btn-success", "text-white");
+            btn.classList.add("btn-light", "text-dark");
+            btn.innerHTML = `<i class="bi bi-arrow-clockwise me-1"></i>Làm mới dữ liệu`;
             btn.disabled = false;
           }
         }
