@@ -565,8 +565,8 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 2.5px 10px;
-        font-size: 11.5px;
+        padding: 2.5px 11px;
+        font-size: 12px;
         font-weight: 500;
         border-radius: 9999px;
         line-height: 1.35;
@@ -2142,17 +2142,17 @@
       function renderOrderStatus(s) {
         const norm = String(s || "COMPLETED").trim().toUpperCase();
         if (norm === "COMPLETED" || norm === "HOÀN TẤT" || norm === "HOAN TAT") {
-          return '<span class="d-inline-flex align-items-center gap-1.5"><span class="status-dot dot-online" style="width: 7px; height: 7px;"></span><span class="text-secondary" style="font-size: 13px;">Hoàn tất</span></span>';
+          return '<span class="status-pill status-pill-completed">Hoàn tất</span>';
         } else if (norm === "CANCELLED" || norm === "CANCELED" || norm === "ĐÃ HỦY" || norm === "DA HUY") {
-          return '<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-0.5 rounded-pill" style="font-size: 12px; font-weight: 500;">Đã hủy</span>';
+          return '<span class="status-pill status-pill-cancelled">Đã hủy</span>';
         } else if (norm === "PENDING" || norm === "CHỜ XỬ LÝ" || norm === "CHO XU LY") {
-          return '<span class="d-inline-flex align-items-center gap-1.5"><span class="status-dot" style="width: 7px; height: 7px; background-color: #94a3b8;"></span><span class="text-secondary" style="font-size: 13px;">Chờ xử lý</span></span>';
+          return '<span class="status-pill status-pill-pending">Chờ xử lý</span>';
         } else if (norm === "PROCESSING" || norm === "ĐANG GIAO" || norm === "DANG GIAO") {
-          return '<span class="d-inline-flex align-items-center gap-1.5"><span class="status-dot dot-warning" style="width: 7px; height: 7px;"></span><span class="text-secondary" style="font-size: 13px;">Đang giao</span></span>';
+          return '<span class="status-pill status-pill-processing">Đang giao</span>';
         } else if (norm === "FAILED" || norm === "THẤT BẠI" || norm === "THAT BAI") {
-          return '<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-0.5 rounded-pill" style="font-size: 12px; font-weight: 500;">Thất bại</span>';
+          return '<span class="status-pill status-pill-failed">Thất bại</span>';
         }
-        return `<span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill" style="font-size: 12px; font-weight: 500;">${mapOrderStatus(s)}</span>`;
+        return `<span class="status-pill status-pill-failed">${mapOrderStatus(s)}</span>`;
       }
 
       function formatNodeBadge(node, dbType = "mysql") {
