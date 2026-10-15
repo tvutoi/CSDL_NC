@@ -553,6 +553,38 @@
         border: 1px solid #cbd5e1;
         color: #475569;
       }
+      /* HUY HIỆU ĐẾM NHẬT KÝ ĐỒNG BỘ TRÊN HEADER (RÕ RÀNG, DỄ PHÂN BIỆT, KHÔNG DÍNH VIỀN NÚT) */
+      .sync-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 22px;
+        height: 20px;
+        padding: 1px 7px;
+        font-size: 11.5px;
+        font-weight: 700;
+        border-radius: 9999px;
+        line-height: 1;
+        margin-left: 7px;
+        margin-right: 2px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+        transition: all 0.15s ease-in-out;
+      }
+      .sync-badge-info {
+        background-color: #e0f2fe;
+        border: 1px solid #7dd3fc;
+        color: #0369a1;
+      }
+      .sync-badge-error {
+        background-color: #fee2e2;
+        border: 1px solid #fca5a5;
+        color: #dc2626;
+      }
+      .sync-badge-zero {
+        background-color: rgba(255, 255, 255, 0.18);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        color: #ffffff;
+      }
     </style>
   </head>
   <body>
@@ -586,15 +618,16 @@
           </label>
 
           <button
-            class="btn btn-sm btn-outline-light d-flex align-items-center"
+            class="btn btn-sm btn-outline-light d-flex align-items-center px-2.5 py-1"
             data-bs-toggle="modal"
             data-bs-target="#syncLogsModal"
-            onclick="loadSyncLogs()">
+            onclick="loadSyncLogs()"
+            title="Xem chi tiết nhật ký đồng bộ dữ liệu cụm">
             <span>Nhật ký đồng bộ</span>
             <span
-              class="badge rounded-pill bg-white text-dark ms-1.5 px-1.5 py-0.5 fw-semibold"
+              class="sync-badge sync-badge-info"
               id="sync-log-badge"
-              style="font-size: 10.5px; opacity: 0.9;"
+              title="Bản ghi đồng bộ"
               >0</span
             >
           </button>
@@ -2033,6 +2066,28 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         return `<span class="status-pill status-pill-failed">${mapOrderStatus(s)}</span>`;
       }
 
+      // CẬP NHẬT HUY HIỆU ĐẾM NHẬT KÝ ĐỒNG BỘ TRÊN HEADER (RÕ RÀNG, DỄ PHÂN BIỆT)
+      function updateSyncLogBadge(count, errorCount = 0) {
+        const badge = document.getElementById("sync-log-badge");
+        if (!badge) return;
+        const num = parseInt(count, 10) || 0;
+        const errNum = parseInt(errorCount, 10) || 0;
+
+        if (errNum > 0) {
+          badge.className = "sync-badge sync-badge-error";
+          badge.innerText = errNum > 1 ? `${errNum} lỗi` : "1 lỗi";
+          badge.title = `${errNum} sự cố đồng bộ cần kiểm tra`;
+        } else if (num > 0) {
+          badge.className = "sync-badge sync-badge-info";
+          badge.innerText = num;
+          badge.title = `${num} bản ghi đồng bộ đã lưu`;
+        } else {
+          badge.className = "sync-badge sync-badge-zero";
+          badge.innerText = "0";
+          badge.title = "Chưa có bản ghi đồng bộ";
+        }
+      }
+
       // XỬ LÝ GỢI Ý AUTOCOMPLETE SẢN PHẨM & KHÁCH HÀNG (TAB 1)
       function showProductSuggestions() {
         const input = document.getElementById("order-product-search");
@@ -2585,10 +2640,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
           // Cập nhật số lượng sự kiện đồng bộ lên badge
           if (data.sync_logs_count !== undefined) {
-            const badge = document.getElementById("sync-log-badge");
-            if (badge) {
-              badge.innerText = data.sync_logs_count;
-            }
+            updateSyncLogBadge(data.sync_logs_count, data.sync_errors_count || 0);
           }
 
           // Cập nhật chu kỳ tự động quét nếu có
@@ -3053,8 +3105,8 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           );
           const data = await res.json();
           cachedSyncLogs = data.logs || [];
-          const badge = document.getElementById("sync-log-badge");
-          if (badge) badge.innerText = cachedSyncLogs.length;
+          const errCount = cachedSyncLogs.filter((l) => l.status === "FAILED" || l.status === "ERROR").length;
+          updateSyncLogBadge(cachedSyncLogs.length, errCount);
 
           renderSyncLogsUI();
 
@@ -3087,8 +3139,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           });
           if (res.ok) {
             cachedSyncLogs = [];
-            const badge = document.getElementById("sync-log-badge");
-            if (badge) badge.innerText = "0";
+            updateSyncLogBadge(0, 0);
             renderSyncLogsUI();
           } else {
             alert("Lỗi khi xóa nhật ký: " + (await res.text()));
