@@ -188,6 +188,37 @@
       .dot-offline {
         background-color: #dc2626;
       }
+      .badge-pill {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 3px 12px;
+        font-size: 12.5px;
+        font-weight: 500;
+        line-height: 1.25;
+        white-space: nowrap;
+        vertical-align: middle;
+        border: 1px solid transparent;
+      }
+      .badge-pill--ok {
+        background-color: #e6f7ee;
+        border-color: #9fdcb8;
+        color: #137a43;
+      }
+      .badge-pill--danger {
+        background-color: #fdeaea;
+        border-color: #f3b0b0;
+        color: #b42318;
+      }
+      .badge-pill--primary {
+        background-color: #e7f0fb;
+        border-color: #a9c8ee;
+        color: #0b4a8f;
+      }
+      .badge-pill--muted {
+        background-color: #f1f3f5;
+        border-color: #d0d5db;
+        color: #4b5563;
+      }
       /* CHẾ ĐỘ KỸ THUẬT & CHẾ ĐỘ BÌNH THƯỜNG */
       .tech-detail {
         display: none !important;
@@ -3060,13 +3091,13 @@
             .map((n) => {
               const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
               const stateBadge = isOnline
-                ? `<span class="text-success small d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Sẵn sàng</span>`
-                : `<span class="text-danger small fw-medium d-inline-flex align-items-center"><span class="status-dot dot-offline"></span>Mất kết nối</span>`;
+                ? `<span class="badge-pill badge-pill--ok">Sẵn sàng</span>`
+                : `<span class="badge-pill badge-pill--danger">Mất kết nối</span>`;
               const roleBadge = !isOnline
                 ? `<span class="text-muted small">-</span>`
                 : n.role === "PRIMARY"
-                  ? `<span class="text-primary small fw-semibold d-inline-flex align-items-center"><span class="status-dot dot-online" style="background-color: #004b87;"></span>Node chính</span>`
-                  : `<span class="text-secondary small d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Node phụ</span>`;
+                  ? `<span class="badge-pill badge-pill--primary">Node chính</span>`
+                  : `<span class="badge-pill badge-pill--muted">Node phụ</span>`;
               return `
             <tr>
               <td class="fw-medium text-dark text-start" style="font-size: 14px;">${n.node_name}</td>
@@ -3086,14 +3117,14 @@
               .map((n) => {
                 const isOnline = n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1;
                 const stateBadge = isOnline
-                  ? `<span class="text-success small d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Sẵn sàng</span>`
-                  : `<span class="text-danger small fw-medium d-inline-flex align-items-center"><span class="status-dot dot-offline"></span>Mất kết nối</span>`;
+                  ? `<span class="badge-pill badge-pill--ok">Sẵn sàng</span>`
+                  : `<span class="badge-pill badge-pill--danger">Mất kết nối</span>`;
                 const displayRole = !isOnline ? "OFFLINE" : (n.state === "PRIMARY" ? "PRIMARY" : "SECONDARY");
                 const roleBadge = !isOnline
                   ? `<span class="text-muted small">-</span>`
                   : displayRole === "PRIMARY"
-                    ? `<span class="text-primary small fw-semibold d-inline-flex align-items-center"><span class="status-dot dot-online" style="background-color: #004b87;"></span>Node chính</span>`
-                    : `<span class="text-secondary small d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Node phụ</span>`;
+                    ? `<span class="badge-pill badge-pill--primary">Node chính</span>`
+                    : `<span class="badge-pill badge-pill--muted">Node phụ</span>`;
                 return `
             <tr>
               <td class="fw-medium text-dark text-start" style="font-size: 14px;">${n.node_name}</td>
