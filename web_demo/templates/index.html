@@ -151,8 +151,37 @@
       .dot-online {
         background-color: #16a34a;
       }
+      .dot-warning {
+        background-color: #f59e0b;
+      }
       .dot-offline {
         background-color: #dc2626;
+      }
+      /* CHẾ ĐỘ KỸ THUẬT & CHẾ ĐỘ BÌNH THƯỜNG */
+      .tech-detail {
+        display: none !important;
+      }
+      body.tech-mode-active .tech-detail {
+        display: inline !important;
+      }
+      body.tech-mode-active .tech-detail-block {
+        display: block !important;
+      }
+
+      /* Quy định hiển thị thanh trạng thái trên cùng:
+         - Chế độ bình thường (Hình 1): Hiển thị thanh compact 1 dòng (#compactStatusBar), ẩn khung chi tiết 3 cột (#detailedStatusBox) trừ khi nhấn mở
+         - Chế độ kỹ thuật (Hình 2): Ẩn thanh compact 1 dòng, hiển thị trực tiếp khung chi tiết 3 cột (#detailedStatusBox) */
+      body:not(.tech-mode-active) #compactStatusBar {
+        display: flex !important;
+      }
+      body:not(.tech-mode-active) #detailedStatusBox:not(.show) {
+        display: none !important;
+      }
+      body.tech-mode-active #compactStatusBar {
+        display: none !important;
+      }
+      body.tech-mode-active #detailedStatusBox {
+        display: block !important;
       }
       .label-tag {
         display: inline-block;
@@ -365,30 +394,45 @@
     </style>
   </head>
   <body>
-    <!-- HEADER TRƯỜNG / HỌC PHẦN -->
+    <!-- HEADER TRANG -->
     <header class="top-header">
       <div
         class="container-fluid px-4 d-flex justify-content-between align-items-center">
         <div>
-          <div class="fw-bold fs-6">
-            HỆ THỐNG THƯƠNG MẠI ĐIỆN TỬ PHÂN TÁN (MYSQL GROUP REPLICATION &
-            MONGODB)
+          <div class="d-flex align-items-center">
+            <span class="fs-5 me-2">🛍️</span>
+            <span class="fw-bold fs-6 text-white text-uppercase" style="letter-spacing: 0.5px;">HỆ THỐNG THƯƠNG MẠI ĐIỆN TỬ</span>
+            <span class="badge bg-light text-primary fw-semibold rounded-pill px-2.5 py-1 ms-2" style="font-size: 11px; border: 1px solid #bae6fd;">MySQL GR + MongoDB RS</span>
           </div>
-          <div class="course-sub">
-            Học phần: Cơ sở dữ liệu nâng cao (CTH612) - Đề tài 2 - Nhóm thực
-            hiện: Nhóm 2
+          <div class="course-sub mt-0.5" style="font-size: 12px; color: #cfe2f3;">
+            Nền tảng mua sắm & quản trị phân tán trực tuyến
           </div>
         </div>
         <div class="d-flex align-items-center gap-2">
+          <!-- CÔNG TẮC CHẾ ĐỘ KỸ THUẬT -->
+          <div class="form-check form-switch d-inline-flex align-items-center me-2 text-white mb-0">
+            <input
+              class="form-check-input me-1.5"
+              type="checkbox"
+              role="switch"
+              id="techModeSwitch"
+              onchange="toggleTechMode(this.checked)"
+              style="cursor: pointer;" />
+            <label class="form-check-label text-white small fw-medium" for="techModeSwitch" style="cursor: pointer; user-select: none;">
+              Chế độ kỹ thuật
+            </label>
+          </div>
+
           <button
-            class="btn btn-sm btn-outline-light"
+            class="btn btn-sm btn-outline-light d-flex align-items-center"
             data-bs-toggle="modal"
             data-bs-target="#syncLogsModal"
             onclick="loadSyncLogs()">
-            Nhật ký đồng bộ
+            <span>Nhật ký đồng bộ</span>
             <span
-              class="badge rounded-pill bg-warning text-dark fw-bold ms-1 px-2"
+              class="badge rounded-pill bg-danger ms-1.5 px-1.5 py-0.5 fw-semibold"
               id="sync-log-badge"
+              style="font-size: 10.5px;"
               >0</span
             >
           </button>
@@ -397,7 +441,7 @@
             data-bs-toggle="modal"
             data-bs-target="#configModal"
             onclick="loadClusterConfig()">
-            Cấu hình IP mạng LAN
+            Cấu hình IP LAN
           </button>
           <button
             class="btn btn-sm btn-light text-dark fw-semibold"
@@ -410,8 +454,23 @@
     </header>
 
     <div class="container-fluid px-4 mt-3">
-      <!-- KHUNG TÓM TẮT TRẠNG THÁI NODE (NẰM TRÊN THANH TAB) -->
-      <div class="status-strip">
+      <!-- THANH TRẠNG THÁI GỌN (CHẾ ĐỘ BÌNH THƯỜNG - HÌNH 1) -->
+      <div id="compactStatusBar" class="d-flex flex-wrap justify-content-between align-items-center py-2 px-3 bg-white border rounded mb-3 shadow-sm" style="font-size: 13px;">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <span id="bar-mysql-summary"><span class="status-dot dot-online"></span>MySQL: <strong>--/-- node</strong> &middot; Node chính: <strong class="text-primary">--</strong></span>
+          <span class="text-muted mx-1">|</span>
+          <span id="bar-mongo-summary"><span class="status-dot dot-online"></span>MongoDB: <strong>--/-- node</strong> &middot; Node chính: <strong class="text-primary">--</strong></span>
+          <span class="text-muted mx-1">|</span>
+          <span id="bar-data-summary" class="text-secondary">Dữ liệu: <strong>-- dòng MySQL &bull; -- docs MongoDB</strong></span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="text-muted small">Cập nhật: <span id="bar-last-updated-time" class="fw-semibold text-dark">--:--:--</span></span>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#detailedStatusBox" aria-expanded="false" aria-controls="detailedStatusBox" id="btn-toggle-cluster-detail" style="font-size: 12px;">Chi tiết cụm &#9662;</button>
+        </div>
+      </div>
+
+      <!-- KHUNG CHI TIẾT TRẠNG THÁI 3 CỘT (CHẾ ĐỘ KỸ THUẬT / MỞ RỘNG - HÌNH 2) -->
+      <div id="detailedStatusBox" class="status-strip mb-3 collapse">
         <div class="row g-3 align-items-start">
           <div class="col-md-5 border-end">
             <div class="fw-bold text-secondary mb-1">
@@ -518,8 +577,8 @@
         <div class="tab-pane fade" id="tab-catalog" role="tabpanel">
           <div class="panel-box">
             <div class="panel-header">
-              <span>Danh mục Hàng hóa (Truy vấn kết hợp MySQL & MongoDB)</span>
-              <span class="text-muted fw-normal small" id="polyglot-route-info"
+              <span>Danh mục Hàng hóa <span class="tech-detail text-muted small ms-1">(Truy vấn kết hợp MySQL & MongoDB)</span></span>
+              <span class="text-muted fw-normal small tech-detail" id="polyglot-route-info"
                 >Đang tải...</span
               >
             </div>
@@ -639,11 +698,10 @@
               <div class="panel-box">
                 <div class="panel-header flex-wrap gap-2">
                   <span
-                    >Nhận xét & Hình ảnh thực tế từ Khách hàng (Lưu trữ trên
-                    MongoDB Replica Set)</span
+                    >Nhận xét & Hình ảnh thực tế từ Khách hàng <span class="tech-detail text-muted small ms-1">(Lưu trữ trên MongoDB Replica Set)</span></span
                   >
                   <span
-                    class="small text-muted fw-normal"
+                    class="small text-muted fw-normal tech-detail"
                     id="reviews-node-info"
                     >Đang tải...</span
                   >
@@ -745,8 +803,8 @@
             <div class="col-lg-4">
               <div class="panel-box">
                 <div class="panel-header">
-                  <span>Gửi Đánh giá Sản phẩm (MongoDB Document)</span>
-                  <span class="label-tag tag-secondary">ecommerce_nosql</span>
+                  <span>Gửi Đánh giá Sản phẩm <span class="tech-detail text-muted small ms-1">(MongoDB Document)</span></span>
+                  <span class="label-tag tag-secondary tech-detail">ecommerce_nosql</span>
                 </div>
                 <div class="panel-body">
                   <div class="row g-2 mb-2">
@@ -821,10 +879,9 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               <div class="panel-box">
                 <div class="panel-header flex-wrap gap-2">
                   <span
-                    >Danh sách Đơn hàng & Giao dịch Thanh toán mới nhất (Truy
-                    vấn JOIN 5 bảng trên MySQL)</span
+                    >Danh sách Đơn hàng & Giao dịch mới nhất <span class="tech-detail text-muted small ms-1">(Truy vấn JOIN 5 bảng MySQL)</span></span
                   >
-                  <span class="small text-muted fw-normal" id="orders-node-info"
+                  <span class="small text-muted fw-normal tech-detail" id="orders-node-info"
                     >Đang tải...</span
                   >
                 </div>
@@ -853,24 +910,24 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         <option value="ALL">-- Tất cả đơn hàng --</option>
                         <optgroup label="Theo Khu vực giao hàng">
                           <option value="REGION:MIEN_NAM">
-                            Khu vực: Miền Nam (MIEN_NAM)
+                            Khu vực: Miền Nam
                           </option>
                           <option value="REGION:MIEN_TRUNG">
-                            Khu vực: Miền Trung (MIEN_TRUNG)
+                            Khu vực: Miền Trung
                           </option>
                           <option value="REGION:MIEN_BAC">
-                            Khu vực: Miền Bắc (MIEN_BAC)
+                            Khu vực: Miền Bắc
                           </option>
                         </optgroup>
                         <optgroup label="Theo Phương thức thanh toán">
                           <option value="PAY:E-WALLET">
-                            Thanh toán: Ví điện tử (E-WALLET)
+                            Thanh toán: Ví điện tử
                           </option>
                           <option value="PAY:BANK_TRANSFER">
-                            Thanh toán: Chuyển khoản (BANK_TRANSFER)
+                            Thanh toán: Chuyển khoản
                           </option>
                           <option value="PAY:CREDIT_CARD">
-                            Thanh toán: Thẻ tín dụng (CREDIT_CARD)
+                            Thanh toán: Thẻ tín dụng
                           </option>
                           <option value="PAY:COD">
                             Thanh toán: Tiền mặt (COD)
@@ -878,10 +935,10 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         </optgroup>
                         <optgroup label="Theo Trạng thái đơn hàng">
                           <option value="STATUS:COMPLETED">
-                            Trạng thái: Hoàn tất (COMPLETED)
+                            Trạng thái: Hoàn tất
                           </option>
                           <option value="STATUS:CANCELLED">
-                            Trạng thái: Đã hủy (CANCELLED)
+                            Trạng thái: Đã hủy
                           </option>
                         </optgroup>
                       </select>
@@ -980,8 +1037,8 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             <div class="col-lg-4">
               <div class="panel-box">
                 <div class="panel-header">
-                  <span>Lập Phiếu Đặt Hàng (Giao dịch MySQL)</span>
-                  <span class="label-tag tag-primary">Ghi vào Primary</span>
+                  <span>Lập Phiếu Đặt Hàng <span class="tech-detail text-muted small ms-1">(Giao dịch MySQL)</span></span>
+                  <span class="label-tag tag-primary tech-detail">Ghi vào Primary</span>
                 </div>
                 <div class="panel-body">
                   <div class="mb-2">
@@ -1000,7 +1057,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                   <div class="mb-2">
                     <label
                       class="form-label d-flex justify-content-between align-items-center">
-                      <span>Khách hàng (Dữ liệu từ bảng users)</span>
+                      <span>Khách hàng <span class="tech-detail text-muted small ms-1">(Bảng users)</span></span>
                       <span
                         class="text-muted fw-normal small"
                         id="order-user-count-label"></span>
@@ -1282,8 +1339,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           <div class="panel-box">
             <div class="panel-header">
               <span
-                >Thực nghiệm So sánh Thời gian Thực thi: Truy vấn Cục bộ vs Truy
-                vấn Phân tán & Đa mô hình</span
+                >Thực nghiệm So sánh Thời gian Thực thi <span class="tech-detail text-muted small ms-1">(Truy vấn Cục bộ vs Phân tán & Đa mô hình)</span></span
               >
               <div class="d-flex align-items-center gap-2">
                 <label class="small fw-normal mb-0">Số vòng lặp đo:</label>
@@ -1341,6 +1397,28 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                 <div class="col-lg-5">
                   <div class="border p-2 bg-white rounded-1">
                     <canvas id="benchmarkChart" height="190"></canvas>
+                  </div>
+                </div>
+              </div>
+
+              <!-- THẺ THÔNG TIN TỔNG QUAN PHƯƠNG PHÁP ĐO VÀ KIẾN TRÚC -->
+              <div class="row g-3 mt-1">
+                <div class="col-md-4">
+                  <div class="p-3 bg-light border rounded h-100">
+                    <div class="fw-bold text-primary mb-1">⚡ Truy vấn Cục bộ (Local)</div>
+                    <div class="small text-secondary">Thực thi trực tiếp trên Node cục bộ, không phát sinh chi phí mạng LAN. Phù hợp làm thước đo đường cơ sở (Baseline).</div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="p-3 bg-light border rounded h-100">
+                    <div class="fw-bold text-success mb-1">🔄 Phân tán MySQL GR (LAN)</div>
+                    <div class="small text-secondary">Phân tải truy vấn đọc sang các Node Secondary qua Read Routing, tối ưu năng lực phục vụ đồng thời.</div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="p-3 bg-light border rounded h-100">
+                    <div class="fw-bold text-info mb-1">📑 Đa mô hình Polyglot Persistence</div>
+                    <div class="small text-secondary">Kết hợp JOIN dữ liệu có cấu trúc trên MySQL và Document bán cấu trúc trên MongoDB Replica Set song song.</div>
                   </div>
                 </div>
               </div>
@@ -1613,6 +1691,79 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         return Number(v || 0).toLocaleString("vi-VN") + " đ";
       }
 
+      function mapShippingRegion(r) {
+        if (!r) return "-";
+        const map = {
+          MIEN_NAM: "Miền Nam",
+          MIEN_TRUNG: "Miền Trung",
+          MIEN_BAC: "Miền Bắc",
+        };
+        return map[r] || r;
+      }
+
+      function mapPaymentMethod(p) {
+        if (!p) return "-";
+        const map = {
+          "E-WALLET": "Ví điện tử",
+          "E_WALLET": "Ví điện tử",
+          "COD": "Tiền mặt (COD)",
+          "BANK_TRANSFER": "Chuyển khoản",
+          "CREDIT_CARD": "Thẻ tín dụng",
+        };
+        return map[p] || p;
+      }
+
+      function mapOrderStatus(s) {
+        if (!s) return "Hoàn tất";
+        const map = {
+          COMPLETED: "Hoàn tất",
+          PENDING: "Chờ xử lý",
+          PROCESSING: "Đang giao",
+          CANCELLED: "Đã hủy",
+          FAILED: "Thất bại",
+        };
+        return map[s] || s;
+      }
+
+      // CHẾ ĐỘ KỸ THUẬT (BẬT KHI DEMO THẦY CÔ / TẮT MẶC ĐỊNH CHO GIAO DIỆN SẢN PHẨM)
+      function toggleTechMode(isTech) {
+        const sw = document.getElementById("techModeSwitch");
+        if (sw) sw.checked = isTech;
+        const detailBox = document.getElementById("detailedStatusBox");
+        const detailBtn = document.getElementById("btn-toggle-cluster-detail");
+
+        if (isTech) {
+          document.body.classList.add("tech-mode-active");
+          localStorage.setItem("ecom_tech_mode", "1");
+          if (detailBox) detailBox.classList.add("show");
+          if (detailBtn) detailBtn.innerHTML = "Chi tiết cụm &#9652;";
+        } else {
+          document.body.classList.remove("tech-mode-active");
+          localStorage.setItem("ecom_tech_mode", "0");
+          if (detailBox) detailBox.classList.remove("show");
+          if (detailBtn) detailBtn.innerHTML = "Chi tiết cụm &#9662;";
+        }
+      }
+
+      function initTechMode() {
+        const savedMode = localStorage.getItem("ecom_tech_mode");
+        const isTech = savedMode === "1";
+        const sw = document.getElementById("techModeSwitch");
+        if (sw) sw.checked = isTech;
+        toggleTechMode(isTech);
+
+        const detailBox = document.getElementById("detailedStatusBox");
+        const detailBtn = document.getElementById("btn-toggle-cluster-detail");
+        if (detailBox && detailBtn) {
+          detailBox.addEventListener("shown.bs.collapse", function () {
+            detailBtn.innerHTML = "Chi tiết cụm &#9652;";
+          });
+          detailBox.addEventListener("hidden.bs.collapse", function () {
+            detailBtn.innerHTML = "Chi tiết cụm &#9662;";
+          });
+        }
+      }
+
       // 1. TẢI TRẠNG THÁI CỤM SERVER
       async function fetchClusterStatus() {
         try {
@@ -1620,10 +1771,15 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             cache: "no-store",
           });
           const data = await res.json();
-          document.getElementById("last-updated-time").innerText =
-            data.timestamp || "";
+          const timestampStr = data.timestamp || "";
+          if (document.getElementById("last-updated-time")) {
+            document.getElementById("last-updated-time").innerText = timestampStr;
+          }
+          if (document.getElementById("bar-last-updated-time")) {
+            document.getElementById("bar-last-updated-time").innerText = timestampStr;
+          }
 
-          // Tóm tắt trên thanh status strip (mỗi node 1 hàng riêng biệt dễ nhìn)
+          // Tóm tắt trên khung chi tiết 3 cột (Hình 2 - Chế độ kỹ thuật)
           const mysqlSummary = data.mysql
             .map((n, idx) => {
               const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
@@ -1666,10 +1822,48 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             (dc.order_items || 0) +
             (dc.payments || 0);
           const totalMongo = (dc.reviews || 0) + (dc.logs || 0);
-          document.getElementById("summary-sql-rows").innerText =
-            totalSql.toLocaleString("vi-VN");
-          document.getElementById("summary-mongo-docs").innerText =
-            totalMongo.toLocaleString("vi-VN");
+          const sqlFmt = totalSql.toLocaleString("vi-VN");
+          const mongoFmt = totalMongo.toLocaleString("vi-VN");
+
+          document.getElementById("summary-sql-rows").innerText = sqlFmt;
+          document.getElementById("summary-mongo-docs").innerText = mongoFmt;
+
+          // Tóm tắt trên thanh gọn 1 dòng (Hình 1 - Chế độ bình thường)
+          const mysqlTotal = (data.mysql || []).length;
+          const mysqlOnline = (data.mysql || []).filter(
+            (n) => n.state && n.state.indexOf("ONLINE") !== -1,
+          ).length;
+          const mysqlPrim = (data.mysql || []).find((n) => n.role === "PRIMARY");
+          const mysqlPrimName = mysqlPrim ? mysqlPrim.node_name : "Chưa có";
+          const mysqlDot =
+            mysqlOnline === mysqlTotal ? "🟢" : mysqlOnline > 0 ? "🟡" : "🔴";
+
+          const mongoTotal = (data.mongodb || []).length;
+          const mongoOnline = (data.mongodb || []).filter(
+            (n) =>
+              n.health === 1 &&
+              n.state !== "OFFLINE" &&
+              n.state.indexOf("not reachable") === -1,
+          ).length;
+          const mongoPrim = (data.mongodb || []).find((n) => n.state === "PRIMARY");
+          const mongoPrimName = mongoPrim ? mongoPrim.node_name : "Chưa có";
+          const mongoDot =
+            mongoOnline === mongoTotal ? "🟢" : mongoOnline > 0 ? "🟡" : "🔴";
+
+          const barMysqlEl = document.getElementById("bar-mysql-summary");
+          if (barMysqlEl) {
+            barMysqlEl.innerHTML = `${mysqlDot} MySQL: <strong>${mysqlOnline}/${mysqlTotal} node</strong> &middot; Node chính: <strong class="text-primary">${mysqlPrimName}</strong>`;
+          }
+
+          const barMongoEl = document.getElementById("bar-mongo-summary");
+          if (barMongoEl) {
+            barMongoEl.innerHTML = `${mongoDot} MongoDB: <strong>${mongoOnline}/${mongoTotal} node</strong> &middot; Node chính: <strong class="text-primary">${mongoPrimName}</strong>`;
+          }
+
+          const barDataEl = document.getElementById("bar-data-summary");
+          if (barDataEl) {
+            barDataEl.innerHTML = `Dữ liệu: <strong>${sqlFmt} dòng MySQL &bull; ${mongoFmt} docs MongoDB</strong>`;
+          }
 
           // Bảng chi tiết MySQL ở Tab 3
           document.getElementById("cluster-mysql-table").innerHTML = data.mysql
@@ -1986,7 +2180,8 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             } else if (l.status === "PARTIAL") {
               statusHtml = `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-medium" title="Đã nhân bản tới các node trực tuyến, node ngoại tuyến đang chờ bù"><i class="bi bi-arrow-repeat me-1"></i>${l.status_text || "Đồng bộ một phần"}</span>`;
             } else {
-              statusHtml = `<span class="badge bg-success-subtle text-success border border-success-subtle fw-medium" title="Tất cả các node Replicas đã nhận dữ liệu"><i class="bi bi-check-circle me-1"></i>${l.status_text || "Đã đồng bộ"}</span>`;
+              const cleanSt = l.status_text === "REPLICATED_OK" ? "Đã đồng bộ" : (l.status_text || "Đã đồng bộ");
+              statusHtml = `<span class="badge bg-success-subtle text-success border border-success-subtle fw-medium" title="Tất cả các node Replicas đã nhận dữ liệu"><i class="bi bi-check-circle me-1"></i>${cleanSt}</span>`;
             }
 
             const detailId = `detail-${prefix}-${itemNum}-${l.log_id}`;
@@ -2737,16 +2932,16 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       // TẢI ĐẦY ĐỦ 2.000 SẢN PHẨM TỪ MYSQL ĐỂ ĐƯA VÀO CÁC COMBOBOX ĐẶT HÀNG & ĐÁNH GIÁ
       async function loadProductOptions() {
         initSearchableCombo("order-product-id", {
-          placeholder: "Gõ mã #ID, SKU, tên sản phẩm, hãng để lọc...",
+          placeholder: "Gõ ID, SKU, tên sản phẩm, hãng để lọc...",
           unitLabel: "sản phẩm",
           onSelect: () => updateOrderTotalPreview(),
         });
         initSearchableCombo("review-product-id", {
-          placeholder: "Gõ mã #ID, SKU, tên sản phẩm để lọc...",
+          placeholder: "Gõ ID, SKU, tên sản phẩm để lọc...",
           unitLabel: "sản phẩm",
         });
         initSearchableCombo("view-review-product-select", {
-          placeholder: "Gõ mã #ID, SKU, tên sản phẩm cần xem đánh giá...",
+          placeholder: "Gõ ID, SKU, tên sản phẩm cần xem đánh giá...",
           unitLabel: "sản phẩm",
           onSelect: (val) => onChangeReviewProductSelect(val),
         });
@@ -2767,10 +2962,10 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           }
 
           const comboItems = products.map((p) => {
-            const label = `#${p.product_id} - ${p.product_name} (${fmtMoney(p.price)} | Tồn: ${p.stock_quantity})`;
+            const label = `${p.product_id} - ${p.product_name} (${fmtMoney(p.price)} | Tồn: ${p.stock_quantity})`;
             const html = `
               <div class="d-flex justify-content-between align-items-center">
-                <span><strong>#${p.product_id}</strong> [${p.sku}] - ${p.product_name}</span>
+                <span><strong>${p.product_id}</strong> [${p.sku}] - ${p.product_name}</span>
                 <span class="text-muted small ms-2 text-nowrap">${fmtMoney(p.price)} | Tồn: ${p.stock_quantity}</span>
               </div>
             `;
@@ -2916,7 +3111,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             cachedProducts.find((x) => x.product_id === currentReviewProductId);
           const pName = pObj
             ? `${pObj.sku} - ${pObj.product_name}`
-            : `Sản phẩm #${currentReviewProductId}`;
+            : `Sản phẩm ${currentReviewProductId}`;
           const nodeInfoEl = document.getElementById("reviews-node-info");
           if (nodeInfoEl) {
             nodeInfoEl.innerHTML = `MongoDB: <strong>${data.mongo_node || "N/A"}</strong> (${data.mongo_role || "PRIMARY"}) [${data.latency_ms || 0} ms]`;
@@ -2947,7 +3142,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               <div>
                 <span class="label-tag tag-primary me-1">${r.rating} / 5 sao</span>
                 <strong>${r.title || "Nhận xét khách hàng"}</strong>
-                <span class="text-muted small ms-1">(Khách hàng #${r.user_id || 1})</span>
+                <span class="text-muted small ms-1">(Khách hàng ${r.user_id || 1})</span>
               </div>
               <div class="mt-1">${r.comment || ""}</div>
               <div class="text-muted small mt-1">
@@ -3035,7 +3230,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       // 3. TẢI ĐẦY ĐỦ 10.000 KHÁCH HÀNG TỪ BẢNG USERS VÀO COMBOBOX CÓ FILTER
       async function loadUsersList() {
         initSearchableCombo("order-user-id", {
-          placeholder: "Gõ mã #ID, họ tên, SĐT, tỉnh/thành phố để lọc KH...",
+          placeholder: "Gõ ID, họ tên, SĐT, tỉnh/thành phố để lọc KH...",
           unitLabel: "khách hàng",
         });
         try {
@@ -3049,10 +3244,10 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           }
 
           const userItems = users.map((u) => {
-            const label = `#${u.user_id} - ${u.full_name} (${u.city} - ${u.phone})`;
+            const label = `${u.user_id} - ${u.full_name} (${u.city} - ${u.phone})`;
             const html = `
               <div class="d-flex justify-content-between align-items-center">
-                <span><strong>#${u.user_id}</strong> - ${u.full_name}</span>
+                <span><strong>${u.user_id}</strong> - ${u.full_name}</span>
                 <span class="text-muted small ms-2 text-nowrap">${u.city} | ${u.phone}</span>
               </div>
             `;
@@ -3097,7 +3292,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           if (res.ok) {
             fb.innerHTML = `
             <div class="alert alert-success py-2 px-3 mb-0 small">
-              <strong>Đặt hàng thành công!</strong> Mã đơn: <strong>#${data.order_id}</strong><br/>
+              <strong>Đặt hàng thành công!</strong> Mã đơn: <strong>${data.order_id}</strong><br/>
               Tổng thanh toán: <strong>${fmtMoney(data.total)}</strong><br/>
               Xử lý tại Node: <code>${data.executed_on_node.host}</code> (${data.latency_ms} ms)
             </div>
@@ -3218,15 +3413,15 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               const stTag = st === "CANCELLED" ? "tag-offline" : "tag-online";
               return `
           <tr>
-            <td class="text-nowrap"><span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace fw-bold px-2 py-1">#${o.order_id}</span></td>
-            <td>${o.full_name || "Khách #" + o.user_id}</td>
+            <td class="text-nowrap"><span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace fw-bold px-2 py-1">${o.order_id}</span></td>
+            <td>${o.full_name || "Khách " + o.user_id}</td>
             <td>${o.city || "-"}</td>
-            <td>${o.product_name || "SP #" + o.product_id}</td>
+            <td>${o.product_name || "SP " + o.product_id}</td>
             <td class="text-center">${o.quantity || 1}</td>
             <td class="text-end fw-semibold">${fmtMoney(o.total_amount)}</td>
-            <td class="text-center"><span class="label-tag tag-secondary">${o.payment_method || "E-WALLET"}</span></td>
-            <td class="text-center">${o.shipping_region || "MIEN_NAM"}</td>
-            <td class="text-center"><span class="label-tag ${stTag}">${st}</span></td>
+            <td class="text-center"><span class="label-tag tag-secondary">${mapPaymentMethod(o.payment_method)}</span></td>
+            <td class="text-center">${mapShippingRegion(o.shipping_region)}</td>
+            <td class="text-center"><span class="label-tag ${stTag}">${mapOrderStatus(st)}</span></td>
             <td class="mono-text text-muted">${o.created_at}</td>
           </tr>
         `;
@@ -3554,6 +3749,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       }
 
       window.addEventListener("DOMContentLoaded", () => {
+        initTechMode();
         loadClusterConfig();
         const configModalEl = document.getElementById("configModal");
         if (configModalEl) {
@@ -3563,5 +3759,13 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         updateClusterSyncTimer(2);
       });
     </script>
+
+    <!-- FOOTER HỌC PHẦN / NHÓM THỰC HIỆN -->
+    <footer class="text-center py-3 text-muted small border-top mt-4 bg-white">
+      <div class="container-fluid">
+        <div>Học phần: <strong>Cơ sở dữ liệu nâng cao (CTH612)</strong> &bull; Đề tài 2 &bull; Nhóm thực hiện: <strong>Nhóm 2</strong></div>
+        <div class="mt-1 text-secondary" style="font-size: 11.5px;">Kiến trúc phân tán: MySQL 8.0 Group Replication (Single-Primary) + MongoDB 7.0 Replica Set</div>
+      </div>
+    </footer>
   </body>
 </html>
