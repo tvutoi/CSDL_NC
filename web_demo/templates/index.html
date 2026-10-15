@@ -1269,7 +1269,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         autocomplete="off"
                         onclick="showProductSuggestions()"
                         onfocus="showProductSuggestions()"
-                        oninput="filterProductSuggestions(this.value)"
+                        oninput="handleProductSearchInput(this.value)"
                         style="height: 38px;" />
                       <button class="btn btn-outline-secondary" type="button" onclick="clearProductSearch()" title="Xóa chọn">&#x2715;</button>
                     </div>
@@ -1293,7 +1293,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         autocomplete="off"
                         onclick="showUserSuggestions()"
                         onfocus="showUserSuggestions()"
-                        oninput="filterUserSuggestions(this.value)"
+                        oninput="handleUserSearchInput(this.value)"
                         style="height: 38px;" />
                       <button class="btn btn-outline-secondary" type="button" onclick="clearUserSearch()" title="Xóa chọn">&#x2715;</button>
                     </div>
@@ -2223,12 +2223,35 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           idInput.value = p.product_id;
           idInput.setAttribute("data-price", p.price);
         }
+        const stockHint = document.getElementById("order-product-stock-hint");
+        if (stockHint) {
+          stockHint.style.removeProperty("display");
+          stockHint.style.display = "flex";
+        }
         const stockEl = document.getElementById("order-product-stock-qty");
         if (stockEl) stockEl.innerText = p.stock_quantity ?? 0;
         const priceBadge = document.getElementById("order-product-price-badge");
         if (priceBadge) priceBadge.innerText = fmtMoney(p.price);
         if (drop) drop.style.display = "none";
         updateOrderTotalPreview();
+      }
+
+      function handleProductSearchInput(val) {
+        if (!val || !val.trim()) {
+          const idInput = document.getElementById("order-product-id");
+          if (idInput) {
+            idInput.value = "";
+            idInput.setAttribute("data-price", "0");
+          }
+          const stockHint = document.getElementById("order-product-stock-hint");
+          if (stockHint) stockHint.style.display = "none";
+          const stockEl = document.getElementById("order-product-stock-qty");
+          if (stockEl) stockEl.innerText = "0";
+          const priceBadge = document.getElementById("order-product-price-badge");
+          if (priceBadge) priceBadge.innerText = "0 đ";
+          updateOrderTotalPreview();
+        }
+        filterProductSuggestions(val);
       }
 
       function clearProductSearch() {
@@ -2242,6 +2265,14 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           idInput.value = "";
           idInput.setAttribute("data-price", "0");
         }
+        const stockHint = document.getElementById("order-product-stock-hint");
+        if (stockHint) {
+          stockHint.style.display = "none";
+        }
+        const stockEl = document.getElementById("order-product-stock-qty");
+        if (stockEl) stockEl.innerText = "0";
+        const priceBadge = document.getElementById("order-product-price-badge");
+        if (priceBadge) priceBadge.innerText = "0 đ";
         updateOrderTotalPreview();
         showProductSuggestions();
       }
@@ -2250,6 +2281,25 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         filterUserSuggestions("");
         const drop = document.getElementById("order-user-suggestions");
         if (drop) drop.style.display = "block";
+      }
+
+      function handleUserSearchInput(val) {
+        if (!val || !val.trim()) {
+          const idInput = document.getElementById("order-user-id");
+          if (idInput) idInput.value = "";
+        }
+        filterUserSuggestions(val);
+      }
+
+      function clearUserSearch() {
+        const searchInput = document.getElementById("order-user-search");
+        const idInput = document.getElementById("order-user-id");
+        if (searchInput) {
+          searchInput.value = "";
+          searchInput.focus();
+        }
+        if (idInput) idInput.value = "";
+        showUserSuggestions();
       }
 
       function filterUserSuggestions(val) {
@@ -2298,17 +2348,6 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         if (searchInput) searchInput.value = `${u.full_name} (${u.city || "-"} - ${u.phone || ""})`;
         if (idInput) idInput.value = u.user_id;
         if (drop) drop.style.display = "none";
-      }
-
-      function clearUserSearch() {
-        const searchInput = document.getElementById("order-user-search");
-        const idInput = document.getElementById("order-user-id");
-        if (searchInput) {
-          searchInput.value = "";
-          searchInput.focus();
-        }
-        if (idInput) idInput.value = "";
-        showUserSuggestions();
       }
 
       function changeOrderQty(delta) {
