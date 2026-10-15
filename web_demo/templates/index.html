@@ -34,36 +34,39 @@
         color: #cfe2f3;
       }
       .nav-bar-sub {
-        background-color: #ffffff;
-        border: 1px solid #cbd5e1;
-        border-radius: 6px;
-        padding: 6px 8px;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+        background-color: transparent;
+        border-bottom: 2px solid #e2e8f0;
+        border-radius: 0;
+        padding: 0;
+        box-shadow: none;
       }
       .nav-tabs-custom {
         border-bottom: none;
         display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        width: 100%;
+        flex-wrap: nowrap;
+        gap: 8px;
+        width: auto;
+        justify-content: flex-start;
       }
       .nav-tabs-custom .nav-item {
-        flex: 1 1 auto;
+        flex: 0 0 auto;
       }
       .nav-tabs-custom .nav-link {
-        width: 100%;
-        text-align: center;
-        color: #334155;
-        font-weight: 600;
+        width: auto;
+        text-align: left;
+        color: #64748b;
+        font-weight: 500;
         font-size: 13.5px;
-        padding: 9px 16px;
-        border: 1px solid transparent;
-        border-radius: 5px;
+        padding: 10px 18px;
+        border: none;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        margin-bottom: -2px;
         transition: all 0.15s ease-in-out;
         display: inline-flex;
         align-items: center;
-        justify-content: center;
         gap: 8px;
+        background: transparent;
       }
       .nav-tabs-custom .nav-link .tab-step {
         display: inline-flex;
@@ -72,30 +75,31 @@
         width: 22px;
         height: 22px;
         border-radius: 50%;
-        background-color: #e2e8f0;
-        color: #334155;
-        font-size: 12px;
+        background-color: #f1f5f9;
+        color: #64748b;
+        font-size: 11.5px;
         font-weight: 700;
         transition: all 0.15s ease-in-out;
       }
       .nav-tabs-custom .nav-link:hover {
-        background-color: #f1f5f9;
+        background-color: transparent;
         color: #004b87;
-        border-color: #cbd5e1;
+        border-bottom-color: #cbd5e1;
       }
       .nav-tabs-custom .nav-link:hover .tab-step {
-        background-color: #dbeafe;
+        background-color: #e2e8f0;
         color: #004b87;
       }
       .nav-tabs-custom .nav-link.active {
-        color: #ffffff;
-        background: linear-gradient(135deg, #004b87 0%, #0369a1 100%);
-        border-color: #003b6b;
-        box-shadow: 0 2px 5px rgba(0, 75, 135, 0.25);
+        color: #004b87;
+        font-weight: 700;
+        background: transparent;
+        border-bottom: 2px solid #004b87;
+        box-shadow: none;
       }
       .nav-tabs-custom .nav-link.active .tab-step {
-        background-color: rgba(255, 255, 255, 0.22);
-        color: #ffffff;
+        background-color: #e0f2fe;
+        color: #0284c7;
       }
       .panel-box {
         background-color: #ffffff;
@@ -138,14 +142,41 @@
       }
       .table-custom {
         margin-bottom: 0;
-        font-size: 13px;
+        font-size: 13.5px;
       }
       .table-custom thead th {
-        background-color: #eef2f6;
-        color: #1e293b;
+        background-color: #f8fafc;
+        color: #334155;
         font-weight: 600;
+        font-size: 13px;
+        padding-top: 10px;
+        padding-bottom: 10px;
         border-bottom: 1px solid #cbd5e1;
         white-space: nowrap;
+      }
+      /* Bỏ đường kẻ dọc, chỉ giữ đường ngang mảnh cho bảng danh sách đơn hàng */
+      #tab-orders .table-custom {
+        border-collapse: separate;
+        border-spacing: 0;
+        border: none;
+      }
+      #tab-orders .table-custom th,
+      #tab-orders .table-custom td {
+        border-left: none !important;
+        border-right: none !important;
+        border-bottom: 1px solid #f1f5f9;
+        padding-top: 10px;
+        padding-bottom: 10px;
+      }
+      #tab-orders .table-custom thead th {
+        border-bottom: 2px solid #e2e8f0;
+      }
+      #tab-orders .table-custom tbody tr {
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+      }
+      #tab-orders .table-custom tbody tr:hover td {
+        background-color: #f8fafc;
       }
       .status-dot {
         display: inline-block;
@@ -577,9 +608,9 @@
         transition: all 0.15s ease-in-out;
       }
       .sync-badge-info {
-        background-color: #e0f2fe;
-        border: 1px solid #7dd3fc;
-        color: #0369a1;
+        background-color: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        color: #475569;
       }
       .sync-badge-error {
         background-color: #fee2e2;
@@ -595,13 +626,14 @@
       .site-footer {
         background-color: #ffffff;
         border-top: 1px solid #e2e8f0;
-        padding: 8px 16px 10px 16px;
-        font-size: 12px;
-        line-height: 1.45;
+        padding: 9px 16px 12px 16px;
+        font-size: 12.5px;
+        line-height: 1.5;
         color: #64748b;
+        flex-shrink: 0;
       }
       .site-footer .footer-line-sub {
-        font-size: 11px;
+        font-size: 11.5px;
         color: #94a3b8;
         margin-top: 2px;
       }
@@ -672,49 +704,45 @@
     <div class="container-fluid px-4 mt-3 main-content-wrapper">
       <!-- THANH TRẠNG THÁI GỌN (CHẾ ĐỘ BÌNH THƯỜNG - HÌNH 1) -->
       <div id="compactStatusBar" class="d-flex flex-wrap justify-content-between align-items-center py-2 px-3 bg-white border rounded mb-3 shadow-sm" style="font-size: 13px;">
-        <div class="d-flex flex-wrap align-items-center gap-2">
-          <span id="bar-mysql-summary"><span class="status-dot dot-online"></span>MySQL: <strong>--/-- node</strong> &middot; Node chính: <strong class="text-primary">--</strong></span>
-          <span class="text-muted mx-1">|</span>
-          <span id="bar-mongo-summary"><span class="status-dot dot-online"></span>MongoDB: <strong>--/-- node</strong> &middot; Node chính: <strong class="text-primary">--</strong></span>
-          <span class="text-muted mx-1">|</span>
-          <span id="bar-data-summary" class="text-secondary">Dữ liệu: <strong>-- dòng MySQL &bull; -- docs MongoDB</strong></span>
+        <div class="d-flex flex-wrap align-items-center gap-3">
+          <span id="bar-mysql-summary"><span class="status-dot dot-online"></span>MySQL: <strong>--/-- node</strong></span>
+          <span class="text-muted">&middot;</span>
+          <span id="bar-mongo-summary"><span class="status-dot dot-online"></span>MongoDB: <strong>--/-- node</strong></span>
+          <span class="text-muted">&middot;</span>
+          <span id="bar-data-summary" class="text-secondary"><strong>-- dòng MySQL &middot; -- tài liệu MongoDB</strong></span>
         </div>
         <div class="d-flex align-items-center gap-2">
           <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" onclick="toggleTechMode(true)" style="font-size: 12px;">Xem chi tiết cụm &#9662;</button>
         </div>
       </div>
 
-      <!-- KHUNG CHI TIẾT TRẠNG THÁI 3 CỘT (CHẾ ĐỘ KỸ THUẬT - HÌNH 2) -->
+      <!-- KHUNG CHI TIẾT TRẠNG THÁI (CHẾ ĐỘ KỸ THUẬT - HÌNH 2) -->
       <div id="detailedStatusBox" class="status-strip mb-3" style="display: none;">
         <div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom">
-          <div class="fw-bold text-navy small text-uppercase" style="letter-spacing: 0.3px;">
-            <i class="bi bi-diagram-3-fill me-1 text-primary"></i>Chi tiết kiến trúc phân tán & trạng thái từng node máy chủ
+          <div class="fw-bold text-navy" style="font-size: 13.5px;">
+            <i class="bi bi-hdd-network-fill me-1 text-primary"></i>Trạng thái cụm máy chủ
           </div>
-          <button class="btn btn-sm btn-link text-secondary text-decoration-none py-0 px-1 small" onclick="toggleTechMode(false)" title="Thu gọn">
-            Thu gọn &#9652;
-          </button>
+          <div class="d-flex align-items-center gap-3">
+            <div class="text-secondary small">
+              Quy mô dữ liệu: <strong class="text-dark" id="summary-sql-rows">0</strong> dòng MySQL &middot; <strong class="text-dark" id="summary-mongo-docs">0</strong> tài liệu MongoDB
+            </div>
+            <button class="btn btn-sm btn-link text-secondary text-decoration-none py-0 px-1 small" onclick="toggleTechMode(false)" title="Thu gọn">
+              Thu gọn &#9652;
+            </button>
+          </div>
         </div>
-        <div class="row g-3 align-items-start">
-          <div class="col-md-5 border-end">
-            <div class="fw-bold text-secondary mb-1">
-              Cụm MySQL Group Replication (Cổng 3306 / Paxos 33061):
+        <div class="row g-4 align-items-start">
+          <div class="col-md-6 border-end pe-md-4">
+            <div class="fw-bold text-secondary mb-2 small text-uppercase" style="letter-spacing: 0.3px;">
+              Cụm MySQL Group Replication
             </div>
             <div id="summary-mysql-nodes" class="ps-1">Đang kiểm tra...</div>
           </div>
-          <div class="col-md-5 border-end">
-            <div class="fw-bold text-secondary mb-1">
-              Cụm MongoDB Replica Set (Cổng 27017 - Oplog Streaming):
+          <div class="col-md-6 ps-md-4">
+            <div class="fw-bold text-secondary mb-2 small text-uppercase" style="letter-spacing: 0.3px;">
+              Cụm MongoDB Replica Set
             </div>
             <div id="summary-mongo-nodes" class="ps-1">Đang kiểm tra...</div>
-          </div>
-          <div class="col-md-2">
-            <div class="fw-bold text-secondary mb-1">Quy mô dữ liệu:</div>
-            <div class="mb-1">
-              MySQL: <strong id="summary-sql-rows">0</strong> dòng
-            </div>
-            <div class="mb-2">
-              MongoDB: <strong id="summary-mongo-docs">0</strong> docs
-            </div>
           </div>
         </div>
       </div>
@@ -1105,27 +1133,34 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                 <div class="panel-body">
                   <!-- Bộ lọc tìm kiếm Đơn hàng tách biệt -->
                   <div class="row g-2 mb-3 align-items-end">
-                    <div class="col-md-3">
-                      <label class="form-label">Tìm kiếm</label>
-                      <input
-                        type="text"
-                        id="orders-filter-keyword"
-                        class="form-control"
-                        placeholder="Mã ĐH, tên KH, sản phẩm..."
-                        onkeydown="if (event.key === 'Enter') loadRecentOrders(1);" />
+                    <div class="col-md-4">
+                      <label class="form-label">Tìm kiếm đơn hàng</label>
+                      <div class="input-group">
+                        <input
+                          type="text"
+                          id="orders-filter-keyword"
+                          class="form-control"
+                          placeholder="Mã ĐH, tên KH, tỉnh/TP, sản phẩm..."
+                          oninput="debounceOrderSearch()"
+                          onkeydown="if (event.key === 'Enter') loadRecentOrders(1);"
+                          style="height: 38px;" />
+                        <button class="btn btn-outline-secondary" type="button" onclick="resetOrdersFilter()" title="Đặt lại bộ lọc" style="height: 38px;">
+                          &#x21bb; Đặt lại
+                        </button>
+                      </div>
                     </div>
                     <div class="col-md-2">
                       <label class="form-label">Khu vực</label>
-                      <select id="orders-filter-region" class="form-select" onchange="loadRecentOrders(1)">
+                      <select id="orders-filter-region" class="form-select" onchange="loadRecentOrders(1)" style="height: 38px;">
                         <option value="ALL">Tất cả khu vực</option>
                         <option value="MIEN_BAC">Miền Bắc</option>
                         <option value="MIEN_TRUNG">Miền Trung</option>
                         <option value="MIEN_NAM">Miền Nam</option>
                       </select>
                     </div>
-                    <div class="col-md-2">
-                      <label class="form-label">Phương thức TT</label>
-                      <select id="orders-filter-payment" class="form-select" onchange="loadRecentOrders(1)">
+                    <div class="col-md-3">
+                      <label class="form-label">Phương thức thanh toán</label>
+                      <select id="orders-filter-payment" class="form-select" onchange="loadRecentOrders(1)" style="height: 38px;">
                         <option value="ALL">Tất cả phương thức</option>
                         <option value="COD">Tiền mặt (COD)</option>
                         <option value="E-WALLET">Ví điện tử</option>
@@ -1133,9 +1168,9 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         <option value="CREDIT_CARD">Thẻ tín dụng</option>
                       </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                       <label class="form-label">Trạng thái</label>
-                      <select id="orders-filter-status" class="form-select" onchange="loadRecentOrders(1)">
+                      <select id="orders-filter-status" class="form-select" onchange="loadRecentOrders(1)" style="height: 38px;">
                         <option value="ALL">Tất cả trạng thái</option>
                         <option value="COMPLETED">Hoàn tất</option>
                         <option value="CANCELLED">Đã hủy</option>
@@ -1143,37 +1178,32 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         <option value="PROCESSING">Đang giao</option>
                       </select>
                     </div>
-                    <div class="col-md-2 tech-detail">
-                      <label class="form-label">Định tuyến đọc</label>
-                      <select id="orders-readmode" class="form-select" onchange="loadRecentOrders(1)">
+                    <div class="col-md-3 tech-detail mt-2">
+                      <label class="form-label">Định tuyến đọc CSDL</label>
+                      <select id="orders-readmode" class="form-select" onchange="loadRecentOrders(1)" style="height: 38px;">
                         <option value="secondary_preferred">Ưu tiên Node phụ</option>
                         <option value="round_robin">Phân tải xoay vòng</option>
                         <option value="primary">Chỉ đọc Node chính</option>
                       </select>
                     </div>
-                    <div class="col-md-1">
-                      <button class="btn btn-navy w-100" onclick="loadRecentOrders(1)" style="height: 38px;">
-                        Lọc
-                      </button>
-                    </div>
                   </div>
 
                   <div
                     class="table-responsive"
-                    style="border: 1px solid #dee2e6">
+                    style="border: 1px solid #e2e8f0; border-radius: 6px;">
                     <table
-                      class="table table-bordered table-hover table-sm table-custom align-middle">
+                      class="table table-hover table-custom align-middle">
                       <thead class="sticky-top">
                         <tr>
                           <th>Mã ĐH</th>
                           <th>Khách hàng</th>
                           <th>Tỉnh / Thành phố</th>
                           <th>Sản phẩm</th>
-                          <th class="text-center">Tổng SL</th>
+                          <th class="text-end">Tổng SL</th>
                           <th class="text-end">Tổng tiền (VNĐ)</th>
                           <th class="text-center">Phương thức TT</th>
                           <th class="text-center">Trạng thái</th>
-                          <th class="text-end pe-3">Thời gian giao dịch</th>
+                          <th class="text-end pe-3">Thời gian</th>
                         </tr>
                       </thead>
                       <tbody id="recent-orders-body">
@@ -1221,7 +1251,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
             <!-- Cột phải: Form Lập Phiếu Đặt Hàng -->
             <div class="col-lg-4">
-              <div class="panel-box">
+              <div class="panel-box sticky-top" style="top: 1rem; z-index: 10;">
                 <div class="panel-header">
                   <span>Lập Phiếu Đặt Hàng <span class="tech-detail text-muted small ms-1">(Giao dịch MySQL)</span></span>
                   <span class="label-tag tag-primary tech-detail">Ghi vào Primary</span>
@@ -1237,12 +1267,17 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         class="form-control"
                         placeholder="Gõ tìm sản phẩm (tên, mã SKU, hãng)..."
                         autocomplete="off"
+                        onclick="showProductSuggestions()"
                         onfocus="showProductSuggestions()"
                         oninput="filterProductSuggestions(this.value)"
                         style="height: 38px;" />
                       <button class="btn btn-outline-secondary" type="button" onclick="clearProductSearch()" title="Xóa chọn">&#x2715;</button>
                     </div>
                     <input type="hidden" id="order-product-id" value="1" data-price="28000000" />
+                    <div id="order-product-stock-hint" class="small text-muted mt-1.5 d-flex justify-content-between align-items-center">
+                      <span>Còn lại: <strong id="order-product-stock-qty" class="text-dark">495</strong> sản phẩm</span>
+                      <span id="order-product-price-badge" class="badge bg-light text-primary border" style="font-size: 11px;">28.000.000 đ</span>
+                    </div>
                     <div id="order-product-suggestions" class="suggest-dropdown"></div>
                   </div>
 
@@ -1256,6 +1291,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                         class="form-control"
                         placeholder="Gõ tìm khách hàng (họ tên, SĐT, tỉnh/TP)..."
                         autocomplete="off"
+                        onclick="showUserSuggestions()"
                         onfocus="showUserSuggestions()"
                         oninput="filterUserSuggestions(this.value)"
                         style="height: 38px;" />
@@ -1270,17 +1306,17 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
                     <div class="col-6">
                       <label class="form-label">Số lượng</label>
                       <div class="input-group" style="height: 38px;">
-                        <button class="btn btn-outline-secondary px-2.5 fw-bold" type="button" onclick="changeOrderQty(-1)">-</button>
+                        <button class="btn btn-outline-secondary px-3 fw-bold" type="button" onclick="changeOrderQty(-1)" style="font-size: 18px; min-width: 42px; line-height: 1;" title="Giảm số lượng">&minus;</button>
                         <input
                           type="number"
                           id="order-qty"
-                          class="form-control text-center fw-semibold"
+                          class="form-control text-center fw-semibold fs-6"
                           value="1"
                           min="1"
                           max="50"
                           oninput="updateOrderTotalPreview()"
                           style="height: 38px;" />
-                        <button class="btn btn-outline-secondary px-2.5 fw-bold" type="button" onclick="changeOrderQty(1)">+</button>
+                        <button class="btn btn-outline-secondary px-3 fw-bold" type="button" onclick="changeOrderQty(1)" style="font-size: 18px; min-width: 42px; line-height: 1;" title="Tăng số lượng">&plus;</button>
                       </div>
                     </div>
                     <div class="col-6">
@@ -2073,7 +2109,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       function renderOrderStatus(s) {
         const norm = String(s || "COMPLETED").toUpperCase();
         if (norm === "COMPLETED") {
-          return '<span class="status-pill status-pill-completed">Hoàn tất</span>';
+          return '<span class="d-inline-flex align-items-center text-secondary" style="font-size: 13px;"><span class="status-dot dot-online" style="background-color: #10b981; width: 7px; height: 7px; margin-right: 6px;"></span>Hoàn tất</span>';
         } else if (norm === "CANCELLED") {
           return '<span class="status-pill status-pill-cancelled">Đã hủy</span>';
         } else if (norm === "PENDING") {
@@ -2086,7 +2122,28 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         return `<span class="status-pill status-pill-failed">${mapOrderStatus(s)}</span>`;
       }
 
-      // CẬP NHẬT HUY HIỆU ĐẾM NHẬT KÝ ĐỒNG BỘ TRÊN HEADER (RÕ RÀNG, DỄ PHÂN BIỆT)
+      // TỰ ĐỘNG TÌM KIẾM ĐƠN HÀNG (DEBOUNCE 350MS) & ĐẶT LẠI BỘ LỌC
+      let orderSearchTimer = null;
+      function debounceOrderSearch() {
+        clearTimeout(orderSearchTimer);
+        orderSearchTimer = setTimeout(() => {
+          loadRecentOrders(1);
+        }, 350);
+      }
+
+      function resetOrdersFilter() {
+        const kw = document.getElementById("orders-filter-keyword");
+        if (kw) kw.value = "";
+        const reg = document.getElementById("orders-filter-region");
+        if (reg) reg.value = "ALL";
+        const pay = document.getElementById("orders-filter-payment");
+        if (pay) pay.value = "ALL";
+        const st = document.getElementById("orders-filter-status");
+        if (st) st.value = "ALL";
+        loadRecentOrders(1);
+      }
+
+      // CẬP NHẬT HUY HIỆU ĐẾM NHẬT KÝ ĐỒNG BỘ TRÊN HEADER (XÁM TRUNG TÍNH, CHỈ ĐỎ KHI CÓ LỖI)
       function updateSyncLogBadge(count, errorCount = 0) {
         const badge = document.getElementById("sync-log-badge");
         if (!badge) return;
@@ -2110,8 +2167,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
       // XỬ LÝ GỢI Ý AUTOCOMPLETE SẢN PHẨM & KHÁCH HÀNG (TAB 1)
       function showProductSuggestions() {
-        const input = document.getElementById("order-product-search");
-        filterProductSuggestions(input ? input.value : "");
+        filterProductSuggestions("");
         const drop = document.getElementById("order-product-suggestions");
         if (drop) drop.style.display = "block";
       }
@@ -2167,6 +2223,10 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           idInput.value = p.product_id;
           idInput.setAttribute("data-price", p.price);
         }
+        const stockEl = document.getElementById("order-product-stock-qty");
+        if (stockEl) stockEl.innerText = p.stock_quantity ?? 0;
+        const priceBadge = document.getElementById("order-product-price-badge");
+        if (priceBadge) priceBadge.innerText = fmtMoney(p.price);
         if (drop) drop.style.display = "none";
         updateOrderTotalPreview();
       }
@@ -2187,8 +2247,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       }
 
       function showUserSuggestions() {
-        const input = document.getElementById("order-user-search");
-        filterUserSuggestions(input ? input.value : "");
+        filterUserSuggestions("");
         const drop = document.getElementById("order-user-suggestions");
         if (drop) drop.style.display = "block";
       }
@@ -2399,12 +2458,14 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
             document.getElementById("bar-last-updated-time").innerText = timestampStr;
           }
 
-          // Tóm tắt trên khung chi tiết 3 cột (Hình 2 - Chế độ kỹ thuật)
+          // Tóm tắt trên khung chi tiết (Hình 2 - Chế độ kỹ thuật)
           const mysqlSummary = data.mysql
             .map((n, idx) => {
               const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
               const nodeLabel = n.node_name || `Node ${idx + 1}`;
-              const pingText = n.ping_ms !== null && n.ping_ms !== undefined ? ` <span class="text-muted small tech-detail">[${n.ping_ms} ms]</span>` : "";
+              const pingHtml = (n.ping_ms !== null && n.ping_ms !== undefined)
+                ? `<span class="tech-detail text-muted font-monospace text-end" style="min-width: 80px; font-size: 12px;">${n.ping_ms} ms</span>`
+                : `<span class="tech-detail text-muted text-end" style="min-width: 80px; font-size: 12px;">-</span>`;
               let roleHtml = "";
               if (!isOnline) {
                 roleHtml = `<span class="text-danger fw-medium d-inline-flex align-items-center"><span class="status-dot dot-offline"></span>Mất kết nối</span>`;
@@ -2413,16 +2474,18 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               } else {
                 roleHtml = `<span class="text-success fw-medium d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Node phụ</span>`;
               }
-              return `<div class="py-1 border-bottom border-light d-flex justify-content-between align-items-center"><div><strong class="me-1">${nodeLabel}:</strong> <span class="node-ip">${n.host}</span>${pingText}</div><div>${roleHtml}</div></div>`;
+              return `<div class="py-1.5 border-bottom border-light d-flex justify-content-between align-items-center"><div class="d-flex align-items-center"><strong class="me-2 text-dark" style="min-width: 60px;">${nodeLabel}:</strong> <span class="node-ip">${n.host}</span></div><div class="d-flex align-items-center gap-3">${pingHtml}<div style="min-width: 105px; text-align: right;">${roleHtml}</div></div></div>`;
             })
             .join("");
-          document.getElementById("summary-mysql-nodes").innerHTML =
-            mysqlSummary;
+          document.getElementById("summary-mysql-nodes").innerHTML = mysqlSummary;
 
           const mongoSummary = data.mongodb
             .map((n, idx) => {
               const isOnline = n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1;
               const nodeLabel = n.node_name || `Node ${idx + 1}`;
+              const pingHtml = (n.ping_ms !== null && n.ping_ms !== undefined)
+                ? `<span class="tech-detail text-muted font-monospace text-end" style="min-width: 80px; font-size: 12px;">${n.ping_ms} ms</span>`
+                : `<span class="tech-detail text-muted text-end" style="min-width: 80px; font-size: 12px;">-</span>`;
               let roleHtml = "";
               if (!isOnline) {
                 roleHtml = `<span class="text-danger fw-medium d-inline-flex align-items-center"><span class="status-dot dot-offline"></span>Mất kết nối</span>`;
@@ -2431,11 +2494,10 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               } else {
                 roleHtml = `<span class="text-success fw-medium d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Node phụ</span>`;
               }
-              return `<div class="py-1 border-bottom border-light d-flex justify-content-between align-items-center"><div><strong class="me-1">${nodeLabel}:</strong> <span class="node-ip">${n.host}</span></div><div>${roleHtml}</div></div>`;
+              return `<div class="py-1.5 border-bottom border-light d-flex justify-content-between align-items-center"><div class="d-flex align-items-center"><strong class="me-2 text-dark" style="min-width: 60px;">${nodeLabel}:</strong> <span class="node-ip">${n.host}</span></div><div class="d-flex align-items-center gap-3">${pingHtml}<div style="min-width: 105px; text-align: right;">${roleHtml}</div></div></div>`;
             })
             .join("");
-          document.getElementById("summary-mongo-nodes").innerHTML =
-            mongoSummary;
+          document.getElementById("summary-mongo-nodes").innerHTML = mongoSummary;
 
           const dc = data.data_counts || {};
           const totalSql =
@@ -2448,18 +2510,16 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           const sqlFmt = totalSql.toLocaleString("vi-VN");
           const mongoFmt = totalMongo.toLocaleString("vi-VN");
 
-          document.getElementById("summary-sql-rows").innerText = sqlFmt;
-          document.getElementById("summary-mongo-docs").innerText = mongoFmt;
+          const sqlRowsEl = document.getElementById("summary-sql-rows");
+          if (sqlRowsEl) sqlRowsEl.innerText = sqlFmt;
+          const mongoDocsEl = document.getElementById("summary-mongo-docs");
+          if (mongoDocsEl) mongoDocsEl.innerText = mongoFmt;
 
           // Tóm tắt trên thanh gọn 1 dòng (Hình 1 - Chế độ bình thường)
           const mysqlTotal = (data.mysql || []).length;
           const mysqlOnline = (data.mysql || []).filter(
             (n) => n.state && n.state.indexOf("ONLINE") !== -1,
           ).length;
-          const mysqlPrim = (data.mysql || []).find((n) => n.role === "PRIMARY");
-          const mysqlPrimName = mysqlPrim ? mysqlPrim.node_name : "Chưa có";
-          const mysqlDot =
-            mysqlOnline === mysqlTotal ? "🟢" : mysqlOnline > 0 ? "🟡" : "🔴";
 
           const mongoTotal = (data.mongodb || []).length;
           const mongoOnline = (data.mongodb || []).filter(
@@ -2468,24 +2528,22 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               n.state !== "OFFLINE" &&
               n.state.indexOf("not reachable") === -1,
           ).length;
-          const mongoPrim = (data.mongodb || []).find((n) => n.state === "PRIMARY");
-          const mongoPrimName = mongoPrim ? mongoPrim.node_name : "Chưa có";
-          const mongoDot =
-            mongoOnline === mongoTotal ? "🟢" : mongoOnline > 0 ? "🟡" : "🔴";
 
           const barMysqlEl = document.getElementById("bar-mysql-summary");
           if (barMysqlEl) {
-            barMysqlEl.innerHTML = `${mysqlDot} MySQL: <strong>${mysqlOnline}/${mysqlTotal} node</strong> &middot; Node chính: <strong class="text-primary">${mysqlPrimName}</strong>`;
+            const dotClass = mysqlOnline === mysqlTotal ? "dot-online" : mysqlOnline > 0 ? "dot-warning" : "dot-offline";
+            barMysqlEl.innerHTML = `<span class="status-dot ${dotClass}"></span>MySQL: <strong>${mysqlOnline}/${mysqlTotal} node</strong>`;
           }
 
           const barMongoEl = document.getElementById("bar-mongo-summary");
           if (barMongoEl) {
-            barMongoEl.innerHTML = `${mongoDot} MongoDB: <strong>${mongoOnline}/${mongoTotal} node</strong> &middot; Node chính: <strong class="text-primary">${mongoPrimName}</strong>`;
+            const dotClass = mongoOnline === mongoTotal ? "dot-online" : mongoOnline > 0 ? "dot-warning" : "dot-offline";
+            barMongoEl.innerHTML = `<span class="status-dot ${dotClass}"></span>MongoDB: <strong>${mongoOnline}/${mongoTotal} node</strong>`;
           }
 
           const barDataEl = document.getElementById("bar-data-summary");
           if (barDataEl) {
-            barDataEl.innerHTML = `Dữ liệu: <strong>${sqlFmt} dòng MySQL &bull; ${mongoFmt} docs MongoDB</strong>`;
+            barDataEl.innerHTML = `<strong>${sqlFmt} dòng MySQL &middot; ${mongoFmt} tài liệu MongoDB</strong>`;
           }
 
           // Bảng chi tiết MySQL ở Tab 3
@@ -3890,6 +3948,12 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
           return;
         }
 
+        const stockQty = parseInt(document.getElementById("order-product-stock-qty")?.innerText, 10);
+        if (!isNaN(stockQty) && qty > stockQty) {
+          if (fb) fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Số lượng đặt mua (${qty}) vượt quá số lượng tồn kho (${stockQty})! Vui lòng giảm số lượng.</div>`;
+          return;
+        }
+
         if (btn) {
           btn.disabled = true;
           btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Đang xử lý giao dịch...`;
@@ -4060,18 +4124,16 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
               const fullDate = o.created_at_full || o.created_at || "";
 
               return `
-          <tr>
+          <tr onclick="openOrderDetail(${o.order_id})" title="Nhấp để xem chi tiết đơn hàng #${o.order_id}">
             <td class="text-nowrap">
-              <a href="javascript:void(0)" class="order-id-link fw-semibold text-primary text-decoration-none" onclick="openOrderDetail(${o.order_id})" title="Nhấp để xem chi tiết đơn hàng #${o.order_id}">
-                #${o.order_id}
-              </a>
+              <span class="fw-semibold text-primary">#${o.order_id}</span>
             </td>
             <td class="fw-medium text-dark">${custName}</td>
             <td>${o.city || "-"}</td>
             <td>
               <span title="${prodTitle}">${o.product_display || o.product_name || "SP " + o.product_id}</span>
             </td>
-            <td class="text-center">${o.total_quantity || o.quantity || 1}</td>
+            <td class="text-end pe-2">${o.total_quantity || o.quantity || 1}</td>
             <td class="text-end fw-semibold text-dark">${fmtMoney(o.total_amount)}</td>
             <td class="text-center">${renderPaymentMethod(o.payment_method)}</td>
             <td class="text-center">${renderOrderStatus(st)}</td>
@@ -4108,7 +4170,6 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
         let html = "";
         const prevDisabled = page <= 1 ? "disabled" : "";
-        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="loadRecentOrders(1)">&laquo; Đầu</button></li>`;
         html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="loadRecentOrders(${page - 1})">&lsaquo; Trước</button></li>`;
 
         const startPage = Math.max(1, page - 2);
@@ -4132,7 +4193,6 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
 
         const nextDisabled = page >= totalPages ? "disabled" : "";
         html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="loadRecentOrders(${page + 1})">Sau &rsaquo;</button></li>`;
-        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="loadRecentOrders(${totalPages})">Cuối &raquo;</button></li>`;
         navEl.innerHTML = html;
       }
 
@@ -4417,7 +4477,7 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
         <div>
           Học phần: <strong>Cơ sở dữ liệu nâng cao (CTH612)</strong> &bull; Đề tài 2 &bull; Nhóm thực hiện: <strong>Nhóm 2</strong>
         </div>
-        <div class="footer-line-sub">
+        <div class="footer-line-sub tech-detail">
           Kiến trúc phân tán: MySQL 8.0 Group Replication (Single-Primary) + MongoDB 7.0 Replica Set
         </div>
       </div>
