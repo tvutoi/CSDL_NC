@@ -1,179 +1,17 @@
 [
   {
-    "log_id": "SYNC-036922",
-    "time": "11:18:23",
+    "log_id": "SYNC-7a2b9f14",
+    "time": "11:24:18",
     "date": "15/10/2026",
-    "timestamp": "11:18:23",
-    "start_time": "11:18:22.087",
-    "end_time": "11:18:23.692",
-    "db_type": "MONGO_RS",
-    "action": "INSERT_REVIEW",
-    "title": "Đánh giá & Nhận xét SP 1",
-    "summary": "Tiêu đề: 'Sản phẩm mới tinh vừa mở hộp' | Bình luận: 'Thiết kế đẹp mắt, cấu hình mạnh mẽ, giao...' | Đóng gói: Nguyên seal chính hãng",
-    "data_payload": "Sản phẩm ID: 1 | Đánh giá: 5 sao (★★★★★) | Tiêu đề: 'Sản phẩm mới tinh vừa mở hộp' | Bình luận: 'Thiết kế đẹp mắt, cấu hình mạnh mẽ, giao hàng nhanh.' | Đóng gói: Nguyên seal chính hãng",
-    "affected_tables": "product_reviews (1 BSON Document)",
-    "source_label": "Node 2",
-    "source_node": "192.168.1.222:27017",
-    "target_display": "Node 3, Node 4 (Chờ Node 1)",
-    "target_nodes": [
-      "Node 1",
-      "Node 3",
-      "Node 4"
-    ],
-    "target_hosts": [
-      "192.168.1.221:27017",
-      "192.168.1.222:27018",
-      "192.168.1.222:27019"
-    ],
-    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
-    "detail": "Giao dịch đã đồng bộ thành công qua Oplog tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động streaming bù Oplog ngay khi trực tuyến trở lại.",
-    "latency_ms": 1604.6,
-    "status": "PARTIAL",
-    "status_text": "Đồng bộ 2/3 node phụ",
-    "target_statuses": [
-      {
-        "label": "Node 1",
-        "host": "192.168.1.221:27017",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
-      },
-      {
-        "label": "Node 3",
-        "host": "192.168.1.222:27018",
-        "state": "ONLINE",
-        "message": "Trực tuyến (Đã nhận)"
-      },
-      {
-        "label": "Node 4",
-        "host": "192.168.1.222:27019",
-        "state": "ONLINE",
-        "message": "Trực tuyến (Đã nhận)"
-      }
-    ],
-    "online_count": 2,
-    "total_targets": 3
-  },
-  {
-    "log_id": "SYNC-689001",
-    "time": "11:17:48",
-    "date": "15/10/2026",
-    "timestamp": "11:17:48",
-    "start_time": "11:17:47.278",
-    "end_time": "11:17:48.900",
-    "db_type": "MONGO_RS",
-    "action": "INSERT_REVIEW",
-    "title": "Đánh giá & Nhận xét SP 1",
-    "summary": "Tiêu đề: 'Sản phẩm tuyệt vời trong tầm giá' | Bình luận: 'Thiết kế đẹp mắt, cấu hình mạnh mẽ, giao...' | Đóng gói: Nguyên seal chính hãng",
-    "data_payload": "Sản phẩm ID: 1 | Đánh giá: 5 sao (★★★★★) | Tiêu đề: 'Sản phẩm tuyệt vời trong tầm giá' | Bình luận: 'Thiết kế đẹp mắt, cấu hình mạnh mẽ, giao hàng nhanh.' | Đóng gói: Nguyên seal chính hãng",
-    "affected_tables": "product_reviews (1 BSON Document)",
-    "source_label": "Node 2",
-    "source_node": "192.168.1.222:27017",
-    "target_display": "Node 3, Node 4 (Chờ Node 1)",
-    "target_nodes": [
-      "Node 1",
-      "Node 3",
-      "Node 4"
-    ],
-    "target_hosts": [
-      "192.168.1.221:27017",
-      "192.168.1.222:27018",
-      "192.168.1.222:27019"
-    ],
-    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
-    "detail": "Giao dịch đã đồng bộ thành công qua Oplog tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động streaming bù Oplog ngay khi trực tuyến trở lại.",
-    "latency_ms": 1621.6,
-    "status": "PARTIAL",
-    "status_text": "Đồng bộ 2/3 node phụ",
-    "target_statuses": [
-      {
-        "label": "Node 1",
-        "host": "192.168.1.221:27017",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
-      },
-      {
-        "label": "Node 3",
-        "host": "192.168.1.222:27018",
-        "state": "ONLINE",
-        "message": "Trực tuyến (Đã nhận)"
-      },
-      {
-        "label": "Node 4",
-        "host": "192.168.1.222:27019",
-        "state": "ONLINE",
-        "message": "Trực tuyến (Đã nhận)"
-      }
-    ],
-    "online_count": 2,
-    "total_targets": 3
-  },
-  {
-    "log_id": "SYNC-589201",
-    "time": "09:56:18",
-    "date": "15/10/2026",
-    "timestamp": "09:56:18",
-    "start_time": "09:56:17.964",
-    "end_time": "09:56:18.000",
-    "db_type": "MONGO_RS",
-    "action": "INSERT_REVIEW",
-    "title": "Đánh giá iPhone 15 Pro Max",
-    "summary": "Đánh giá: 5 sao | Khách hàng: Lê Hoàng Nam | Bình luận: 'Máy dùng rất mượt, pin trâu'",
-    "data_payload": "Sản phẩm: iPhone 15 Pro Max 256GB (ID 1) | Khách: Lê Hoàng Nam (ID 1005) | Đánh giá: 5 sao | Bình luận: 'Máy dùng rất mượt, camera chụp đêm rất sắc nét'",
-    "affected_tables": "product_reviews (1 Document)",
-    "source_label": "Node 2",
-    "source_node": "192.168.1.222:27017",
-    "target_display": "Node 3, Node 4 (Chờ Node 1)",
-    "target_nodes": [
-      "Node 1",
-      "Node 3",
-      "Node 4"
-    ],
-    "target_hosts": [
-      "192.168.1.221:27017",
-      "192.168.1.222:27018",
-      "192.168.1.222:27019"
-    ],
-    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
-    "detail": "Giao dịch đã đồng bộ thành công qua Oplog tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động streaming bù Oplog ngay khi trực tuyến trở lại.",
-    "latency_ms": 36.2,
-    "status": "PARTIAL",
-    "status_text": "Đồng bộ 2/3 node phụ",
-    "target_statuses": [
-      {
-        "label": "Node 1",
-        "host": "192.168.1.221:27017",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
-      },
-      {
-        "label": "Node 3",
-        "host": "192.168.1.222:27018",
-        "state": "ONLINE",
-        "message": "Trực tuyến (Đã nhận)"
-      },
-      {
-        "label": "Node 4",
-        "host": "192.168.1.222:27019",
-        "state": "ONLINE",
-        "message": "Trực tuyến (Đã nhận)"
-      }
-    ],
-    "online_count": 2,
-    "total_targets": 3
-  },
-  {
-    "log_id": "SYNC-542119",
-    "time": "09:54:30",
-    "date": "15/10/2026",
-    "timestamp": "09:54:30",
-    "start_time": "09:54:29.951",
-    "end_time": "09:54:30.000",
+    "timestamp": "11:24:18",
+    "start_time": "11:24:17.957",
+    "end_time": "11:24:18.000",
     "db_type": "MYSQL_GR",
     "action": "CHECKOUT_ORDER",
     "title": "Đặt hàng 50015",
-    "summary": "Sản phẩm: iPhone 15 Pro Max (SL: 1) | Khách hàng: Lê Hoàng Nam | Tổng: 28.000.000 đ | COD",
-    "data_payload": "Mã đơn: 50015 | Khách hàng: Lê Hoàng Nam (ID 1005) | SP: iPhone 15 Pro Max (SL: 1) | Tổng tiền: 28.000.000 đ | Thanh toán: COD",
-    "affected_tables": "orders, order_items, payments, products (UPDATE kho)",
+    "summary": "Sản phẩm: iPhone 15 Pro Max 256GB (SL: 1) · Khách: Lê Hoàng Nam · Tổng: 28.000.000 đ · COD",
+    "data_payload": "Mã đơn: 50015 · Khách hàng: Lê Hoàng Nam (ID 1005) · SP: iPhone 15 Pro Max (SL: 1) · Tổng tiền: 28.000.000 đ · Thanh toán: Tiền mặt khi nhận hàng (COD)",
+    "affected_tables": "orders, order_items, payments, products",
     "source_label": "Node 2",
     "source_node": "192.168.1.222:3306",
     "target_display": "Node 3, Node 4 (Chờ Node 1)",
@@ -189,7 +27,7 @@
     ],
     "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
     "detail": "Giao dịch đã đồng bộ thành công tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
-    "latency_ms": 48.5,
+    "latency_ms": 42.6,
     "status": "PARTIAL",
     "status_text": "Đồng bộ 2/3 node phụ",
     "target_statuses": [
@@ -216,20 +54,20 @@
     "total_targets": 3
   },
   {
-    "log_id": "SYNC-481903",
-    "time": "09:52:05",
+    "log_id": "SYNC-c148e2b0",
+    "time": "11:24:19",
     "date": "15/10/2026",
-    "timestamp": "09:52:05",
-    "start_time": "09:52:04.972",
-    "end_time": "09:52:05.000",
-    "db_type": "MONGO_RS",
-    "action": "LOG_ACTIVITY",
-    "title": "Nhật ký xem sản phẩm",
-    "summary": "Khách hàng: Trần Thị Mai | Hành động: Xem chi tiết MacBook Pro M3 | Thiết bị: macOS / Safari",
-    "data_payload": "User ID: 1008 (Trần Thị Mai) | Action: VIEW_PRODUCT_DETAIL | SP: MacBook Pro M3 14\" (ID 4) | IP: 192.168.1.105",
-    "affected_tables": "user_activity_logs (1 Document)",
+    "timestamp": "11:24:19",
+    "start_time": "11:24:18.971",
+    "end_time": "11:24:19.000",
+    "db_type": "MYSQL_GR",
+    "action": "UPDATE_STOCK",
+    "title": "Cập nhật tồn kho iPhone 15 Pro Max",
+    "summary": "Kho giảm từ 45 xuống 44 sau đơn 50015 · Mã phiếu XK-9102",
+    "data_payload": "Sản phẩm ID: 1 (iPhone 15 Pro Max 256GB) · Kho trước: 45 · Xuất kho: 1 · Tồn kho mới: 44 · Mã phiếu: XK-9102",
+    "affected_tables": "products",
     "source_label": "Node 2",
-    "source_node": "192.168.1.222:27017",
+    "source_node": "192.168.1.222:3306",
     "target_display": "Node 3, Node 4 (Chờ Node 1)",
     "target_nodes": [
       "Node 1",
@@ -237,31 +75,31 @@
       "Node 4"
     ],
     "target_hosts": [
-      "192.168.1.221:27017",
-      "192.168.1.222:27018",
-      "192.168.1.222:27019"
+      "192.168.1.221:3306",
+      "192.168.1.222:3307",
+      "192.168.1.222:3308"
     ],
-    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
-    "detail": "Giao dịch đã đồng bộ thành công qua Oplog tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động streaming bù Oplog ngay khi trực tuyến trở lại.",
+    "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
+    "detail": "Giao dịch đã đồng bộ thành công tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
     "latency_ms": 28.4,
     "status": "PARTIAL",
     "status_text": "Đồng bộ 2/3 node phụ",
     "target_statuses": [
       {
         "label": "Node 1",
-        "host": "192.168.1.221:27017",
+        "host": "192.168.1.221:3306",
         "state": "OFFLINE",
         "message": "Ngoại tuyến (Chờ bù log)"
       },
       {
         "label": "Node 3",
-        "host": "192.168.1.222:27018",
+        "host": "192.168.1.222:3307",
         "state": "ONLINE",
         "message": "Trực tuyến (Đã nhận)"
       },
       {
         "label": "Node 4",
-        "host": "192.168.1.222:27019",
+        "host": "192.168.1.222:3308",
         "state": "ONLINE",
         "message": "Trực tuyến (Đã nhận)"
       }
@@ -270,18 +108,18 @@
     "total_targets": 3
   },
   {
-    "log_id": "SYNC-423981",
-    "time": "09:49:12",
+    "log_id": "SYNC-e89a31f5",
+    "time": "11:24:20",
     "date": "15/10/2026",
-    "timestamp": "09:49:12",
-    "start_time": "09:49:11.958",
-    "end_time": "09:49:12.000",
+    "timestamp": "11:24:20",
+    "start_time": "11:24:19.968",
+    "end_time": "11:24:20.000",
     "db_type": "MYSQL_GR",
-    "action": "UPDATE_STOCK",
-    "title": "Cập nhật tồn kho SP 4",
-    "summary": "MacBook Pro M3: Điều chỉnh kho từ 25 -> 24 cái sau đơn hàng 50014",
-    "data_payload": "Sản phẩm ID: 4 (MacBook Pro M3 14\") | Kho ban đầu: 25 | Xuất kho: 1 | Tồn kho mới: 24 | Mã phiếu: XK-9042",
-    "affected_tables": "products (UPDATE stock_quantity)",
+    "action": "PAYMENT_INIT",
+    "title": "Khởi tạo thanh toán 50015",
+    "summary": "Số tiền: 28.000.000 đ · Phương thức COD · Chờ thu tiền khi giao hàng",
+    "data_payload": "Mã thanh toán: PAY-89102 · Mã đơn: 50015 · Số tiền: 28.000.000 đ · Cổng thanh toán: COD · Trạng thái: PENDING",
+    "affected_tables": "payments",
     "source_label": "Node 2",
     "source_node": "192.168.1.222:3306",
     "target_display": "Node 3, Node 4 (Chờ Node 1)",
@@ -297,7 +135,7 @@
     ],
     "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
     "detail": "Giao dịch đã đồng bộ thành công tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
-    "latency_ms": 41.8,
+    "latency_ms": 31.2,
     "status": "PARTIAL",
     "status_text": "Đồng bộ 2/3 node phụ",
     "target_statuses": [
@@ -324,72 +162,18 @@
     "total_targets": 3
   },
   {
-    "log_id": "SYNC-391456",
-    "time": "09:46:50",
+    "log_id": "SYNC-b56d80c3",
+    "time": "11:22:05",
     "date": "15/10/2026",
-    "timestamp": "09:46:50",
-    "start_time": "09:46:49.956",
-    "end_time": "09:46:50.000",
-    "db_type": "MYSQL_GR",
-    "action": "PAYMENT_CONFIRM",
-    "title": "Xác nhận thanh toán 50012",
-    "summary": "Đơn 50012 | Số tiền: 15.500.000 đ | Ngân hàng Vietcombank (QR Pay)",
-    "data_payload": "Mã thanh toán: PAY-88421 | Mã đơn: 50012 | Số tiền: 15.500.000 đ | Cổng: Vietcombank QR | Trạng thái: COMPLETED",
-    "affected_tables": "payments (UPDATE status), orders (UPDATE order_status)",
-    "source_label": "Node 2",
-    "source_node": "192.168.1.222:3306",
-    "target_display": "Node 3, Node 4 (Chờ Node 1)",
-    "target_nodes": [
-      "Node 1",
-      "Node 3",
-      "Node 4"
-    ],
-    "target_hosts": [
-      "192.168.1.221:3306",
-      "192.168.1.222:3307",
-      "192.168.1.222:3308"
-    ],
-    "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
-    "detail": "Giao dịch đã đồng bộ thành công tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
-    "latency_ms": 44.2,
-    "status": "PARTIAL",
-    "status_text": "Đồng bộ 2/3 node phụ",
-    "target_statuses": [
-      {
-        "label": "Node 1",
-        "host": "192.168.1.221:3306",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
-      },
-      {
-        "label": "Node 3",
-        "host": "192.168.1.222:3307",
-        "state": "ONLINE",
-        "message": "Trực tuyến (Đã nhận)"
-      },
-      {
-        "label": "Node 4",
-        "host": "192.168.1.222:3308",
-        "state": "ONLINE",
-        "message": "Trực tuyến (Đã nhận)"
-      }
-    ],
-    "online_count": 2,
-    "total_targets": 3
-  },
-  {
-    "log_id": "SYNC-312098",
-    "time": "09:44:08",
-    "date": "15/10/2026",
-    "timestamp": "09:44:08",
-    "start_time": "09:44:07.968",
-    "end_time": "09:44:08.000",
+    "timestamp": "11:22:05",
+    "start_time": "11:22:04.961",
+    "end_time": "11:22:05.000",
     "db_type": "MONGO_RS",
     "action": "INSERT_REVIEW",
-    "title": "Đánh giá Tai nghe Sony WH-1000XM5",
-    "summary": "Đánh giá: 4 sao | Khách hàng: Phạm Quốc Huy | Bình luận: 'Chống ồn đỉnh cao, bass chắc'",
-    "data_payload": "Sản phẩm ID: 7 (Tai nghe Sony WH-1000XM5) | Khách: Phạm Quốc Huy (ID 1012) | Đánh giá: 4 sao | Bình luận: 'Chống ồn chủ động xuất sắc, đeo êm tai'",
-    "affected_tables": "product_reviews (1 Document)",
+    "title": "Đánh giá iPhone 15 Pro Max",
+    "summary": "5 sao · Khách: Lê Hoàng Nam · Máy dùng rất mượt, camera chụp đêm sắc nét · Đóng gói nguyên seal",
+    "data_payload": "Sản phẩm: iPhone 15 Pro Max 256GB (ID 1) · Khách: Lê Hoàng Nam (ID 1005) · Đánh giá: 5 sao · Bình luận: 'Máy dùng rất mượt, camera chụp đêm sắc nét' · Đóng gói: Nguyên seal",
+    "affected_tables": "product_reviews",
     "source_label": "Node 2",
     "source_node": "192.168.1.222:27017",
     "target_display": "Node 3, Node 4 (Chờ Node 1)",
@@ -405,7 +189,7 @@
     ],
     "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
     "detail": "Giao dịch đã đồng bộ thành công qua Oplog tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động streaming bù Oplog ngay khi trực tuyến trở lại.",
-    "latency_ms": 32.0,
+    "latency_ms": 38.5,
     "status": "PARTIAL",
     "status_text": "Đồng bộ 2/3 node phụ",
     "target_statuses": [
@@ -432,18 +216,72 @@
     "total_targets": 3
   },
   {
-    "log_id": "SYNC-281044",
-    "time": "09:41:22",
+    "log_id": "SYNC-f40219da",
+    "time": "11:20:42",
     "date": "15/10/2026",
-    "timestamp": "09:41:22",
-    "start_time": "09:41:21.948",
-    "end_time": "09:41:22.000",
+    "timestamp": "11:20:42",
+    "start_time": "11:20:41.981",
+    "end_time": "11:20:42.000",
+    "db_type": "MONGO_RS",
+    "action": "LOG_ACTIVITY",
+    "title": "Nhật ký xem sản phẩm",
+    "summary": "Khách: Lê Hoàng Nam · Xem iPhone 15 Pro Max 256GB · Safari / iOS · IP 192.168.1.108",
+    "data_payload": "User ID: 1005 (Lê Hoàng Nam) · Action: VIEW_PRODUCT_DETAIL · SP: iPhone 15 Pro Max 256GB (ID 1) · Trình duyệt: Safari 17.4 trên iOS · Thời lượng: 45 giây",
+    "affected_tables": "user_activity_logs",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:27017",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:27017",
+      "192.168.1.222:27018",
+      "192.168.1.222:27019"
+    ],
+    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
+    "detail": "Giao dịch đã đồng bộ thành công qua Oplog tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động streaming bù Oplog ngay khi trực tuyến trở lại.",
+    "latency_ms": 18.2,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 node phụ",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:27017",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:27018",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:27019",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-8b35a7ce",
+    "time": "10:48:30",
+    "date": "15/10/2026",
+    "timestamp": "10:48:30",
+    "start_time": "10:48:29.943",
+    "end_time": "10:48:30.000",
     "db_type": "MYSQL_GR",
     "action": "CHECKOUT_ORDER",
-    "title": "Đặt hàng 50010",
-    "summary": "Sản phẩm: Dell XPS 15 (SL: 1) | Khách hàng: Đỗ Đức Thắng | Tổng: 36.500.000 đ | VNPAY",
-    "data_payload": "Mã đơn: 50010 | Khách: Đỗ Đức Thắng (ID 1003) | SP: Dell XPS 15 9530 (ID 2, SL: 1) | Tổng tiền: 36.500.000 đ | Thanh toán: VNPAY",
-    "affected_tables": "orders, order_items, payments, products (UPDATE kho)",
+    "title": "Đặt hàng 50014",
+    "summary": "Sản phẩm: MacBook Pro M3 14\" (SL: 1) · Khách: Trần Thị Mai · Tổng: 39.990.000 đ · Chuyển khoản",
+    "data_payload": "Mã đơn: 50014 · Khách: Trần Thị Mai (ID 1008) · SP: MacBook Pro M3 14\" (ID 4, SL: 1) · Tổng tiền: 39.990.000 đ · Thanh toán: Chuyển khoản Vietcombank",
+    "affected_tables": "orders, order_items, payments, products",
     "source_label": "Node 2",
     "source_node": "192.168.1.222:3306",
     "target_display": "Node 3, Node 4 (Chờ Node 1)",
@@ -459,7 +297,655 @@
     ],
     "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
     "detail": "Giao dịch đã đồng bộ thành công tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
-    "latency_ms": 52.1,
+    "latency_ms": 56.1,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 node phụ",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:3306",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:3307",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:3308",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-9d62c418",
+    "time": "10:48:31",
+    "date": "15/10/2026",
+    "timestamp": "10:48:31",
+    "start_time": "10:48:30.955",
+    "end_time": "10:48:31.000",
+    "db_type": "MYSQL_GR",
+    "action": "PAYMENT_CONFIRM",
+    "title": "Xác nhận thanh toán 50014",
+    "summary": "Đơn 50014 · Số tiền: 39.990.000 đ · Cổng Vietcombank QR Pay · Đã thanh toán",
+    "data_payload": "Mã thanh toán: PAY-88450 · Mã đơn: 50014 · Số tiền: 39.990.000 đ · Cổng: Vietcombank QR Pay · Trạng thái: COMPLETED",
+    "affected_tables": "payments, orders",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:3306",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:3306",
+      "192.168.1.222:3307",
+      "192.168.1.222:3308"
+    ],
+    "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
+    "detail": "Giao dịch đã đồng bộ thành công tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
+    "latency_ms": 44.3,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 node phụ",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:3306",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:3307",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:3308",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-a01f7e34",
+    "time": "10:48:32",
+    "date": "15/10/2026",
+    "timestamp": "10:48:32",
+    "start_time": "10:48:31.964",
+    "end_time": "10:48:32.000",
+    "db_type": "MYSQL_GR",
+    "action": "UPDATE_STOCK",
+    "title": "Cập nhật tồn kho MacBook Pro M3",
+    "summary": "Kho giảm từ 25 xuống 24 sau đơn 50014 · Mã phiếu XK-9042",
+    "data_payload": "Sản phẩm ID: 4 (MacBook Pro M3 14\") · Kho trước: 25 · Xuất kho: 1 · Tồn kho mới: 24 · Mã phiếu: XK-9042",
+    "affected_tables": "products",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:3306",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:3306",
+      "192.168.1.222:3307",
+      "192.168.1.222:3308"
+    ],
+    "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
+    "detail": "Giao dịch đã đồng bộ thành công tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
+    "latency_ms": 35.8,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 node phụ",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:3306",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:3307",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:3308",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-1b94d50e",
+    "time": "10:42:15",
+    "date": "15/10/2026",
+    "timestamp": "10:42:15",
+    "start_time": "10:42:14.959",
+    "end_time": "10:42:15.000",
+    "db_type": "MONGO_RS",
+    "action": "INSERT_REVIEW",
+    "title": "Đánh giá MacBook Pro M3",
+    "summary": "5 sao · Khách: Trần Thị Mai · Hiệu năng xuất sắc, màn hình Liquid Retina XDR rất đẹp",
+    "data_payload": "Sản phẩm: MacBook Pro M3 14\" (ID 4) · Khách: Trần Thị Mai (ID 1008) · Đánh giá: 5 sao · Bình luận: 'Hiệu năng xuất sắc, màn hình Liquid Retina XDR rất đẹp' · Đóng gói: Hộp nguyên vẹn",
+    "affected_tables": "product_reviews",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:27017",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:27017",
+      "192.168.1.222:27018",
+      "192.168.1.222:27019"
+    ],
+    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
+    "detail": "Giao dịch đã đồng bộ thành công qua Oplog tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động streaming bù Oplog ngay khi trực tuyến trở lại.",
+    "latency_ms": 41.0,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 node phụ",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:27017",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:27018",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:27019",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-3c72b819",
+    "time": "10:39:50",
+    "date": "15/10/2026",
+    "timestamp": "10:39:50",
+    "start_time": "10:39:49.977",
+    "end_time": "10:39:50.000",
+    "db_type": "MONGO_RS",
+    "action": "LOG_ACTIVITY",
+    "title": "Nhật ký thêm vào giỏ hàng",
+    "summary": "Khách: Trần Thị Mai · Thêm MacBook Pro M3 14\" · Chrome / macOS · IP 192.168.1.105",
+    "data_payload": "User ID: 1008 (Trần Thị Mai) · Action: ADD_TO_CART · SP: MacBook Pro M3 14\" (ID 4) · Số lượng: 1 · Trình duyệt: Chrome 129 trên macOS",
+    "affected_tables": "user_activity_logs",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:27017",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:27017",
+      "192.168.1.222:27018",
+      "192.168.1.222:27019"
+    ],
+    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
+    "detail": "Giao dịch đã đồng bộ thành công qua Oplog tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động streaming bù Oplog ngay khi trực tuyến trở lại.",
+    "latency_ms": 22.4,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 node phụ",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:27017",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:27018",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:27019",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-5d81a942",
+    "time": "09:55:12",
+    "date": "15/10/2026",
+    "timestamp": "09:55:12",
+    "start_time": "09:55:11.951",
+    "end_time": "09:55:12.000",
+    "db_type": "MYSQL_GR",
+    "action": "CHECKOUT_ORDER",
+    "title": "Đặt hàng 50013",
+    "summary": "Sản phẩm: Tai nghe Sony WH-1000XM5 (SL: 1) · Khách: Phạm Quốc Huy · Tổng: 6.490.000 đ · Ví ShopeePay",
+    "data_payload": "Mã đơn: 50013 · Khách: Phạm Quốc Huy (ID 1012) · SP: Tai nghe Sony WH-1000XM5 (ID 7, SL: 1) · Tổng tiền: 6.490.000 đ · Thanh toán: Ví ShopeePay",
+    "affected_tables": "orders, order_items, payments, products",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:3306",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:3306",
+      "192.168.1.222:3307",
+      "192.168.1.222:3308"
+    ],
+    "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
+    "detail": "Giao dịch đã đồng bộ thành công tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
+    "latency_ms": 49.2,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 node phụ",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:3306",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:3307",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:3308",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-6e04f128",
+    "time": "09:55:13",
+    "date": "15/10/2026",
+    "timestamp": "09:55:13",
+    "start_time": "09:55:12.962",
+    "end_time": "09:55:13.000",
+    "db_type": "MYSQL_GR",
+    "action": "PAYMENT_CONFIRM",
+    "title": "Xác nhận thanh toán 50013",
+    "summary": "Đơn 50013 · Số tiền: 6.490.000 đ · Ví điện tử ShopeePay · Giao dịch thành công",
+    "data_payload": "Mã thanh toán: PAY-88432 · Mã đơn: 50013 · Số tiền: 6.490.000 đ · Cổng: Ví ShopeePay · Trạng thái: COMPLETED",
+    "affected_tables": "payments, orders",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:3306",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:3306",
+      "192.168.1.222:3307",
+      "192.168.1.222:3308"
+    ],
+    "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
+    "detail": "Giao dịch đã đồng bộ thành công tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
+    "latency_ms": 38.0,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 node phụ",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:3306",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:3307",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:3308",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-2f73c8a1",
+    "time": "09:55:14",
+    "date": "15/10/2026",
+    "timestamp": "09:55:14",
+    "start_time": "09:55:13.970",
+    "end_time": "09:55:14.000",
+    "db_type": "MYSQL_GR",
+    "action": "UPDATE_STOCK",
+    "title": "Cập nhật tồn kho Sony WH-1000XM5",
+    "summary": "Kho giảm từ 30 xuống 29 sau đơn 50013 · Mã phiếu XK-9018",
+    "data_payload": "Sản phẩm ID: 7 (Tai nghe Sony WH-1000XM5) · Kho trước: 30 · Xuất kho: 1 · Tồn kho mới: 29 · Mã phiếu: XK-9018",
+    "affected_tables": "products",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:3306",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:3306",
+      "192.168.1.222:3307",
+      "192.168.1.222:3308"
+    ],
+    "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
+    "detail": "Giao dịch đã đồng bộ thành công tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
+    "latency_ms": 29.5,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 node phụ",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:3306",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:3307",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:3308",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-4a81d9b3",
+    "time": "09:47:08",
+    "date": "15/10/2026",
+    "timestamp": "09:47:08",
+    "start_time": "09:47:07.965",
+    "end_time": "09:47:08.000",
+    "db_type": "MONGO_RS",
+    "action": "INSERT_REVIEW",
+    "title": "Đánh giá Tai nghe Sony WH-1000XM5",
+    "summary": "4 sao · Khách: Phạm Quốc Huy · Chống ồn chủ động đỉnh cao, âm bass chắc · Hộp nguyên seal",
+    "data_payload": "Sản phẩm ID: 7 (Tai nghe Sony WH-1000XM5) · Khách: Phạm Quốc Huy (ID 1012) · Đánh giá: 4 sao · Bình luận: 'Chống ồn chủ động đỉnh cao, âm bass chắc' · Đóng gói: Hộp nguyên seal",
+    "affected_tables": "product_reviews",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:27017",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:27017",
+      "192.168.1.222:27018",
+      "192.168.1.222:27019"
+    ],
+    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
+    "detail": "Giao dịch đã đồng bộ thành công qua Oplog tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động streaming bù Oplog ngay khi trực tuyến trở lại.",
+    "latency_ms": 34.6,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 node phụ",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:27017",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:27018",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:27019",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-a8c2f105",
+    "time": "09:15:40",
+    "date": "15/10/2026",
+    "timestamp": "09:15:40",
+    "start_time": "09:15:39.816",
+    "end_time": "09:15:40.000",
+    "db_type": "MYSQL_GR",
+    "action": "CHECKOUT_ORDER",
+    "title": "Đặt hàng 50012",
+    "summary": "Sản phẩm: Dell XPS 15 9530 (SL: 1) · Khách: Đỗ Đức Thắng · Tổng: 36.500.000 đ · VNPAY-QR",
+    "data_payload": "Mã đơn: 50012 · Khách: Đỗ Đức Thắng (ID 1003) · SP: Dell XPS 15 9530 (ID 2, SL: 1) · Tổng tiền: 36.500.000 đ · Thanh toán: VNPAY-QR",
+    "affected_tables": "orders, order_items, payments, products",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:3306",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:3306",
+      "192.168.1.222:3307",
+      "192.168.1.222:3308"
+    ],
+    "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
+    "detail": "Giao dịch đã đồng bộ thành công tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
+    "latency_ms": 184.2,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 node phụ",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:3306",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:3307",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:3308",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-b9e3a472",
+    "time": "09:15:41",
+    "date": "15/10/2026",
+    "timestamp": "09:15:41",
+    "start_time": "09:15:40.968",
+    "end_time": "09:15:41.000",
+    "db_type": "MYSQL_GR",
+    "action": "UPDATE_STOCK",
+    "title": "Cập nhật tồn kho Dell XPS 15",
+    "summary": "Kho giảm từ 18 xuống 17 sau đơn 50012 · Mã phiếu XK-8994",
+    "data_payload": "Sản phẩm ID: 2 (Dell XPS 15 9530) · Kho trước: 18 · Xuất kho: 1 · Tồn kho mới: 17 · Mã phiếu: XK-8994",
+    "affected_tables": "products",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:3306",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:3306",
+      "192.168.1.222:3307",
+      "192.168.1.222:3308"
+    ],
+    "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
+    "detail": "Giao dịch đã đồng bộ thành công tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
+    "latency_ms": 32.1,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 node phụ",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:3306",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:3307",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:3308",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-c0f1e829",
+    "time": "09:02:18",
+    "date": "15/10/2026",
+    "timestamp": "09:02:18",
+    "start_time": "09:02:17.784",
+    "end_time": "09:02:18.000",
+    "db_type": "MONGO_RS",
+    "action": "LOG_ACTIVITY",
+    "title": "Nhật ký tìm kiếm sản phẩm",
+    "summary": "Từ khóa: 'laptop đồ họa m3' · 8 kết quả · Khách: Đỗ Đức Thắng · Edge / Windows",
+    "data_payload": "User ID: 1003 (Đỗ Đức Thắng) · Action: SEARCH_KEYWORD · Từ khóa: 'laptop đồ họa m3' · Số kết quả: 8 · IP: 192.168.1.103",
+    "affected_tables": "user_activity_logs",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:27017",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:27017",
+      "192.168.1.222:27018",
+      "192.168.1.222:27019"
+    ],
+    "mechanism": "MongoDB Oplog Streaming (local.oplog.rs)",
+    "detail": "Giao dịch đã đồng bộ thành công qua Oplog tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động streaming bù Oplog ngay khi trực tuyến trở lại.",
+    "latency_ms": 215.8,
+    "status": "PARTIAL",
+    "status_text": "Đồng bộ 2/3 node phụ",
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221:27017",
+        "state": "OFFLINE",
+        "message": "Ngoại tuyến (Chờ bù log)"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.222:27018",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.222:27019",
+        "state": "ONLINE",
+        "message": "Trực tuyến (Đã nhận)"
+      }
+    ],
+    "online_count": 2,
+    "total_targets": 3
+  },
+  {
+    "log_id": "SYNC-d4a8b716",
+    "time": "08:45:00",
+    "date": "15/10/2026",
+    "timestamp": "08:45:00",
+    "start_time": "08:44:59.935",
+    "end_time": "08:45:00.000",
+    "db_type": "MYSQL_GR",
+    "action": "RECONCILE_SYNC",
+    "title": "Đối chiếu dữ liệu toàn cụm",
+    "summary": "Kiểm tra đối chiếu 5 bảng MySQL · Toàn bộ 4/4 bảng đồng nhất số lượng",
+    "data_payload": "Thao tác: Đối chiếu tính nhất quán toàn cụm MySQL · Node chính: Node 2 · Node phụ trực tuyến: Node 3, Node 4 · Kết quả: Không phát hiện chênh lệch",
+    "affected_tables": "users, products, orders, order_items, payments",
+    "source_label": "Node 2",
+    "source_node": "192.168.1.222:3306",
+    "target_display": "Node 3, Node 4 (Chờ Node 1)",
+    "target_nodes": [
+      "Node 1",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221:3306",
+      "192.168.1.222:3307",
+      "192.168.1.222:3308"
+    ],
+    "mechanism": "Bi-directional Consistency Reconciler",
+    "detail": "Giao dịch đã đồng bộ thành công tới Node 3, Node 4. Các Node ngoại tuyến (Node 1) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
+    "latency_ms": 64.5,
     "status": "PARTIAL",
     "status_text": "Đồng bộ 2/3 node phụ",
     "target_statuses": [

@@ -547,6 +547,10 @@
         border-radius: 4px;
         border: 1px solid #bbf7d0;
       }
+      body.on-tab-cluster #compactStatusBar,
+      body.on-tab-cluster #detailedStatusBox {
+        display: none !important;
+      }
       .sync-row-clickable {
         cursor: pointer;
         transition: background-color 0.12s ease;
@@ -554,9 +558,19 @@
       .sync-row-clickable:hover {
         background-color: #f8fafc !important;
       }
+      .sync-chevron-icon {
+        display: inline-block;
+        font-size: 13px;
+        color: #64748b;
+        transition: transform 0.15s ease-in-out;
+      }
+      .sync-row-clickable.is-expanded .sync-chevron-icon {
+        transform: rotate(90deg);
+        color: #004b87;
+      }
       .sync-detail-box {
         background: #f8fafc;
-        border-left: 3px solid #0284c7;
+        border-left: 3px solid #004b87;
         font-size: 12px;
         line-height: 1.55;
       }
@@ -1510,7 +1524,8 @@
                   <span class="fw-bold">Cụm MySQL Group Replication</span>
                   <button
                     class="btn btn-sm btn-outline-secondary"
-                    onclick="refreshAll(true)">
+                    id="btn-refresh-mysql-cluster"
+                    onclick="refreshClusterTables(this)">
                     &#x21bb; Kiểm tra lại
                   </button>
                 </div>
@@ -1520,10 +1535,10 @@
                       class="table table-bordered table-sm table-custom mb-0 align-middle">
                       <thead>
                         <tr>
-                          <th>Node</th>
-                          <th>Địa chỉ IP</th>
-                          <th class="text-center">Vai trò</th>
-                          <th class="text-center">Trạng thái</th>
+                          <th class="text-start">Node</th>
+                          <th class="text-start">Địa chỉ IP</th>
+                          <th class="text-start">Vai trò</th>
+                          <th class="text-start">Trạng thái</th>
                           <th class="text-end">Đơn hàng</th>
                           <th class="text-end">Sản phẩm</th>
                         </tr>
@@ -1541,7 +1556,8 @@
                   <span class="fw-bold">Cụm MongoDB Replica Set</span>
                   <button
                     class="btn btn-sm btn-outline-secondary"
-                    onclick="refreshAll(true)">
+                    id="btn-refresh-mongo-cluster"
+                    onclick="refreshClusterTables(this)">
                     &#x21bb; Kiểm tra lại
                   </button>
                 </div>
@@ -1551,10 +1567,10 @@
                       class="table table-bordered table-sm table-custom mb-0 align-middle">
                       <thead>
                         <tr>
-                          <th>Node</th>
-                          <th>Địa chỉ IP:Port</th>
-                          <th class="text-center">Vai trò</th>
-                          <th class="text-center">Trạng thái</th>
+                          <th class="text-start">Node</th>
+                          <th class="text-start">Địa chỉ IP:Port</th>
+                          <th class="text-start">Vai trò</th>
+                          <th class="text-start">Trạng thái</th>
                           <th class="text-end">Đánh giá</th>
                           <th class="text-end">Nhật ký hoạt động</th>
                         </tr>
@@ -1571,8 +1587,8 @@
           <div class="panel-box mb-3">
             <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2" style="min-height: 48px;">
               <div class="fw-bold">Đối chiếu số bản ghi</div>
-              <div class="d-flex align-items-center gap-3">
-                <div class="form-check form-switch d-flex align-items-center gap-1 m-0" title="Bật/Tắt tự động quét định kỳ trạng thái cụm">
+              <div class="d-flex align-items-center gap-2">
+                <div class="form-check form-switch d-flex align-items-center gap-1 m-0 me-2" title="Bật/Tắt tự động quét định kỳ trạng thái cụm">
                   <input class="form-check-input mt-0" type="checkbox" role="switch" id="switch-auto-scan" checked onchange="toggleAutoClusterScan(this.checked)" style="cursor: pointer;">
                   <label class="form-check-label small text-secondary" for="switch-auto-scan" style="cursor: pointer; user-select: none;">
                     Tự động quét (<span id="lbl-sync-interval">2s</span>)
@@ -1580,11 +1596,20 @@
                 </div>
                 <button
                   type="button"
-                  class="btn btn-sm btn-outline-primary py-1 px-3 fw-medium"
+                  class="btn btn-sm btn-outline-secondary py-1 px-3 fw-medium"
                   id="btn-manual-sync"
-                  onclick="triggerManualSync()"
-                  title="Tự động kiểm tra và đồng bộ bù dữ liệu các bản ghi thiếu giữa Primary và các Node phụ">
-                  <i class="bi bi-arrow-repeat me-1" id="icon-manual-sync"></i>Đối chiếu & Đồng bộ ngay
+                  onclick="triggerReconciliation()"
+                  title="Kiểm tra đối chiếu số lượng bản ghi giữa các node trong cụm">
+                  <i class="bi bi-search me-1" id="icon-manual-sync"></i>Đối chiếu
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-warning text-dark py-1 px-2.5"
+                  id="btn-sync-node1"
+                  onclick="triggerSyncNode1()"
+                  style="display: none;"
+                  title="Đồng bộ bù dữ liệu cho Node 1">
+                  <i class="bi bi-arrow-repeat me-1"></i>Đồng bộ lại Node 1
                 </button>
               </div>
             </div>
@@ -1594,13 +1619,13 @@
                   class="table table-bordered table-sm table-custom mb-0 align-middle">
                   <thead>
                     <tr>
-                      <th>Bảng / Collection</th>
-                      <th>Hệ quản trị</th>
+                      <th class="text-start">Bảng / Bộ sưu tập</th>
+                      <th class="text-start">Hệ quản trị</th>
                       <th class="text-end" id="th-sync-node1">Node 1 (192.168.1.221)</th>
                       <th class="text-end" id="th-sync-node2">Node 2 (192.168.1.222)</th>
                       <th class="text-end" id="th-sync-node3">Node 3 (192.168.1.222:3307)</th>
                       <th class="text-end" id="th-sync-node4">Node 4 (192.168.1.222:3308)</th>
-                      <th class="text-center">Đánh giá Đồng bộ</th>
+                      <th class="text-start ps-3">Đánh giá đồng bộ</th>
                     </tr>
                   </thead>
                   <tbody id="sync-comparison-table"></tbody>
@@ -1623,7 +1648,7 @@
                     onclick="filterSyncLogs('ALL')">
                     Tất cả
                     <span
-                      class="badge rounded-pill bg-primary text-white fw-bold ms-1 px-2"
+                      class="badge rounded-pill bg-light text-secondary border fw-normal ms-1 px-2"
                       id="tab-cnt-all"
                       >0</span
                     >
@@ -1635,7 +1660,7 @@
                     onclick="filterSyncLogs('MYSQL_GR')">
                     MySQL
                     <span
-                      class="badge rounded-pill bg-info text-dark fw-bold ms-1 px-2"
+                      class="badge rounded-pill bg-light text-secondary border fw-normal ms-1 px-2"
                       id="tab-cnt-mysql"
                       >0</span
                     >
@@ -1647,7 +1672,7 @@
                     onclick="filterSyncLogs('MONGO_RS')">
                     MongoDB
                     <span
-                      class="badge rounded-pill bg-success text-white fw-bold ms-1 px-2"
+                      class="badge rounded-pill bg-light text-secondary border fw-normal ms-1 px-2"
                       id="tab-cnt-mongo"
                       >0</span
                     >
@@ -1662,14 +1687,14 @@
                   oninput="currentSyncPage = 1; renderSyncLogsUI()" />
                 <button
                   class="btn btn-sm btn-outline-secondary"
-                  onclick="loadSyncLogs()">
+                  id="btn-refresh-sync-logs"
+                  onclick="loadSyncLogs(true)">
                   <i class="bi bi-arrow-clockwise me-1"></i>Làm mới
                 </button>
-                <div class="vr my-1 mx-1 text-muted"></div>
                 <button
-                  class="btn btn-sm btn-outline-danger ms-1"
-                  onclick="clearSyncLogs()"
-                  title="Xóa toàn bộ nhật ký đồng bộ hiện tại">
+                  class="btn btn-sm btn-link text-secondary text-decoration-none py-0 px-2 ms-3"
+                  onclick="confirmClearSyncLogs()"
+                  title="Xóa lịch sử sự kiện đồng bộ">
                   <i class="bi bi-trash3 me-1"></i>Xóa nhật ký
                 </button>
               </div>
@@ -1680,18 +1705,19 @@
                   class="table table-bordered table-sm table-custom mb-0 align-middle">
                   <thead class="table-light sticky-top">
                     <tr>
-                      <th style="width: 105px" class="text-center">Thời gian</th>
-                      <th style="width: 105px" class="text-center">CSDL</th>
-                      <th class="text-center">Sự kiện & Tóm tắt</th>
-                      <th style="width: 95px" class="text-center">Nguồn</th>
-                      <th style="width: 115px" class="text-center">Đích</th>
-                      <th style="width: 90px" class="text-center">Độ trễ</th>
-                      <th style="width: 145px; min-width: 145px;" class="text-center">Trạng thái</th>
+                      <th style="width: 36px;" class="text-center"></th>
+                      <th style="width: 105px;" class="text-start">Thời gian</th>
+                      <th style="width: 95px;" class="text-start">CSDL</th>
+                      <th class="text-start">Sự kiện và tóm tắt</th>
+                      <th style="width: 85px;" class="text-start">Nguồn</th>
+                      <th style="width: 140px;" class="text-start">Đích</th>
+                      <th style="width: 90px;" class="text-end">Độ trễ</th>
+                      <th style="width: 140px;" class="text-start">Trạng thái</th>
                     </tr>
                   </thead>
                   <tbody id="sync-audit-stream-table">
                     <tr>
-                      <td colspan="7" class="text-center py-4 text-muted">
+                      <td colspan="8" class="text-center py-4 text-muted">
                         Đang tải nhật ký đồng bộ...
                       </td>
                     </tr>
@@ -1704,7 +1730,7 @@
               <div class="small text-muted" id="sync-page-info">
                 Hiển thị <strong>0</strong> sự kiện đồng bộ
               </div>
-              <div class="d-flex align-items-center gap-2">
+              <div class="d-flex align-items-center gap-2" id="sync-pagination-controls">
                 <select id="sync-page-size" class="form-select form-select-sm" style="width: 120px;" onchange="changeSyncPageSize(this.value)">
                   <option value="5">5 / trang</option>
                   <option value="10" selected>10 / trang</option>
@@ -1943,7 +1969,7 @@
                     onclick="filterSyncLogs('ALL')">
                     Tất cả
                     <span
-                      class="badge rounded-pill bg-primary text-white fw-bold ms-1 px-2"
+                      class="badge rounded-pill bg-light text-secondary border fw-normal ms-1 px-2"
                       id="modal-cnt-all"
                       >0</span
                     >
@@ -1955,7 +1981,7 @@
                     onclick="filterSyncLogs('MYSQL_GR')">
                     MySQL
                     <span
-                      class="badge rounded-pill bg-info text-dark fw-bold ms-1 px-2"
+                      class="badge rounded-pill bg-light text-secondary border fw-normal ms-1 px-2"
                       id="modal-cnt-mysql"
                       >0</span
                     >
@@ -1967,7 +1993,7 @@
                     onclick="filterSyncLogs('MONGO_RS')">
                     MongoDB
                     <span
-                      class="badge rounded-pill bg-success text-white fw-bold ms-1 px-2"
+                      class="badge rounded-pill bg-light text-secondary border fw-normal ms-1 px-2"
                       id="modal-cnt-mongo"
                       >0</span
                     >
@@ -1992,12 +2018,12 @@
                 </span>
                 <button
                   class="btn btn-sm btn-outline-secondary"
-                  onclick="loadSyncLogs()">
+                  onclick="loadSyncLogs(true)">
                   <i class="bi bi-arrow-clockwise me-1"></i>Làm mới
                 </button>
                 <button
-                  class="btn btn-sm btn-link text-danger text-decoration-none p-0 ms-2 small"
-                  onclick="clearSyncLogs()">
+                  class="btn btn-sm btn-link text-secondary text-decoration-none py-0 px-2 ms-2"
+                  onclick="confirmClearSyncLogs()">
                   <i class="bi bi-trash3 me-1"></i>Xóa nhật ký
                 </button>
               </div>
@@ -2010,18 +2036,19 @@
                 class="table table-bordered table-sm table-custom mb-0 align-middle">
                 <thead class="table-light sticky-top">
                   <tr>
-                    <th style="width: 110px" class="text-center">STT & Giờ</th>
-                    <th style="width: 105px" class="text-center">CSDL</th>
-                    <th class="text-center">Sự kiện & Tóm tắt</th>
-                    <th style="width: 95px" class="text-center">Nguồn</th>
-                    <th style="width: 115px" class="text-center">Đích</th>
-                    <th style="width: 90px" class="text-center">Độ trễ</th>
-                    <th style="width: 110px" class="text-center">Trạng thái</th>
+                    <th style="width: 36px;" class="text-center"></th>
+                    <th style="width: 105px;" class="text-start">Thời gian</th>
+                    <th style="width: 95px;" class="text-start">CSDL</th>
+                    <th class="text-start">Sự kiện và tóm tắt</th>
+                    <th style="width: 85px;" class="text-start">Nguồn</th>
+                    <th style="width: 140px;" class="text-start">Đích</th>
+                    <th style="width: 90px;" class="text-end">Độ trễ</th>
+                    <th style="width: 140px;" class="text-start">Trạng thái</th>
                   </tr>
                 </thead>
                 <tbody id="modal-sync-audit-table">
                   <tr>
-                    <td colspan="7" class="text-center py-4 text-muted">
+                    <td colspan="8" class="text-center py-4 text-muted">
                       Đang tải nhật ký đồng bộ...
                     </td>
                   </tr>
@@ -2878,24 +2905,37 @@
         }
       }
 
+      function updateTopBarVisibility() {
+        const compactBar = document.getElementById("compactStatusBar");
+        const detailBox = document.getElementById("detailedStatusBox");
+        const isClusterTab = document.body.classList.contains("on-tab-cluster");
+        if (isClusterTab) {
+          if (compactBar) compactBar.style.setProperty("display", "none", "important");
+          if (detailBox) detailBox.style.setProperty("display", "none", "important");
+          return;
+        }
+        const isTech = document.body.classList.contains("tech-mode-active");
+        if (isTech) {
+          if (compactBar) compactBar.style.setProperty("display", "none", "important");
+          if (detailBox) detailBox.style.setProperty("display", "block", "important");
+        } else {
+          if (compactBar) compactBar.style.setProperty("display", "flex", "important");
+          if (detailBox) detailBox.style.setProperty("display", "none", "important");
+        }
+      }
+
       // CHẾ ĐỘ KỸ THUẬT (BẬT KHI DEMO THẦY CÔ / TẮT MẶC ĐỊNH CHO GIAO DIỆN SẢN PHẨM)
       function toggleTechMode(isTech) {
         const sw = document.getElementById("techModeSwitch");
         if (sw) sw.checked = isTech;
-        const compactBar = document.getElementById("compactStatusBar");
-        const detailBox = document.getElementById("detailedStatusBox");
-
         if (isTech) {
           document.body.classList.add("tech-mode-active");
           localStorage.setItem("ecom_tech_mode", "1");
-          if (compactBar) compactBar.style.setProperty("display", "none", "important");
-          if (detailBox) detailBox.style.setProperty("display", "block", "important");
         } else {
           document.body.classList.remove("tech-mode-active");
           localStorage.setItem("ecom_tech_mode", "0");
-          if (compactBar) compactBar.style.setProperty("display", "flex", "important");
-          if (detailBox) detailBox.style.setProperty("display", "none", "important");
         }
+        updateTopBarVisibility();
       }
 
       function initTechMode() {
@@ -3020,21 +3060,21 @@
             .map((n) => {
               const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
               const stateBadge = isOnline
-                ? `<span class="text-success fw-medium d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Sẵn sàng</span>`
-                : `<span class="text-danger fw-medium d-inline-flex align-items-center"><span class="status-dot dot-offline"></span>Mất kết nối</span>`;
+                ? `<span class="text-success small d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Sẵn sàng</span>`
+                : `<span class="text-danger small fw-medium d-inline-flex align-items-center"><span class="status-dot dot-offline"></span>Mất kết nối</span>`;
               const roleBadge = !isOnline
-                ? `<span class="text-muted">-</span>`
+                ? `<span class="text-muted small">-</span>`
                 : n.role === "PRIMARY"
-                  ? `<span class="text-primary fw-bold d-inline-flex align-items-center"><span class="status-dot dot-online" style="background-color: #0284c7;"></span>Node chính</span>`
-                  : `<span class="text-success fw-medium d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Node phụ</span>`;
+                  ? `<span class="text-primary small fw-semibold d-inline-flex align-items-center"><span class="status-dot dot-online" style="background-color: #004b87;"></span>Node chính</span>`
+                  : `<span class="text-secondary small d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Node phụ</span>`;
               return `
             <tr>
-              <td class="fw-semibold">${n.node_name}</td>
-              <td class="mono-text">${n.host}</td>
-              <td class="text-center">${roleBadge}</td>
-              <td class="text-center">${stateBadge}</td>
-              <td class="text-end mono-text">${isOnline ? (n.counts?.orders || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
-              <td class="text-end mono-text">${isOnline ? (n.counts?.products || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
+              <td class="fw-medium text-dark text-start" style="font-size: 14px;">${n.node_name}</td>
+              <td class="font-monospace text-start" style="font-size: 14px;">${n.host}</td>
+              <td class="text-start">${roleBadge}</td>
+              <td class="text-start">${stateBadge}</td>
+              <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.counts?.orders || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
+              <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.counts?.products || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
             </tr>
           `;
             })
@@ -3046,22 +3086,22 @@
               .map((n) => {
                 const isOnline = n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1;
                 const stateBadge = isOnline
-                  ? `<span class="text-success fw-medium d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Sẵn sàng</span>`
-                  : `<span class="text-danger fw-medium d-inline-flex align-items-center"><span class="status-dot dot-offline"></span>Mất kết nối</span>`;
+                  ? `<span class="text-success small d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Sẵn sàng</span>`
+                  : `<span class="text-danger small fw-medium d-inline-flex align-items-center"><span class="status-dot dot-offline"></span>Mất kết nối</span>`;
                 const displayRole = !isOnline ? "OFFLINE" : (n.state === "PRIMARY" ? "PRIMARY" : "SECONDARY");
                 const roleBadge = !isOnline
-                  ? `<span class="text-muted">-</span>`
+                  ? `<span class="text-muted small">-</span>`
                   : displayRole === "PRIMARY"
-                    ? `<span class="text-primary fw-bold d-inline-flex align-items-center"><span class="status-dot dot-online" style="background-color: #0284c7;"></span>Node chính</span>`
-                    : `<span class="text-success fw-medium d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Node phụ</span>`;
+                    ? `<span class="text-primary small fw-semibold d-inline-flex align-items-center"><span class="status-dot dot-online" style="background-color: #004b87;"></span>Node chính</span>`
+                    : `<span class="text-secondary small d-inline-flex align-items-center"><span class="status-dot dot-online"></span>Node phụ</span>`;
                 return `
             <tr>
-              <td class="fw-semibold">${n.node_name}</td>
-              <td class="mono-text">${n.host}</td>
-              <td class="text-center">${roleBadge}</td>
-              <td class="text-center">${stateBadge}</td>
-              <td class="text-end mono-text">${isOnline ? (n.reviews_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
-              <td class="text-end mono-text">${isOnline ? (n.logs_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
+              <td class="fw-medium text-dark text-start" style="font-size: 14px;">${n.node_name}</td>
+              <td class="font-monospace text-start" style="font-size: 14px;">${n.host}</td>
+              <td class="text-start">${roleBadge}</td>
+              <td class="text-start">${stateBadge}</td>
+              <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.reviews_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
+              <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.logs_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
             </tr>
           `;
               })
@@ -3091,7 +3131,8 @@
 
           const syncRows = [
             {
-              name: "users (Khách hàng)",
+              vn: "Khách hàng",
+              code: "users",
               db: "MySQL",
               v1: m1.users,
               v2: m2.users,
@@ -3099,7 +3140,8 @@
               v4: m4.users,
             },
             {
-              name: "products (Sản phẩm)",
+              vn: "Sản phẩm",
+              code: "products",
               db: "MySQL",
               v1: m1.products,
               v2: m2.products,
@@ -3107,7 +3149,8 @@
               v4: m4.products,
             },
             {
-              name: "orders (Đơn hàng)",
+              vn: "Đơn hàng",
+              code: "orders",
               db: "MySQL",
               v1: m1.orders,
               v2: m2.orders,
@@ -3115,7 +3158,8 @@
               v4: m4.orders,
             },
             {
-              name: "order_items (Chi tiết ĐH)",
+              vn: "Chi tiết đơn hàng",
+              code: "order_items",
               db: "MySQL",
               v1: m1.order_items,
               v2: m2.order_items,
@@ -3123,7 +3167,8 @@
               v4: m4.order_items,
             },
             {
-              name: "payments (Thanh toán)",
+              vn: "Thanh toán",
+              code: "payments",
               db: "MySQL",
               v1: m1.payments,
               v2: m2.payments,
@@ -3131,7 +3176,8 @@
               v4: m4.payments,
             },
             {
-              name: "product_reviews (Đánh giá)",
+              vn: "Đánh giá",
+              code: "product_reviews",
               db: "MongoDB",
               v1: mg1.reviews_count,
               v2: mg2.reviews_count,
@@ -3139,7 +3185,8 @@
               v4: mg4.reviews_count,
             },
             {
-              name: "user_activity_logs (Nhật ký)",
+              vn: "Nhật ký hoạt động",
+              code: "user_activity_logs",
               db: "MongoDB",
               v1: mg1.logs_count,
               v2: mg2.logs_count,
@@ -3163,26 +3210,37 @@
               const isSynced = activeVals.length >= 1 && minVal === maxVal;
               let syncLabel = '';
               if (isSynced) {
-                syncLabel = `<span class="label-tag tag-online">Khớp ${activeVals.length}/4 node</span>`;
+                if (activeVals.length === 4) {
+                  syncLabel = `<span class="text-secondary small d-inline-flex align-items-center"><i class="bi bi-check2 text-success me-1"></i>Khớp</span>`;
+                } else {
+                  syncLabel = `<span class="text-secondary small d-inline-flex align-items-center"><span class="status-dot dot-warning me-1"></span>Khớp ${activeVals.length}/4 node</span>`;
+                }
               } else if (activeVals.length > 1) {
                 const diff = maxVal - minVal;
-                syncLabel = `<span class="label-tag tag-warning" title="Chênh lệch ${diff} bản ghi giữa các Node. Hệ thống đang tự động đối chiếu bù ngầm...">Lệch ${diff.toLocaleString("vi-VN")} bản ghi</span>`;
+                syncLabel = `<span class="text-danger small fw-semibold d-inline-flex align-items-center" title="Chênh lệch ${diff} bản ghi giữa các Node"><span class="status-dot dot-offline me-1"></span>Lệch ${diff.toLocaleString("vi-VN")} bản ghi</span>`;
               } else {
-                syncLabel = `<span class="label-tag tag-secondary">Đang kiểm tra</span>`;
+                syncLabel = `<span class="text-secondary small">Đang kiểm tra</span>`;
               }
               return `
             <tr>
-              <td class="fw-semibold">${r.name}</td>
-              <td>${r.db}</td>
-              <td class="text-end mono-text">${onlineStates[0] ? (r.v1 !== undefined && r.v1 !== null ? r.v1.toLocaleString("vi-VN") : "0") : '<span class="text-muted">Mất kết nối</span>'}</td>
-              <td class="text-end mono-text">${onlineStates[1] ? (r.v2 !== undefined && r.v2 !== null ? r.v2.toLocaleString("vi-VN") : "0") : '<span class="text-muted">Mất kết nối</span>'}</td>
-              <td class="text-end mono-text">${onlineStates[2] ? (r.v3 !== undefined && r.v3 !== null ? r.v3.toLocaleString("vi-VN") : "0") : '<span class="text-muted">Mất kết nối</span>'}</td>
-              <td class="text-end mono-text">${onlineStates[3] ? (r.v4 !== undefined && r.v4 !== null ? r.v4.toLocaleString("vi-VN") : "0") : '<span class="text-muted">Mất kết nối</span>'}</td>
-              <td class="text-center">${syncLabel}</td>
+              <td class="fw-medium text-dark text-start" style="font-size: 14px;">${r.vn} <span class="tech-detail badge bg-light text-secondary border font-monospace ms-1" style="font-size: 11px;">${r.code}</span></td>
+              <td class="text-start text-secondary" style="font-size: 14px;">${r.db}</td>
+              <td class="text-end font-monospace" style="font-size: 14px;">${onlineStates[0] ? (r.v1 !== undefined && r.v1 !== null ? r.v1.toLocaleString("vi-VN") : "0") : '<span class="text-muted">Mất kết nối</span>'}</td>
+              <td class="text-end font-monospace" style="font-size: 14px;">${onlineStates[1] ? (r.v2 !== undefined && r.v2 !== null ? r.v2.toLocaleString("vi-VN") : "0") : '<span class="text-muted">Mất kết nối</span>'}</td>
+              <td class="text-end font-monospace" style="font-size: 14px;">${onlineStates[2] ? (r.v3 !== undefined && r.v3 !== null ? r.v3.toLocaleString("vi-VN") : "0") : '<span class="text-muted">Mất kết nối</span>'}</td>
+              <td class="text-end font-monospace" style="font-size: 14px;">${onlineStates[3] ? (r.v4 !== undefined && r.v4 !== null ? r.v4.toLocaleString("vi-VN") : "0") : '<span class="text-muted">Mất kết nối</span>'}</td>
+              <td class="text-start ps-3">${syncLabel}</td>
             </tr>
           `;
             })
             .join("");
+
+          // Cập nhật trạng thái hiển thị của nút "Đồng bộ lại Node 1" nếu Node 1 mất kết nối
+          const isNode1Offline = !data.mysql[0] || data.mysql[0].state !== 'ONLINE';
+          const btnSyncNode1 = document.getElementById("btn-sync-node1");
+          if (btnSyncNode1) {
+            btnSyncNode1.style.display = isNode1Offline ? "inline-flex" : "none";
+          }
 
           // Cập nhật số lượng sự kiện đồng bộ lên badge
           if (data.sync_logs_count !== undefined) {
@@ -3258,30 +3316,21 @@
       function toggleSyncRow(detailId, prefix) {
         const el = document.getElementById(detailId);
         if (!el) return;
+        const mainRow = document.getElementById(`main-${detailId}`);
         const isCurrentlyHidden =
           el.style.display === "none" || !el.style.display;
 
         // Tự động đóng tất cả các dòng chi tiết khác trong cùng bảng (Accordion behavior)
-        const allDetailRows = document.querySelectorAll(
-          `.sync-detail-row-${prefix}`,
-        );
-        allDetailRows.forEach((row) => {
+        document.querySelectorAll(`.sync-detail-row-${prefix}`).forEach((row) => {
           row.style.display = "none";
         });
-
-        // Đặt lại tất cả các icon chevron về hướng xuống
-        const allChevrons = document.querySelectorAll(
-          `.sync-chevron-${prefix}`,
-        );
-        allChevrons.forEach((ch) => {
-          ch.innerHTML = "&#9662;";
+        document.querySelectorAll(`.sync-main-row-${prefix}`).forEach((row) => {
+          row.classList.remove("is-expanded");
         });
 
-        // Nếu dòng được click đang đóng -> tự chuyển mở dòng này ra
         if (isCurrentlyHidden) {
           el.style.display = "table-row";
-          const myChevron = document.getElementById(`chevron-${detailId}`);
-          if (myChevron) myChevron.innerHTML = "&#9652;";
+          if (mainRow) mainRow.classList.add("is-expanded");
         }
       }
 
@@ -3289,9 +3338,8 @@
         if (!logs || logs.length === 0) {
           return `
             <tr>
-              <td colspan="7" class="text-center py-5 text-muted">
-                <div class="fw-semibold text-secondary mb-1">Chưa có bản ghi đồng bộ nào</div>
-                <div class="small">Các sự kiện nhân bản giữa Primary và Replicas sẽ tự động hiển thị tại đây khi phát sinh giao dịch.</div>
+              <td colspan="8" class="text-center py-4 text-muted">
+                Chưa có sự kiện đồng bộ
               </td>
             </tr>
           `;
@@ -3300,67 +3348,65 @@
           .map((l, idx) => {
             const itemNum = (offset || 0) + idx + 1;
             const isMySQL = l.db_type === "MYSQL_GR";
-            const dbBadge = isMySQL
-              ? `<span class="badge-db-mysql">● MySQL</span>`
-              : `<span class="badge-db-mongo">● MongoDB</span>`;
+            const dbText = isMySQL ? "MySQL" : "MongoDB";
 
-            // Node nguồn: badge xanh dương dịu
-            const srcHtml = `<span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-medium" title="${l.source_node || ""}">${l.source_label || l.source_node || "Node 2"}</span>`;
+            // Node nguồn: chữ thường, không khung viền rực rỡ
+            const srcText = l.source_label || "Node 2";
 
-            // Node đích: hiển thị trạng thái phù hợp theo kết nối mạng thực tế
+            // Node đích: văn bản thuần, chỉ chấm cảnh báo nếu có node ngoại tuyến
             const tgtTitle =
               l.target_hosts && l.target_hosts.length
                 ? l.target_hosts.join(", ")
                 : "";
             let tgtHtml = "";
             if (l.status === "PENDING") {
-              tgtHtml = `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-medium" title="${tgtTitle}"><i class="bi bi-clock-history me-1"></i>${l.target_display || "Chờ Node phụ (Mất kết nối)"}</span>`;
+              tgtHtml = `<span class="small text-warning d-inline-flex align-items-center" title="${tgtTitle}"><span class="status-dot dot-warning me-1"></span>${l.target_display || "Chờ Node phụ"}</span>`;
             } else if (l.status === "PARTIAL") {
-              tgtHtml = `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-medium" title="${tgtTitle}"><i class="bi bi-arrow-repeat me-1"></i>${l.target_display || "Một phần"}</span>`;
+              tgtHtml = `<span class="small text-secondary d-inline-flex align-items-center" title="${tgtTitle}"><span class="status-dot dot-warning me-1"></span>${l.target_display || "Node 3, Node 4"}</span>`;
             } else {
-              tgtHtml = `<span class="badge bg-light text-dark border" title="${tgtTitle}">${l.target_display || "Replicas"}</span>`;
+              tgtHtml = `<span class="small text-secondary" title="${tgtTitle}">${l.target_display || "Tất cả node"}</span>`;
             }
 
-            // Trạng thái đồng bộ: Hiển thị động theo kết nối thực tế của Replicas
+            // Trạng thái đồng bộ: chấm màu nhỏ + chữ thường
             let statusHtml = "";
             if (l.status === "PENDING") {
-              statusHtml = `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-medium" title="Toàn bộ Node phụ mất kết nối, dữ liệu đã ghi cục bộ trên Node chính và chờ nhân bản bù"><i class="bi bi-hourglass-split me-1"></i>${l.status_text || "Chờ nhân bản"}</span>`;
+              statusHtml = `<span class="small text-warning d-inline-flex align-items-center"><span class="status-dot dot-warning me-1"></span>${l.status_text || "Chờ nhân bản"}</span>`;
             } else if (l.status === "PARTIAL") {
-              statusHtml = `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-medium" title="Đã nhân bản tới các node trực tuyến, node mất kết nối đang chờ bù"><i class="bi bi-arrow-repeat me-1"></i>${l.status_text || "Đồng bộ một phần"}</span>`;
+              statusHtml = `<span class="small text-secondary d-inline-flex align-items-center"><span class="status-dot dot-warning me-1"></span>${l.status_text || "Đồng bộ một phần"}</span>`;
             } else {
               const cleanSt = l.status_text === "REPLICATED_OK" ? "Đã đồng bộ" : (l.status_text || "Đã đồng bộ");
-              statusHtml = `<span class="badge bg-success-subtle text-success border border-success-subtle fw-medium" title="Tất cả các node Replicas đã nhận dữ liệu"><i class="bi bi-check-circle me-1"></i>${cleanSt}</span>`;
+              statusHtml = `<span class="small text-secondary d-inline-flex align-items-center"><i class="bi bi-check2 text-success me-1"></i>${cleanSt}</span>`;
             }
 
             const detailId = `detail-${prefix}-${itemNum}-${l.log_id}`;
 
-            const payloadHtml = (l.data_payload || l.summary || "").replace(/#([0-9]+)/g, "$1");
-            const cleanSummary = (l.summary || "").replace(/#([0-9]+)/g, "$1");
-            const affectedTablesHtml = l.affected_tables
-              ? `<div class="mt-1 small text-secondary"><strong>Bảng / Collection bị ghi:</strong> <code class="text-dark bg-white px-1 border rounded">${l.affected_tables}</code></div>`
-              : "";
-
-            const offlineAlertHtml = (l.status === "PENDING" || (l.target_statuses && l.target_statuses.some(s => s.state === "OFFLINE")))
-              ? `<div class="alert alert-warning py-1.5 px-2.5 mt-2 mb-0 small" style="font-size: 11.5px; border-left: 3px solid #ffc107;">
-                  <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
-                  <strong>Cảnh báo phân tán:</strong> ${l.status === "PENDING" ? "Toàn bộ Node phụ hiện đang mất kết nối. Dữ liệu đã ghi bền vững tại Node chính và sẽ tự động bù đồng bộ ngay khi các node khởi động lại." : "Một số Node phụ đang mất kết nối và sẽ tự động nhận bù dữ liệu khi trực tuyến trở lại."}
-                 </div>`
-              : "";
-
-            // Chuẩn hóa tiêu đề sự kiện: Bỏ dấu # trước ID và hiển thị mã ID số trong badge nổi bật
-            let cleanTitle = (l.title || "")
-              .replace(/\s*·\s*[0-9.,]+\s*đ/gi, "")
-              .replace(/\s*\([0-9]+\s*sao\)/gi, "")
-              .replace(/\s*·\s*[0-9]+\s*bản ghi bù/gi, "")
-              .replace(/#([0-9]+)/g, "$1")
+            // Làm sạch phần tóm tắt: bỏ -> và | thay bằng chấm giữa ·
+            let cleanSummary = (l.summary || "")
+              .replace(/->/g, "xuống")
+              .replace(/\|/g, " · ")
+              .replace(/\s+·\s+/g, " · ")
               .trim();
 
-            const formattedTitle = cleanTitle.replace(
-              /(\b[0-9]{1,7}\b)/g,
-              '<span class="badge bg-primary text-white font-monospace fw-bold px-1.5 py-0.5">$1</span>',
-            );
+            let cleanPayload = (l.data_payload || l.summary || "")
+              .replace(/->/g, "xuống")
+              .replace(/\|/g, " · ")
+              .replace(/\s+·\s+/g, " · ")
+              .trim();
 
-            // Danh sách Node nhận: dạng chấm màu + chữ gọn gàng, tránh chip chồng chéo
+            const affectedTablesHtml = l.affected_tables
+              ? `<div class="mt-1 small text-secondary"><strong>Bảng / Bộ sưu tập:</strong> <code class="text-dark bg-white px-1 border rounded">${l.affected_tables}</code></div>`
+              : "";
+
+            // Tiêu đề sự kiện: KHÔNG dùng regex chèn badge vào giữa tên sản phẩm
+            const titleHtml = `<span class="fw-semibold text-dark">${l.title || "Sự kiện"}</span>`;
+
+            // Độ trễ: nếu cao > 150ms thì cảnh báo màu cam nhẹ
+            const isHighLatency = (l.latency_ms || 0) > 150;
+            const latencyHtml = isHighLatency
+              ? `<span class="font-monospace text-warning fw-semibold">${l.latency_ms} ms</span>`
+              : `<span class="font-monospace text-secondary">${l.latency_ms} ms</span>`;
+
+            // Danh sách node nhận chi tiết
             let replicaBadges = "";
             if (l.target_statuses && l.target_statuses.length) {
               replicaBadges = l.target_statuses.map((st) => {
@@ -3380,7 +3426,7 @@
               replicaBadges = `<span class="text-muted small">${l.target_display || "Replicas"}</span>`;
             }
 
-            // Tính toán thời gian bắt đầu và kết thúc với độ chính xác mili-giây
+            // Thời gian
             let startTimeStr = l.start_time;
             let endTimeStr = l.end_time;
             if (!startTimeStr || !endTimeStr) {
@@ -3400,28 +3446,30 @@
             }
 
             return `
-            <tr class="sync-row-clickable" onclick="toggleSyncRow('${detailId}', '${prefix}')" title="Bấm để xem chi tiết dữ liệu cập nhật và cơ chế đồng bộ">
-              <td class="text-center">
-                <div class="fw-bold text-dark">${l.time || l.timestamp}</div>
-                <div class="text-muted font-monospace small" style="font-size: 11px;">${l.log_id}</div>
+            <tr id="main-${detailId}" class="sync-row-clickable sync-main-row-${prefix}" onclick="toggleSyncRow('${detailId}', '${prefix}')" title="Bấm để xem chi tiết dữ liệu cập nhật và cơ chế đồng bộ">
+              <td class="text-center py-2" style="width: 36px;">
+                <i class="bi bi-chevron-right sync-chevron-icon" id="chevron-${detailId}"></i>
               </td>
-              <td class="text-center">${dbBadge}</td>
-              <td>
-                <div class="d-flex align-items-center justify-content-between">
-                  <span class="fw-semibold text-dark">${formattedTitle}</span>
-                  <span class="text-muted small sync-chevron-${prefix}" id="chevron-${detailId}" style="font-size: 10px;">&#9662;</span>
-                </div>
-                <div class="text-secondary small mt-1" style="font-size: 11.5px; line-height: 1.4;">${cleanSummary}</div>
+              <td class="text-start">
+                <div class="fw-medium text-dark" style="font-size: 13.5px;">${l.time || l.timestamp}</div>
+                <div class="text-secondary font-monospace" style="font-size: 11px;">${l.log_id}</div>
               </td>
-              <td class="text-center">${srcHtml}</td>
-              <td class="text-center">${tgtHtml}</td>
-              <td class="text-center">
-                <span class="mono-text fw-bold text-dark">${l.latency_ms} ms</span>
+              <td class="text-start">
+                <span class="small text-secondary">${dbText}</span>
               </td>
-              <td class="text-center text-nowrap" style="min-width: 145px;">${statusHtml}</td>
+              <td class="text-start">
+                <div>${titleHtml}</div>
+                <div class="text-secondary small mt-0.5" style="font-size: 12px; line-height: 1.4;">${cleanSummary}</div>
+              </td>
+              <td class="text-start">
+                <span class="small text-secondary">${srcText}</span>
+              </td>
+              <td class="text-start">${tgtHtml}</td>
+              <td class="text-end font-monospace" style="font-size: 13.5px;">${latencyHtml}</td>
+              <td class="text-start text-nowrap">${statusHtml}</td>
             </tr>
             <tr id="${detailId}" class="sync-detail-row sync-detail-row-${prefix} bg-light" style="display: none;">
-              <td colspan="7" class="p-3 bg-light border-bottom">
+              <td colspan="8" class="p-3 bg-light border-bottom">
                 <div class="sync-detail-box p-3 rounded">
                   <div class="p-2 mb-2 bg-white rounded border">
                     <div class="d-flex align-items-center justify-content-between mb-1 pb-1 border-bottom">
@@ -3429,24 +3477,24 @@
                         <i class="bi bi-file-earmark-diff text-primary me-1"></i>Dữ liệu cập nhật:
                       </div>
                       <div>
-                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle font-monospace px-2 py-0.5">${l.log_id}</span>
+                        <span class="badge bg-light text-secondary border font-monospace px-2 py-0.5">${l.log_id}</span>
                       </div>
                     </div>
-                    <div class="small text-dark font-monospace ps-1" style="white-space: pre-wrap; word-break: break-word;">${payloadHtml}</div>
+                    <div class="small text-dark font-monospace ps-1" style="white-space: pre-wrap; word-break: break-word;">${cleanPayload}</div>
                     ${affectedTablesHtml}
                   </div>
                   <div class="row g-2">
                     <div class="col-md-6">
-                      <div><strong>Giao thức & Cơ chế:</strong> <span class="mono-text text-dark">${l.mechanism}</span></div>
+                      <div><strong>Giao thức & Cơ chế:</strong> <span class="font-monospace text-dark small">${l.mechanism}</span></div>
                       <div class="mt-2 text-secondary small" style="font-size: 11.5px;">
                         <div class="mb-1">
                           <strong>Bắt đầu:</strong> 
-                          <span class="font-monospace text-primary fw-semibold bg-white px-1.5 py-0.5 border rounded">${startTimeStr}</span>
+                          <span class="font-monospace text-dark bg-white px-1.5 py-0.5 border rounded">${startTimeStr}</span>
                           <span class="text-muted ms-1">${l.date || ""}</span>
                         </div>
                         <div>
                           <strong>Kết thúc:</strong> 
-                          <span class="font-monospace text-success fw-semibold bg-white px-1.5 py-0.5 border rounded">${endTimeStr}</span>
+                          <span class="font-monospace text-dark bg-white px-1.5 py-0.5 border rounded">${endTimeStr}</span>
                           <span class="text-muted ms-1">${l.date || ""}</span>
                           <span class="badge bg-light text-dark border ms-1 font-monospace">(Độ trễ: ${l.latency_ms} ms)</span>
                         </div>
@@ -3455,7 +3503,7 @@
                     <div class="col-md-6 border-start ps-3">
                       <div>
                         <strong>Node chính (Khởi tạo):</strong> 
-                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold px-2 py-0.5 me-1 font-monospace" style="font-size: 11px;">${l.source_label || "Node 2"}</span>
+                        <span class="badge bg-light text-secondary border fw-bold px-2 py-0.5 me-1 font-monospace" style="font-size: 11px;">${l.source_label || "Node 2"}</span>
                         <code class="text-dark bg-white px-1.5 py-0.5 border rounded">${l.source_node}</code>
                       </div>
                       <div class="mt-2">
@@ -3572,24 +3620,18 @@
       }
 
       function renderSyncPagination(page, totalPages, totalItems, limit) {
-        const footerEl = document.getElementById("sync-pagination-footer");
-        if (footerEl) {
-          if (totalItems <= 10) {
-            footerEl.style.display = "none";
-            return;
-          } else {
-            footerEl.style.display = "flex";
-          }
-        }
+        const controlsEl = document.getElementById("sync-pagination-controls");
         const infoEl = document.getElementById("sync-page-info");
         const navEl = document.getElementById("sync-pagination");
-        if (!infoEl || !navEl) return;
+        if (!infoEl) return;
 
-        if (totalItems === 0) {
-          infoEl.innerHTML = `Hiển thị <strong>0</strong> sự kiện`;
-          navEl.innerHTML = "";
+        if (totalItems <= limit) {
+          if (controlsEl) controlsEl.style.display = "none";
+          infoEl.innerHTML = `Hiển thị <strong>${totalItems.toLocaleString("vi-VN")}</strong> sự kiện đồng bộ`;
           return;
         }
+
+        if (controlsEl) controlsEl.style.display = "flex";
         const startIdx = (page - 1) * limit + 1;
         const endIdx = Math.min(page * limit, totalItems);
         infoEl.innerHTML =
@@ -3623,10 +3665,15 @@
         const nextDisabled = page >= totalPages ? "disabled" : "";
         html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="changeSyncPage(${page + 1})">Sau &rsaquo;</button></li>`;
         html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="changeSyncPage(${totalPages})">Cuối &raquo;</button></li>`;
-        navEl.innerHTML = html;
+        if (navEl) navEl.innerHTML = html;
       }
 
-      async function loadSyncLogs() {
+      async function loadSyncLogs(manual = false) {
+        const btn = document.getElementById("btn-refresh-sync-logs");
+        if (manual && btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang tải...';
+        }
         try {
           // Ghi nhớ các dòng chi tiết đang được người dùng mở xem để không bị đóng khi tự động làm mới
           const openLogIds = new Set();
@@ -3658,17 +3705,25 @@
               const parts = row.id.split("-");
               if (parts.length >= 4 && openLogIds.has(parts.slice(3).join("-"))) {
                 row.style.display = "table-row";
-                const chevron = document.getElementById("chevron-" + row.id);
-                if (chevron) chevron.innerHTML = "&#9652;";
+                const mainRow = document.getElementById("main-" + row.id);
+                if (mainRow) mainRow.classList.add("is-expanded");
               }
             });
           }
+          if (manual) {
+            showToastNotification("Đã làm mới dòng sự kiện đồng bộ", "success");
+          }
         } catch (e) {
           console.error("Load sync logs error:", e);
+        } finally {
+          if (manual && btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Làm mới';
+          }
         }
       }
 
-      async function clearSyncLogs() {
+      async function confirmClearSyncLogs() {
         if (
           !confirm(
             "Bạn có chắc chắn muốn xóa toàn bộ lịch sử sự kiện đồng bộ không? Thao tác này không thể hoàn tác.",
@@ -3683,13 +3738,18 @@
             cachedSyncLogs = [];
             updateSyncLogBadge(0, 0);
             renderSyncLogsUI();
+            showToastNotification("Đã xóa toàn bộ nhật ký đồng bộ", "success");
           } else {
-            alert("Lỗi khi xóa nhật ký: " + (await res.text()));
+            showToastNotification("Lỗi khi xóa nhật ký: " + (await res.text()), "danger");
           }
         } catch (e) {
           console.error("Clear sync logs error:", e);
-          alert("Lỗi kết nối khi xóa nhật ký: " + e);
+          showToastNotification("Lỗi kết nối khi xóa nhật ký", "danger");
         }
+      }
+
+      function clearSyncLogs() {
+        return confirmClearSyncLogs();
       }
 
       function toggleAutoClusterScan(enabled) {
@@ -3730,46 +3790,72 @@
         }, 4000);
       }
 
-      // KÍCH HOẠT ĐỐI CHIẾU & ĐỒNG BỘ DỮ LIỆU THỦ CÔNG GIỮA PRIMARY VÀ CÁC NODE SECONDARY
-      async function triggerManualSync() {
-        if (
-          !confirm(
-            "Hệ thống sẽ đối chiếu và đồng bộ bù các bản ghi giữa Node chính và các Node phụ trong mạng LAN. Tiếp tục?",
-          )
-        )
-          return;
-
-        const btn = document.getElementById("btn-manual-sync");
-        const originalHtml = btn ? btn.innerHTML : '<i class="bi bi-arrow-repeat me-1"></i>Đối chiếu & Đồng bộ ngay';
-
+      async function refreshClusterTables(btn) {
         if (btn) {
           btn.disabled = true;
-          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Đang đối chiếu...';
+          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang kiểm tra...';
         }
+        try {
+          await fetchClusterStatus();
+        } catch (e) {
+          console.error("Refresh cluster tables error:", e);
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '&#x21bb; Kiểm tra lại';
+          }
+        }
+      }
 
+      // KÍCH HOẠT ĐỐI CHIẾU SỐ LƯỢNG BẢN GHI GIỮA CÁC NODE
+      async function triggerReconciliation() {
+        const btn = document.getElementById("btn-manual-sync");
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang đối chiếu...';
+        }
+        try {
+          await fetchClusterStatus();
+          showToastNotification("Đã đối chiếu xong số lượng bản ghi giữa các Node", "success");
+        } catch (err) {
+          showToastNotification("Lỗi đối chiếu: " + err.message, "danger");
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-search me-1" id="icon-manual-sync"></i>Đối chiếu';
+          }
+        }
+      }
+
+      // KÍCH HOẠT ĐỒNG BỘ BÙ DỮ LIỆU RIÊNG CHO NODE 1 KHI CÓ NODE NGOẠI TUYẾN
+      async function triggerSyncNode1() {
+        if (!confirm("Node 1 hiện đang ngoại tuyến hoặc cần nạp bù dữ liệu. Bạn có muốn thực hiện đồng bộ lại dữ liệu cho Node 1 không?")) return;
+        const btn = document.getElementById("btn-sync-node1");
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang đồng bộ...';
+        }
         try {
           const res = await fetch("/api/cluster/sync-data", {
             method: "POST",
             headers: { "Content-Type": "application/json" }
           });
           const data = await res.json();
-          if (data.status === "SUCCESS") {
-            showToastNotification(data.message || "✓ Đã kiểm tra và đồng bộ dữ liệu thành công giữa các Node!", "success");
-            // Cập nhật lại ngay bảng đối chiếu số lượng và nhật ký đồng bộ
-            await fetchClusterStatus();
-            await loadSyncLogs();
-          } else {
-            showToastNotification("Lỗi đồng bộ: " + (data.detail || data.message || "Không xác định"), "danger");
-          }
+          showToastNotification(data.message || "Đã gửi yêu cầu đồng bộ lại cho Node 1", "success");
+          await fetchClusterStatus();
+          await loadSyncLogs(false);
         } catch (err) {
-          console.error("Manual sync error:", err);
-          showToastNotification("Lỗi kết nối khi đồng bộ: " + err.message, "danger");
+          showToastNotification("Lỗi đồng bộ: " + err.message, "danger");
         } finally {
           if (btn) {
             btn.disabled = false;
-            btn.innerHTML = originalHtml;
+            btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Đồng bộ lại Node 1';
           }
         }
+      }
+
+      function triggerManualSync() {
+        return triggerReconciliation();
       }
 
       let currentCatalogPage = 1;
@@ -5091,6 +5177,7 @@
             } else {
               document.body.classList.remove("on-tab-cluster");
             }
+            updateTopBarVisibility();
           });
         });
 

@@ -5,6 +5,7 @@ import time
 import random
 import socket
 import threading
+import uuid
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
@@ -324,7 +325,7 @@ def record_sync_log(
     global SYNC_AUDIT_LOGS, SYNC_LOG_COUNTER
     SYNC_LOG_COUNTER += 1
     now = datetime.now()
-    log_id = f"SYNC-{(int(time.time()*1000) * 10 + (SYNC_LOG_COUNTER % 10)) % 1000000:06d}"
+    log_id = f"SYNC-{uuid.uuid4().hex[:8]}"
 
     start_dt = now - timedelta(milliseconds=latency_ms)
     start_time_val = start_time or (start_dt.strftime("%H:%M:%S") + f".{start_dt.microsecond // 1000:03d}")
@@ -969,11 +970,6 @@ def get_sync_logs(
             l["title"] = re.sub(r"\s*·\s*[0-9.,]+\s*đ", "", l["title"])
             l["title"] = re.sub(r"\s*\([0-9]+\s*sao\)", "", l["title"])
             l["title"] = re.sub(r"\s*·\s*[0-9]+\s*bản ghi bù", "", l["title"])
-            l["title"] = re.sub(r"#([0-9]+)", r"\1", l["title"])
-        if l.get("summary"):
-            l["summary"] = re.sub(r"#([0-9]+)", r"\1", l["summary"])
-        if l.get("data_payload"):
-            l["data_payload"] = re.sub(r"#([0-9]+)", r"\1", l["data_payload"])
 
     # Lưu lại file để cập nhật trạng thái kết nối thực tế mới nhất
     save_sync_logs_to_file(SYNC_AUDIT_LOGS)
@@ -1417,10 +1413,10 @@ def get_cluster_status(request: Request):
 
     # Tự động rà soát và đồng bộ trạng thái nhân bản các sự kiện đồng bộ (Replication & Sync Audit Logs)
     global SYNC_AUDIT_LOGS
-    if not SYNC_AUDIT_LOGS:
-        file_logs = load_sync_logs_from_file()
-        if file_logs:
-            SYNC_AUDIT_LOGS.extend(file_logs)
+    file_logs = load_sync_logs_from_file()
+    if file_logs:
+        SYNC_AUDIT_LOGS.clear()
+        SYNC_AUDIT_LOGS.extend(file_logs)
 
     mysql_conn_map = {m["host"]: (m.get("state") == "ONLINE") for m in status.get("mysql", [])}
     mongo_conn_map = {m["host"]: (m.get("health") == 1 and m.get("state") != "OFFLINE") for m in mongo_results}
