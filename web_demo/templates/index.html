@@ -1937,17 +1937,17 @@ Giao hàng đúng hẹn, đóng gói kỹ, máy hoạt động tốt.</textarea
       function renderOrderStatus(s) {
         const norm = String(s || "COMPLETED").toUpperCase();
         if (norm === "COMPLETED") {
-          return '<span class="d-inline-flex align-items-center text-secondary small" style="font-size: 13px;"><span class="d-inline-block rounded-circle bg-success me-1" style="width: 7px; height: 7px; margin-right: 6px;"></span>Hoàn tất</span>';
+          return '<span class="d-inline-flex align-items-center text-secondary small" style="font-size: 13px;"><span class="d-inline-block rounded-circle bg-success flex-shrink-0" style="width: 7px; height: 7px; margin-right: 6px;"></span>Hoàn tất</span>';
         } else if (norm === "CANCELLED") {
-          return '<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-0.5"><i class="bi bi-x-circle me-1"></i>Đã hủy</span>';
+          return '<span class="d-inline-flex align-items-center text-danger small" style="font-size: 13px;"><span class="d-inline-block rounded-circle bg-danger flex-shrink-0" style="width: 7px; height: 7px; margin-right: 6px;"></span>Đã hủy</span>';
         } else if (norm === "PENDING") {
-          return '<span class="badge bg-warning-subtle text-dark border border-warning-subtle px-2 py-0.5"><i class="bi bi-clock-history me-1"></i>Chờ xử lý</span>';
+          return '<span class="d-inline-flex align-items-center text-warning-emphasis small" style="font-size: 13px;"><span class="d-inline-block rounded-circle bg-warning flex-shrink-0" style="width: 7px; height: 7px; margin-right: 6px;"></span>Chờ xử lý</span>';
         } else if (norm === "PROCESSING") {
-          return '<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5"><i class="bi bi-truck me-1"></i>Đang giao</span>';
+          return '<span class="d-inline-flex align-items-center text-primary small" style="font-size: 13px;"><span class="d-inline-block rounded-circle bg-primary flex-shrink-0" style="width: 7px; height: 7px; margin-right: 6px;"></span>Đang giao</span>';
         } else if (norm === "FAILED") {
-          return '<span class="badge bg-secondary text-white px-2 py-0.5">Thất bại</span>';
+          return '<span class="d-inline-flex align-items-center text-danger small" style="font-size: 13px;"><span class="d-inline-block rounded-circle bg-danger flex-shrink-0" style="width: 7px; height: 7px; margin-right: 6px;"></span>Thất bại</span>';
         }
-        return `<span class="text-secondary small">${mapOrderStatus(s)}</span>`;
+        return `<span class="d-inline-flex align-items-center text-secondary small" style="font-size: 13px;"><span class="d-inline-block rounded-circle bg-secondary flex-shrink-0" style="width: 7px; height: 7px; margin-right: 6px;"></span>${mapOrderStatus(s)}</span>`;
       }
 
       async function openOrderDetail(orderId) {
