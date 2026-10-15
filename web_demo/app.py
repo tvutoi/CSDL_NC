@@ -1992,15 +1992,30 @@ def get_recent_orders(
     limit: int = Query(15, ge=5, le=100),
     read_mode: str = Query("secondary_preferred"),
     keyword: Optional[str] = Query(None, description="Tìm theo mã ĐH, tên KH, tỉnh/TP, tên sản phẩm"),
+    region: Optional[str] = Query(None, description="Lọc theo khu vực: MIEN_BAC | MIEN_TRUNG | MIEN_NAM"),
+    payment_method: Optional[str] = Query(None, description="Lọc theo phương thức TT: COD | E-WALLET | BANK_TRANSFER | CREDIT_CARD"),
+    status: Optional[str] = Query(None, description="Lọc theo trạng thái: COMPLETED | CANCELLED | PENDING | PROCESSING"),
     filter_group: Optional[str] = Query(None, description="ALL | REGION:... | PAY:... | STATUS:...")
 ):
-    """Lấy danh sách các đơn hàng từ cụm MySQL (JOIN 5 bảng + Gom nhóm theo đơn hàng + Bộ lọc + Phân trang)"""
+    """Lấy danh sách các đơn hàng từ cụm MySQL (JOIN 5 bảng + Gom nhóm theo đơn hàng + Bộ lọc riêng biệt + Phân trang)"""
     t0 = time.perf_counter()
     conn, meta = get_mysql_connection(mode=read_mode)
     cur = conn.cursor(dictionary=True, buffered=True)
 
     where_clauses = ["1=1"]
     params = []
+
+    if region and isinstance(region, str) and region != "ALL":
+        where_clauses.append("o.shipping_region = %s")
+        params.append(region)
+
+    if payment_method and isinstance(payment_method, str) and payment_method != "ALL":
+        where_clauses.append("pay.payment_method = %s")
+        params.append(payment_method)
+
+    if status and isinstance(status, str) and status != "ALL":
+        where_clauses.append("o.status = %s")
+        params.append(status)
 
     if filter_group and isinstance(filter_group, str) and filter_group != "ALL":
         if filter_group.startswith("REGION:"):
@@ -2048,8 +2063,9 @@ def get_recent_orders(
             o.order_id, o.user_id,
             MAX(u.full_name) AS full_name,
             MAX(u.city) AS city,
-            o.total_amount, o.status, o.shipping_region, o.created_at,
-            COUNT(oi.item_id) AS total_items_count,
+            COALESCE(NULLIF(SUM(oi.quantity * oi.unit_price), 0), o.total_amount) AS total_amount,
+            o.status, o.shipping_region, o.created_at,
+            COUNT(DISTINCT oi.item_id) AS total_items_count,
             COALESCE(SUM(oi.quantity), 1) AS total_quantity,
             SUBSTRING_INDEX(GROUP_CONCAT(p.product_name ORDER BY oi.item_id SEPARATOR '|||'), '|||', 1) AS first_product_name,
             GROUP_CONCAT(CONCAT(p.product_name, ' (x', oi.quantity, ')') ORDER BY oi.item_id SEPARATOR '; ') AS items_detail,
@@ -2077,13 +2093,16 @@ def get_recent_orders(
         if r.get("full_name"):
             r["full_name"] = re.sub(r"\s*#[0-9]+", "", r["full_name"]).strip()
 
-        # Hiển thị gom sản phẩm: nếu nhiều món thì hiện "iPhone 15 Pro Max (+2 sản phẩm)"
-        items_cnt = int(r.get("total_items_count") or 1)
-        first_prod = r.get("first_product_name") or "Sản phẩm"
+        # Hiển thị gom sản phẩm: làm rõ số mặt hàng khác và số lượng
+        items_cnt = int(r.get("total_items_count") or 0)
+        first_prod = r.get("first_product_name") or "Chưa có thông tin"
         if items_cnt > 1:
-            r["product_display"] = f"{first_prod} (+{items_cnt - 1} sản phẩm)"
+            r["product_display"] = f"{first_prod} (+{items_cnt - 1} mặt hàng khác)"
         else:
             r["product_display"] = first_prod
+
+        if not r.get("payment_method") or r.get("payment_method") == "-":
+            r["payment_method"] = "Chưa có thông tin"
 
         raw_dt = r.get("created_at")
         if raw_dt:
@@ -2140,13 +2159,18 @@ def get_order_detail(order_id: int):
 
     if order.get("full_name"):
         order["full_name"] = re.sub(r"\s*#[0-9]+", "", order["full_name"]).strip()
-    order["total_amount"] = float(order["total_amount"] or 0)
-    raw_dt = order.get("created_at")
-    order["created_at_str"] = raw_dt.strftime("%d/%m/%Y %H:%M:%S") if raw_dt else ""
 
     for it in items:
         it["unit_price"] = float(it["unit_price"] or 0)
         it["line_total"] = float(it["line_total"] or 0)
+
+    if items:
+        order["total_amount"] = sum(it["line_total"] for it in items)
+    else:
+        order["total_amount"] = float(order["total_amount"] or 0)
+
+    raw_dt = order.get("created_at")
+    order["created_at_str"] = raw_dt.strftime("%d/%m/%Y %H:%M:%S") if raw_dt else ""
 
     order["items"] = items
     order["node"] = meta
