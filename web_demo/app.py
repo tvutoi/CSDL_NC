@@ -63,6 +63,28 @@ CLUSTER_CONFIG = {
     "sync_interval_sec": 2
 }
 
+_ACTIVE_MYSQL_PRIMARY: Optional[str] = None
+_ACTIVE_MONGO_PRIMARY: Optional[str] = None
+_PRIMARY_TRACKING_LOCK = threading.Lock()
+
+def get_active_mysql_primary() -> Optional[str]:
+    global _ACTIVE_MYSQL_PRIMARY
+    return _ACTIVE_MYSQL_PRIMARY
+
+def set_active_mysql_primary(host: Optional[str]):
+    global _ACTIVE_MYSQL_PRIMARY
+    with _PRIMARY_TRACKING_LOCK:
+        _ACTIVE_MYSQL_PRIMARY = host
+
+def get_active_mongo_primary() -> Optional[str]:
+    global _ACTIVE_MONGO_PRIMARY
+    return _ACTIVE_MONGO_PRIMARY
+
+def set_active_mongo_primary(host: Optional[str]):
+    global _ACTIVE_MONGO_PRIMARY
+    with _PRIMARY_TRACKING_LOCK:
+        _ACTIVE_MONGO_PRIMARY = host
+
 
 def load_cluster_config():
     """Tự động nạp cấu hình từ cluster_config.json nếu có, nếu chưa có thì tạo file mặc định"""
@@ -680,12 +702,9 @@ def record_sync_log(
 
 def ensure_mongo_primary_priority():
     """
-    Đảm bảo cơ chế phân cấp Primary & Auto-Failback cho cụm MongoDB Replica Set:
-    - Node 1 (192.168.1.221:27017): Priority = 2.0 (PRIMARY ưu tiên cao nhất khi mở).
-    - Node 2 (192.168.1.222:27017): Priority = 1.0 (SECONDARY / Ứng viên kế nhiệm khi Node 1 tắt).
-    - Node 3, 4 (192.168.1.222:27018, :27019): Priority = 0.5, Votes = 1.
-    - Khi Node 1 mở lại (ONLINE), nếu Node 2 vẫn đang là PRIMARY:
-      Tự động gọi replSetStepDown trên Node 2 để cụm chuyển giao quyền PRIMARY ngay lập tức về Node 1!
+    Quản lý cấu hình Quorum và duy trì tính ổn định của Primary trong cụm MongoDB Replica Set:
+    - Khi Node 1 mở lại (ONLINE): Không ép replSetStepDown lên Node đang là Primary (giữ nguyên Node 2 làm Primary để Node 1 làm Secondary nhận bù Oplog an toàn, tránh mất dữ liệu).
+    - Khôi phục votes=1, priority=1.0 bình đẳng cho các node đang trực tuyến để cụm tự động failover chỉ khi Primary thực sự chết.
     """
     node1_host = CLUSTER_CONFIG["mongo_nodes"][0]  # "192.168.1.221:27017"
     h1, p1 = node1_host.split(":") if ":" in node1_host else (node1_host, 27017)
@@ -713,22 +732,14 @@ def ensure_mongo_primary_priority():
         changed = False
 
         if node1_online:
-            # Node 1 đang mở: Phải đảm bảo Node 1 có priority=2.0, votes=1; Node 2 priority=1.0, votes=1; Node 3,4 priority=0.5, votes=1
+            # Node 1 đang mở lại: Khôi phục votes=1, priority=1.0 cho các node online
+            # Giữ nguyên Primary hiện tại đang chạy (ví dụ Node 2), Node 1 tham gia làm SECONDARY để sync oplog an toàn
             for m in cfg["members"]:
                 m_h = m["host"]
-                if "221" in m_h:
-                    if m.get("priority") != 2.0 or m.get("votes") != 1:
-                        m["priority"] = 2.0
-                        m["votes"] = 1
-                        changed = True
-                elif m_h == "192.168.1.222:27017":
+                h_c, p_c = m_h.split(":") if ":" in m_h else (m_h, 27017)
+                if is_port_open(h_c, int(p_c), timeout=0.15):
                     if m.get("priority") != 1.0 or m.get("votes") != 1:
                         m["priority"] = 1.0
-                        m["votes"] = 1
-                        changed = True
-                else:
-                    if m.get("priority") != 0.5 or m.get("votes") != 1:
-                        m["priority"] = 0.5
                         m["votes"] = 1
                         changed = True
 
@@ -739,16 +750,12 @@ def ensure_mongo_primary_priority():
                 except Exception as ex_reconf:
                     print(f"[MONGO_RECONFIG_FORCE_ERR] {ex_reconf}")
 
-            # Kiểm tra xem ai đang là Primary
+            # Cập nhật Primary thực tế đang phục vụ
             try:
                 hello = client.admin.command("hello")
                 current_primary = hello.get("primary")
-                if current_primary and current_primary != node1_host:
-                    # Node 1 đã online nhưng Node khác (Node 2) vẫn đang giữ Primary:
-                    # Kích hoạt stepDown trên node đó để chuyển giao Primary về Node 1 ngay lập tức!
-                    c_prim = MongoClient(f"mongodb://{current_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=500)
-                    c_prim.admin.command("replSetStepDown", 5)
-                    c_prim.close()
+                if current_primary:
+                    set_active_mongo_primary(current_primary)
             except Exception:
                 pass
         else:
@@ -946,6 +953,7 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
     """
     nodes = list(CLUSTER_CONFIG["mysql_nodes"])
 
+    active_pri = get_active_mysql_primary()
     if target_host:
         candidates = [target_host]
     elif mode == "round_robin":
@@ -953,8 +961,17 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
         CLUSTER_CONFIG["round_robin_idx"] += 1
         candidates = nodes[idx:] + nodes[:idx]
     elif mode == "secondary_preferred":
-        # Đảo thứ tự để thử các node phụ (.222, .223, .224) trước node chính (.221)
-        candidates = nodes[1:] + nodes[:1]
+        # Ưu tiên các node phụ, đưa Node Primary đang phục vụ về cuối
+        if active_pri and active_pri in nodes:
+            candidates = [h for h in nodes if h != active_pri] + [active_pri]
+        else:
+            candidates = nodes[1:] + nodes[:1]
+    elif mode == "primary":
+        # Ưu tiên kết nối tới Node đang là Primary thực tế (_ACTIVE_MYSQL_PRIMARY, e.g. Node 2 khi Node 1 bị tắt)
+        if active_pri and active_pri in nodes:
+            candidates = [active_pri] + [h for h in nodes if h != active_pri]
+        else:
+            candidates = nodes
     else:
         candidates = nodes
 
@@ -1004,7 +1021,16 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
             except Exception:
                 pass
 
-        primary_item = ro_zero_nodes[0] if ro_zero_nodes else online_conns[0]
+        # Khi chọn primary: ưu tiên node khớp với _ACTIVE_MYSQL_PRIMARY đang phục vụ
+        if ro_zero_nodes:
+            matched_active = next((item for item in ro_zero_nodes if item[1] == active_pri), None)
+            primary_item = matched_active if matched_active else ro_zero_nodes[0]
+        else:
+            primary_item = online_conns[0]
+
+        # Ghi nhận lại _ACTIVE_MYSQL_PRIMARY
+        if primary_item and primary_item[2].get("read_only") == 0:
+            set_active_mysql_primary(primary_item[1])
 
         # Chọn kết nối trả về theo mode
         chosen = None
@@ -1380,6 +1406,62 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
                             cur.execute("SET GLOBAL super_read_only = ON")
                         except Exception:
                             pass
+
+        # 2. Quét thêm chênh lệch chi tiết tại bảng order_items (ví dụ thiếu 48 item lẻ)
+        all_items_by_node = {}
+        for host, item in online_conns.items():
+            cur = item["cur"]
+            cur.execute("SELECT item_id FROM order_items")
+            all_items_by_node[host] = set(r["item_id"] for r in cur.fetchall())
+
+        all_known_item_ids = set.union(*all_items_by_node.values()) if all_items_by_node else set()
+        missing_items_by_node = {}
+        for host, item_ids in all_items_by_node.items():
+            diff_it = all_known_item_ids - item_ids
+            if diff_it:
+                missing_items_by_node[host] = diff_it
+
+        if missing_items_by_node:
+            needed_item_ids = set.union(*missing_items_by_node.values())
+            extra_items = []
+            for host, item in online_conns.items():
+                cur = item["cur"]
+                id_list = list(needed_item_ids)
+                for chunk_start in range(0, len(id_list), 500):
+                    chunk = id_list[chunk_start:chunk_start + 500]
+                    ids_str = ",".join(str(i) for i in chunk)
+                    cur.execute(f"SELECT * FROM order_items WHERE item_id IN ({ids_str})")
+                    rows_it = cur.fetchall()
+                    for r in rows_it:
+                        if not any(x["item_id"] == r["item_id"] for x in extra_items):
+                            extra_items.append(r)
+                if len(extra_items) == len(needed_item_ids):
+                    break
+
+            for host, missing_i_ids in missing_items_by_node.items():
+                item = online_conns[host]
+                cur = item["cur"]
+                try:
+                    cur.execute("SET GLOBAL super_read_only = OFF")
+                    cur.execute("SET GLOBAL read_only = OFF")
+                    for it in extra_items:
+                        if it["item_id"] in missing_i_ids:
+                            cur.execute(
+                                "INSERT IGNORE INTO order_items (item_id, order_id, product_id, quantity, unit_price) "
+                                "VALUES (%s, %s, %s, %s, %s)",
+                                (it["item_id"], it["order_id"], it["product_id"], it["quantity"], it["unit_price"])
+                            )
+                            total_synced_rows += 1
+                    lbl = get_node_label(host, "mysql")
+                    if f"{lbl} ({host})" not in synced_details:
+                        synced_details.append(f"{lbl} ({host})")
+                finally:
+                    if item["ro"] == 1:
+                        try:
+                            cur.execute("SET GLOBAL read_only = ON")
+                            cur.execute("SET GLOBAL super_read_only = ON")
+                        except Exception:
+                            pass
     finally:
         for item in online_conns.values():
             try:
@@ -1495,16 +1577,6 @@ def get_cluster_status(request: Request):
                 except Exception:
                     pass
 
-            # Auto-failback về Node 1 ngay khi Node 1 online trở lại
-            node1_ip = CLUSTER_CONFIG["mysql_nodes"][0].split(":")[0]
-            node1_mgr = next((r for r in online_mgr_rows if r.get("MEMBER_HOST") == node1_ip and r.get("MEMBER_STATE") == "ONLINE"), None)
-            if node1_mgr and node1_mgr.get("MEMBER_ID") != primary_uuid and self_mgr and self_mgr.get("MEMBER_ROLE") == "PRIMARY":
-                try:
-                    cur.execute(f"SELECT group_replication_set_as_primary('{node1_mgr['MEMBER_ID']}')")
-                    primary_uuid = node1_mgr["MEMBER_ID"]
-                except Exception:
-                    pass
-
             node_counts = {"users": 0, "products": 0, "orders": 0, "order_items": 0, "payments": 0}
             try:
                 cur.execute(f"USE {CLUSTER_CONFIG['mysql_db']}")
@@ -1551,13 +1623,28 @@ def get_cluster_status(request: Request):
             else:
                 n["role"] = "SECONDARY"
 
-    # Nếu không tìm thấy group_primary_uuid (ví dụ standalone): chỉ cho phép duy nhất 1 node ro == 0 làm PRIMARY
+    # Nếu không tìm thấy group_primary_uuid (ví dụ standalone hoặc GR OFFLINE):
+    # GIỮ NGUYÊN Node Primary đang phục vụ (_ACTIVE_MYSQL_PRIMARY), không tự cướp về Node 1!
     if not primary_assigned:
-        for n in mysql_results:
-            if n["state"] == "ONLINE" and n.get("_ro") == 0:
-                n["role"] = "PRIMARY"
+        curr_active = get_active_mysql_primary()
+        active_node = next((n for n in mysql_results if n["host"] == curr_active and n["state"] == "ONLINE" and n.get("_ro") == 0), None)
+        if active_node:
+            active_node["role"] = "PRIMARY"
+            primary_assigned = True
+        else:
+            # Chọn node online có _ro == 0 và có dữ liệu mới nhất (số đơn hàng lớn nhất)
+            candidates_p = [n for n in mysql_results if n["state"] == "ONLINE" and n.get("_ro") == 0]
+            if candidates_p:
+                best_p = max(candidates_p, key=lambda x: x["counts"].get("orders", 0))
+                best_p["role"] = "PRIMARY"
                 primary_assigned = True
-                break
+                set_active_mysql_primary(best_p["host"])
+
+    # Luôn đồng bộ _ACTIVE_MYSQL_PRIMARY với Node được gán vai trò PRIMARY
+    for n in mysql_results:
+        if n.get("role") == "PRIMARY":
+            set_active_mysql_primary(n["host"])
+            break
 
     for n in mysql_results:
         for k in ["_uuid", "_primary_uuid", "_ro"]:
