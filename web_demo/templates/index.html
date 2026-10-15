@@ -183,6 +183,73 @@
       body.tech-mode-active #detailedStatusBox {
         display: block !important;
       }
+
+      /* THIẾT KẾ CÔNG TẮC CHẾ ĐỘ KỸ THUẬT DẠNG CAPSULE HIỆN ĐẠI */
+      .tech-switch-pill {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        border-radius: 20px;
+        padding: 4px 12px 4px 6px;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.2s ease-in-out;
+        margin-bottom: 0;
+      }
+      .tech-switch-pill:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.5);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      }
+      .tech-switch-input {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+        pointer-events: none;
+      }
+      .tech-switch-slider {
+        position: relative;
+        display: inline-block;
+        width: 32px;
+        height: 18px;
+        background-color: rgba(255, 255, 255, 0.35);
+        border-radius: 20px;
+        transition: background-color 0.25s ease;
+        margin-right: 8px;
+        flex-shrink: 0;
+      }
+      .tech-switch-slider::before {
+        content: "";
+        position: absolute;
+        height: 14px;
+        width: 14px;
+        left: 2px;
+        bottom: 2px;
+        background-color: #ffffff;
+        border-radius: 50%;
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+      }
+      .tech-switch-input:checked + .tech-switch-slider {
+        background-color: #38bdf8;
+      }
+      .tech-switch-input:checked + .tech-switch-slider::before {
+        transform: translateX(14px);
+      }
+      .tech-switch-label {
+        color: #ffffff;
+        font-size: 12.5px;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+        white-space: nowrap;
+      }
+      body.tech-mode-active .tech-switch-pill {
+        background: rgba(14, 165, 233, 0.25);
+        border-color: rgba(56, 189, 248, 0.7);
+        box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+      }
       .label-tag {
         display: inline-block;
         padding: 2px 8px;
@@ -410,18 +477,18 @@
         </div>
         <div class="d-flex align-items-center gap-2">
           <!-- CÔNG TẮC CHẾ ĐỘ KỸ THUẬT -->
-          <div class="form-check form-switch d-inline-flex align-items-center me-2 text-white mb-0">
+          <label
+            class="tech-switch-pill me-1"
+            for="techModeSwitch"
+            title="Bật/Tắt chế độ kỹ thuật (hiển thị cấu hình cụm máy chủ & thông số chuyên sâu)">
             <input
-              class="form-check-input me-1.5"
+              class="tech-switch-input"
               type="checkbox"
-              role="switch"
               id="techModeSwitch"
-              onchange="toggleTechMode(this.checked)"
-              style="cursor: pointer;" />
-            <label class="form-check-label text-white small fw-medium" for="techModeSwitch" style="cursor: pointer; user-select: none;">
-              Chế độ kỹ thuật
-            </label>
-          </div>
+              onchange="toggleTechMode(this.checked)" />
+            <span class="tech-switch-slider"></span>
+            <span class="tech-switch-label">Chế độ kỹ thuật</span>
+          </label>
 
           <button
             class="btn btn-sm btn-outline-light d-flex align-items-center"
