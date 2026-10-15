@@ -125,13 +125,12 @@
       }
       .status-strip {
         background-color: #ffffff;
-        border: 1px solid #cbd5e1;
-        border-left: 4px solid #004b87;
+        border: 1px solid #e5e7eb;
         border-radius: 6px;
         padding: 12px 16px;
         margin-bottom: 12px;
-        font-size: 14.5px;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+        font-size: 14px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
       }
       .node-ip {
         font-family: Consolas, "Courier New", monospace;
@@ -234,38 +233,38 @@
       }
       /* BỐ CỤC GRID KHUNG TRẠNG THÁI CỤM MÁY CHỦ */
       .cluster-col-title {
-        font-size: 14px;
-        font-weight: 600;
-        color: #374151;
-        margin-bottom: 6px;
+        font-size: 15px;
+        font-weight: 700;
+        color: #111827;
+        margin-bottom: 8px;
       }
       .cluster-col {
-        padding: 0 8px;
+        padding: 0;
       }
       .cluster-node-header {
         display: grid;
-        grid-template-columns: 64px minmax(190px, 1fr) 96px 104px 76px;
+        grid-template-columns: 76px minmax(190px, 1fr) 98px 112px 84px;
         column-gap: 12px;
         align-items: center;
-        height: 28px;
-        font-size: 12px;
-        color: #9ca3af;
-        font-weight: 500;
+        height: 38px;
+        font-size: 14px;
+        color: #374151;
+        font-weight: 600;
         border-bottom: 1px solid #eef0f2;
       }
       .cluster-node-row {
         display: grid;
-        grid-template-columns: 64px minmax(190px, 1fr) 96px 104px 76px;
+        grid-template-columns: 76px minmax(190px, 1fr) 98px 112px 84px;
         column-gap: 12px;
         align-items: center;
-        height: 34px;
+        height: 42px;
         border-bottom: 1px solid #eef0f2;
       }
       .cluster-node-row:last-child {
         border-bottom: none;
       }
       .cluster-node-row.is-offline {
-        opacity: 0.75;
+        opacity: 0.85;
       }
       .cluster-node-name {
         font-size: 14px;
@@ -274,10 +273,10 @@
         white-space: nowrap;
       }
       .cluster-node-ip {
-        font-family: Consolas, "Courier New", monospace;
-        font-size: 13px;
+        font-family: var(--bs-font-monospace), Consolas, "Courier New", monospace;
+        font-size: 14px;
         font-weight: 400;
-        color: #4b5563;
+        color: #212529;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -288,10 +287,11 @@
         align-items: center;
       }
       .cluster-node-role .badge-pill {
-        width: 100%;
-        max-width: 88px;
-        min-width: unset;
-        padding: 3px 0;
+        width: 90px;
+        min-width: 90px;
+        max-width: 90px;
+        padding: 4px 0;
+        font-size: 13px;
         text-align: center;
       }
       .cluster-node-status {
@@ -300,16 +300,17 @@
         align-items: center;
       }
       .cluster-node-status .badge-pill {
-        width: 100%;
-        max-width: 96px;
-        min-width: unset;
-        padding: 3px 0;
+        width: 104px;
+        min-width: 104px;
+        max-width: 104px;
+        padding: 4px 0;
+        font-size: 13px;
         text-align: center;
       }
       .cluster-node-ping {
-        font-family: Consolas, "Courier New", monospace;
-        font-size: 12px;
-        color: #6b7280;
+        font-family: var(--bs-font-monospace), Consolas, "Courier New", monospace;
+        font-size: 14px;
+        color: #374151;
         text-align: right;
         font-variant-numeric: tabular-nums;
         white-space: nowrap;
@@ -323,6 +324,16 @@
         }
         .cluster-col.ps-lg-3 {
           padding-left: 16px !important;
+        }
+      }
+      @media (max-width: 991.98px) {
+        .cluster-col.pe-lg-3 {
+          padding-right: 0 !important;
+          margin-bottom: 20px;
+        }
+        .cluster-col.ps-lg-3 {
+          padding-left: 0 !important;
+          border-left: none !important;
         }
       }
       @media (max-width: 991.98px) {
@@ -452,53 +463,46 @@
           margin-left: auto;
         }
       }
-      /* CHẾ ĐỘ KỸ THUẬT & CHẾ ĐỘ BÌNH THƯỜNG */
+      /* CHẾ ĐỘ KỸ THUẬT (tech-on) & THU GỌN KHUNG CỤM (cluster-collapsed) */
       .tech-detail {
         display: none !important;
       }
-      body.tech-mode-active .tech-detail {
+      body.tech-on .tech-detail {
         display: inline !important;
       }
-      body.tech-mode-active div.tech-detail,
-      body.tech-mode-active .tech-detail-block {
+      body.tech-on div.tech-detail,
+      body.tech-on .tech-detail-block {
         display: block !important;
       }
+      body.tech-on th.tech-detail,
+      body.tech-on td.tech-detail {
+        display: table-cell !important;
+      }
+      body.tech-on span.tech-detail,
+      body.tech-on .badge.tech-detail {
+        display: inline-block !important;
+      }
 
-      /* Quy định hiển thị thanh trạng thái trên cùng:
-         - Khi TẮT chế độ kỹ thuật (mặc định):
-           + HIỆN thanh mỏng 1 dòng (#compactStatusBar)
-           + ẨN HOÀN TOÀN khung chi tiết 3 cột (#detailedStatusBox)
-           + ẨN các chip/thông số kỹ thuật (.tech-detail)
-         - Khi BẬT chế độ kỹ thuật:
-           + ẨN thanh mỏng 1 dòng (#compactStatusBar)
-           + HIỆN khung chi tiết 3 cột (#detailedStatusBox)
-           + HIỆN các chip/thông số kỹ thuật (.tech-detail)
-      */
-      body:not(.tech-mode-active) #compactStatusBar {
+      /* HIỂN THỊ KHUNG TRẠNG THÁI CỤM MÁY CHỦ (THEO TRẠNG THÁI HIỆU LỰC) */
+      body.cluster-effective-collapsed #compactStatusBar {
         display: flex !important;
       }
-      body:not(.tech-mode-active) #detailedStatusBox {
-        display: none !important;
-      }
-      body:not(.tech-mode-active) .tech-detail {
+      body.cluster-effective-collapsed #detailedStatusBox {
         display: none !important;
       }
 
-      body.tech-mode-active #compactStatusBar {
+      body:not(.cluster-effective-collapsed) #compactStatusBar {
         display: none !important;
       }
-      body.tech-mode-active #detailedStatusBox {
+      body:not(.cluster-effective-collapsed) #detailedStatusBox {
         display: block !important;
       }
-      body.tech-mode-active .tech-detail {
-        display: inline !important;
-      }
-      body.tech-mode-active div.tech-detail {
-        display: block !important;
-      }
-      body.tech-mode-active th.tech-detail,
-      body.tech-mode-active td.tech-detail {
-        display: table-cell !important;
+
+      /* BỐ CỤC GRID NODE KHI CHẾ ĐỘ KỸ THUẬT BẬT */
+      body.tech-on .cluster-node-header,
+      body.tech-on .cluster-node-row {
+        grid-template-columns: 76px minmax(190px, 1fr) 98px 112px 84px;
+        column-gap: 12px;
       }
 
       /* Khi ở Tab Trạng thái Cụm Server (Tab 3), ẩn cả 2 khung trạng thái trên đỉnh để tránh lặp lại các bảng bên dưới */
@@ -572,7 +576,7 @@
         letter-spacing: 0.2px;
         white-space: nowrap;
       }
-      body.tech-mode-active .tech-switch-pill {
+      body.tech-on .tech-switch-pill {
         background: rgba(14, 165, 233, 0.25);
         border-color: rgba(56, 189, 248, 0.7);
         box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
@@ -615,6 +619,94 @@
       .order-id-link:hover {
         color: #0a58ca;
         text-decoration: underline !important;
+      }
+      .tabular-nums {
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+      }
+      /* BẢNG DANH MỤC HÀNG HÓA (TAB 5) */
+      #catalog-table {
+        border-collapse: separate;
+        border-spacing: 0;
+        width: 100%;
+      }
+      #catalog-table th {
+        border-left: none !important;
+        border-right: none !important;
+        border-top: none !important;
+        border-bottom: 1px solid #e5e7eb !important;
+        background-color: #f9fafb !important;
+        color: #374151 !important;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 9px 12px !important;
+        white-space: nowrap;
+      }
+      #catalog-table td {
+        border-left: none !important;
+        border-right: none !important;
+        border-top: none !important;
+        border-bottom: 1px solid #eef0f2 !important;
+        height: 56px;
+        padding: 8px 12px !important;
+        vertical-align: middle;
+        font-size: 13.5px;
+      }
+      #catalog-table tbody tr {
+        height: 56px;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+      }
+      #catalog-table tbody tr:hover td {
+        background-color: #f8f9fb !important;
+      }
+      .col-num {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+      }
+      .col-sku {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+        font-size: 12px;
+        color: #4b5563;
+      }
+      .col-category {
+        white-space: nowrap;
+        color: #4b5563;
+        font-size: 13px;
+      }
+      .btn-buy-outline {
+        color: #0d6efd;
+        border: 1px solid #93c5fd;
+        background-color: #eff6ff;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 3px 10px;
+        border-radius: 4px;
+        transition: all 0.15s ease-in-out;
+        white-space: nowrap;
+      }
+      .btn-buy-outline:hover {
+        color: #ffffff;
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+      }
+      .product-thumb-placeholder {
+        width: 40px;
+        height: 40px;
+        border-radius: 6px;
+        margin-right: 12px;
+        background: #f8fafc;
+        border: 1px solid #f1f5f9;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color 0.15s ease;
+      }
+      #catalog-table tbody tr:hover .product-thumb-placeholder {
+        background-color: #f1f5f9;
+        border-color: #e2e8f0;
       }
       .form-label {
         font-weight: 600;
@@ -990,20 +1082,24 @@
         border: 1px solid rgba(255, 255, 255, 0.35);
         color: #ffffff;
       }
-      /* FOOTER GỌN GÀNG, HỢP LÝ, TỰ ĐỘNG NEO ĐÁY MÀN HÌNH */
+      /* FOOTER HỌC PHẦN / NHÓM THỰC HIỆN */
       .site-footer {
         background-color: #ffffff;
-        border-top: 1px solid #e2e8f0;
-        padding: 9px 16px 12px 16px;
-        font-size: 12.5px;
+        border-top: 1px solid #eef0f2;
+        padding: 14px 0 16px;
+        font-size: 13px;
         line-height: 1.5;
-        color: #64748b;
-        flex-shrink: 0;
+        color: #6b7280;
+        margin-top: auto;
+      }
+      .site-footer strong {
+        font-weight: 600;
+        color: #374151;
       }
       .site-footer .footer-line-sub {
-        font-size: 11.5px;
-        color: #94a3b8;
-        margin-top: 2px;
+        font-size: 12px;
+        color: #9ca3af;
+        margin-top: 3px;
       }
     </style>
   </head>
@@ -1014,11 +1110,12 @@
         class="container-fluid px-4 d-flex justify-content-between align-items-center">
         <div>
           <div class="d-flex align-items-center">
-            <span class="fw-bold fs-6 text-white" style="letter-spacing: 0.3px;">Hệ thống thương mại điện tử</span>
-            <span class="badge bg-light text-primary fw-semibold rounded-pill px-2.5 py-1 ms-2 tech-detail" style="font-size: 11px; border: 1px solid #bae6fd;">MySQL GR + MongoDB RS</span>
+            <span class="me-2" style="font-size: 1.25rem; line-height: 1;">🛍️</span>
+            <span class="fw-bold text-white" style="font-size: 16px; letter-spacing: 0.5px;">HỆ THỐNG THƯƠNG MẠI ĐIỆN TỬ</span>
+            <span class="badge rounded-pill ms-2 tech-detail" style="font-size: 11.5px; font-weight: 600; background-color: #dbeafe; color: #0369a1; padding: 3px 10px; letter-spacing: 0.2px;">MySQL GR + MongoDB RS</span>
           </div>
-          <div class="course-sub mt-0.5" style="font-size: 12px; color: #cfe2f3;">
-            Nền tảng mua sắm và quản trị phân tán trực tuyến
+          <div class="course-sub mt-1" style="font-size: 12px; color: #93c5fd;">
+            Nền tảng mua sắm &amp; quản trị phân tán trực tuyến
           </div>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -1031,7 +1128,8 @@
               class="tech-switch-input"
               type="checkbox"
               id="techModeSwitch"
-              onchange="toggleTechMode(this.checked)" />
+              role="switch"
+              aria-checked="false" />
             <span class="tech-switch-slider"></span>
             <span class="tech-switch-label">Chế độ kỹ thuật</span>
           </label>
@@ -1069,31 +1167,33 @@
     </header>
 
     <div class="container-fluid px-4 mt-3 main-content-wrapper">
-      <!-- THANH TRẠNG THÁI GỌN (CHẾ ĐỘ BÌNH THƯỜNG - HÌNH 1) -->
+      <!-- THANH TRẠNG THÁI GỌN (CHẾ ĐỘ THU GỌN - COMPACT) -->
       <div id="compactStatusBar" class="d-flex flex-wrap justify-content-between align-items-center py-2 px-3 bg-white border rounded mb-3 shadow-sm" style="font-size: 13px;">
         <div class="d-flex flex-wrap align-items-center gap-3">
           <span id="bar-mysql-summary"><span class="status-dot dot-online"></span>MySQL: <strong>--/-- node</strong></span>
           <span class="text-muted">&middot;</span>
           <span id="bar-mongo-summary"><span class="status-dot dot-online"></span>MongoDB: <strong>--/-- node</strong></span>
           <span class="text-muted">&middot;</span>
-          <span id="bar-data-summary" class="text-secondary"><strong>-- dòng MySQL &middot; -- tài liệu MongoDB</strong></span>
+          <span id="bar-primary-summary" class="text-secondary">Node chính: <strong>--</strong></span>
+          <span class="text-muted tech-detail">&middot;</span>
+          <span id="bar-data-summary" class="text-secondary small tech-detail">-- dòng MySQL &middot; -- tài liệu MongoDB</span>
         </div>
         <div class="d-flex align-items-center gap-2">
-          <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" onclick="toggleTechMode(true)" style="font-size: 12px;">Xem chi tiết cụm &#9662;</button>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" id="btn-toggle-cluster-expand" aria-expanded="false" style="font-size: 12px;">Mở rộng &#9662;</button>
         </div>
       </div>
 
-      <!-- KHUNG CHI TIẾT TRẠNG THÁI (CHẾ ĐỘ KỸ THUẬT - HÌNH 2) -->
-      <div id="detailedStatusBox" class="status-strip mb-3" style="display: none;">
+      <!-- KHUNG CHI TIẾT TRẠNG THÁI (MỞ RỘNG) -->
+      <div id="detailedStatusBox" class="status-strip mb-3">
         <div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom">
-          <div class="fw-bold text-navy" style="font-size: 13.5px;">
-            <i class="bi bi-hdd-network-fill me-1 text-primary"></i>Trạng thái cụm máy chủ
+          <div class="fw-bold text-navy" style="font-size: 15px;">
+            <i class="bi bi-hdd-network-fill me-1.5 text-primary"></i>Trạng thái cụm máy chủ
           </div>
           <div class="d-flex align-items-center gap-3">
-            <div class="text-secondary small">
+            <div class="text-secondary tech-detail" id="cluster-data-scale-wrap" style="font-size: 13.5px;">
               Quy mô dữ liệu: <strong class="text-dark" id="summary-sql-rows">0</strong> dòng MySQL &middot; <strong class="text-dark" id="summary-mongo-docs">0</strong> tài liệu MongoDB
             </div>
-            <button class="btn btn-sm btn-link text-secondary text-decoration-none py-0 px-1 small" onclick="toggleTechMode(false)" title="Thu gọn">
+            <button class="btn btn-sm btn-link text-secondary text-decoration-none py-0 px-1" id="btn-toggle-cluster-collapse" aria-expanded="true" title="Thu gọn" style="font-size: 13px;">
               Thu gọn &#9652;
             </button>
           </div>
@@ -1102,22 +1202,22 @@
           <div class="col-lg-6 cluster-col pe-lg-3">
             <div class="cluster-col-title">Cụm MySQL Group Replication</div>
             <div class="cluster-node-header">
-              <span>Node</span>
-              <span>Địa chỉ</span>
+              <span class="text-start">Node</span>
+              <span class="text-start tech-detail">Địa chỉ</span>
               <span class="text-center">Vai trò</span>
               <span class="text-center">Trạng thái</span>
-              <span class="text-end cluster-col-ping">Ping</span>
+              <span class="text-end cluster-col-ping tech-detail">Ping</span>
             </div>
             <div id="summary-mysql-nodes">Đang kiểm tra...</div>
           </div>
           <div class="col-lg-6 cluster-col ps-lg-3 border-start-lg">
             <div class="cluster-col-title">Cụm MongoDB Replica Set</div>
             <div class="cluster-node-header">
-              <span>Node</span>
-              <span>Địa chỉ</span>
+              <span class="text-start">Node</span>
+              <span class="text-start tech-detail">Địa chỉ</span>
               <span class="text-center">Vai trò</span>
               <span class="text-center">Trạng thái</span>
-              <span class="text-end cluster-col-ping">Ping</span>
+              <span class="text-end cluster-col-ping tech-detail">Ping</span>
             </div>
             <div id="summary-mongo-nodes">Đang kiểm tra...</div>
           </div>
@@ -1194,7 +1294,7 @@
         <div class="tab-pane fade" id="tab-catalog" role="tabpanel">
           <div class="panel-box">
             <div class="panel-header">
-              <span>Danh mục hàng hóa <span class="tech-detail text-muted small ms-1">(Truy vấn kết hợp MySQL & MongoDB)</span></span>
+              <span>Danh mục hàng hóa</span>
               <span class="text-muted fw-normal small tech-detail" id="polyglot-route-info"
                 >Đang tải...</span
               >
@@ -1203,40 +1303,37 @@
               <!-- Bộ lọc tìm kiếm -->
               <div class="row g-2 mb-3 align-items-end">
                 <div class="col-md-5">
-                  <label class="form-label"
-                    >Từ khóa tìm kiếm (Tên / Mã SKU)</label
-                  >
+                  <label class="form-label" for="filter-keyword">Tìm sản phẩm</label>
                   <input
                     type="text"
                     id="filter-keyword"
                     class="form-control"
-                    placeholder="Nhập tên sản phẩm hoặc SKU..." />
+                    placeholder="Tên sản phẩm hoặc mã SKU"
+                    oninput="handleCatalogKeywordInput()" />
                 </div>
                 <div class="col-md-3">
-                  <label class="form-label">Nhóm hàng</label>
-                  <select id="filter-category" class="form-select">
-                    <option value="ALL">-- Tất cả nhóm hàng --</option>
-                    <option value="Smartphone">Smartphone</option>
-                    <option value="Laptop">Laptop</option>
-                    <option value="Tablet">Tablet</option>
-                    <option value="Audio">Audio</option>
-                    <option value="Smartwatch">Smartwatch</option>
-                    <option value="Monitor">Monitor</option>
+                  <label class="form-label" for="filter-category">Nhóm hàng</label>
+                  <select id="filter-category" class="form-select" onchange="loadProducts(1)">
+                    <option value="ALL">Tất cả nhóm hàng</option>
+                    <option value="Smartphone">Điện thoại</option>
+                    <option value="Laptop">Máy tính xách tay</option>
+                    <option value="Tablet">Máy tính bảng</option>
+                    <option value="Audio">Âm thanh</option>
+                    <option value="Smartwatch">Đồng hồ</option>
+                    <option value="Monitor">Màn hình</option>
                   </select>
                 </div>
-                <div class="col-md-2 tech-detail">
-                  <label class="form-label"
-                    >Định tuyến đọc CSDL</label
-                  >
-                  <select id="filter-readmode" class="form-select">
+                <div class="col-md-2 tech-detail" id="filter-readmode-wrap">
+                  <label class="form-label" for="filter-readmode">Định tuyến đọc CSDL</label>
+                  <select id="filter-readmode" class="form-select" onchange="loadProducts(1)">
                     <option value="secondary_preferred">Ưu tiên đọc Node phụ</option>
                     <option value="round_robin">Phân tải xoay vòng</option>
                     <option value="primary">Chỉ đọc Node chính</option>
                   </select>
                 </div>
                 <div class="col-md-2">
-                  <button class="btn btn-navy w-100" onclick="loadProducts(1)">
-                    Lọc
+                  <button class="btn btn-outline-secondary btn-sm px-3 py-1.5" id="btn-reset-catalog-filter" type="button" onclick="resetProductFilters()">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Đặt lại
                   </button>
                 </div>
               </div>
@@ -1244,23 +1341,23 @@
               <!-- Bảng dữ liệu sản phẩm toàn chiều rộng -->
               <div class="table-responsive border rounded-2">
                 <table
-                  class="table table-hover table-custom align-middle mb-0">
+                  class="table table-hover table-custom align-middle mb-0" id="catalog-table">
                   <thead class="sticky-top">
                     <tr>
-                      <th style="width: 110px;">Mã SKU</th>
-                      <th>Sản phẩm</th>
-                      <th>Nhóm hàng</th>
-                      <th class="text-end">Đơn giá (đ)</th>
-                      <th class="text-center">Tồn kho</th>
-                      <th class="text-center">Đã bán</th>
-                      <th class="text-center">Đánh giá</th>
-                      <th class="text-center">Lượt xem</th>
-                      <th class="text-center" style="width: 170px;">Thao tác</th>
+                      <th class="text-start" style="width: 110px;">Mã SKU</th>
+                      <th class="text-start" style="min-width: 240px; max-width: 38%;">Sản phẩm</th>
+                      <th class="text-start" style="width: 130px;">Nhóm hàng</th>
+                      <th class="text-end" style="width: 120px;">Giá bán</th>
+                      <th class="text-end" style="width: 90px;">Tồn kho</th>
+                      <th class="text-end" style="width: 80px;">Đã bán</th>
+                      <th class="text-center" style="width: 105px;">Đánh giá</th>
+                      <th class="text-end" style="width: 85px;">Lượt xem</th>
+                      <th class="text-center" style="width: 125px;">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody id="product-table-body">
                     <tr>
-                      <td colspan="9" class="text-center py-3 text-muted">
+                      <td colspan="9" class="text-center py-4 text-muted">
                         Đang tải danh sách sản phẩm...
                       </td>
                     </tr>
@@ -1289,10 +1386,21 @@
                     </select>
                   </div>
                 </div>
-                <nav aria-label="Phân trang danh mục hàng hóa">
+                <nav aria-label="Phân trang danh mục hàng hóa" class="d-flex align-items-center gap-2">
                   <ul
                     class="pagination pagination-sm mb-0"
                     id="catalog-pagination"></ul>
+                  <div class="d-flex align-items-center gap-1 ms-1">
+                    <span class="text-muted small">Đến trang:</span>
+                    <input
+                      type="number"
+                      id="catalog-jump-page"
+                      class="form-control form-control-sm text-center"
+                      style="width: 55px; height: 30px; font-size: 12.5px; padding: 2px 4px;"
+                      min="1"
+                      value="1"
+                      onkeydown="if(event.key==='Enter'){handleCatalogJumpPage(this.value);}" />
+                  </div>
                 </nav>
               </div>
             </div>
@@ -1965,7 +2073,7 @@
                   <thead class="table-light sticky-top">
                     <tr>
                       <th style="width: 36px;" class="text-center"></th>
-                      <th style="width: 105px;" class="text-start">Thời gian</th>
+                      <th style="width: 125px; min-width: 125px;" class="text-start">Thời gian</th>
                       <th style="width: 95px;" class="text-start">CSDL</th>
                       <th class="text-start">Sự kiện và tóm tắt</th>
                       <th style="width: 85px;" class="text-start">Nguồn</th>
@@ -2009,91 +2117,140 @@
         <!-- ========================================================================= -->
         <div class="tab-pane fade" id="tab-benchmark" role="tabpanel">
           <div class="panel-box">
-            <div class="panel-header">
-              <span
-                >Thực nghiệm so sánh thời gian thực thi <span class="tech-detail text-muted small ms-1">(Truy vấn cục bộ vs phân tán và đa mô hình)</span></span
-              >
-              <div class="d-flex align-items-center gap-2">
-                <label class="small fw-normal mb-0">Số vòng lặp đo:</label>
+            <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <span class="fw-semibold text-dark">So sánh thời gian truy vấn</span>
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <label class="small fw-normal mb-0" for="bench-iterations">Số vòng đo:</label>
                 <select
                   id="bench-iterations"
                   class="form-select form-select-sm"
-                  style="width: 110px">
-                  <option value="10">10 lần lặp</option>
-                  <option value="20" selected>20 lần lặp</option>
-                  <option value="50">50 lần lặp</option>
+                  style="width: 105px">
+                  <option value="10">10 vòng</option>
+                  <option value="50" selected>50 vòng</option>
+                  <option value="100">100 vòng</option>
                 </select>
                 <button
                   class="btn btn-sm btn-navy"
                   id="btn-run-bench"
                   onclick="runBenchmarkTest()">
-                  Bắt đầu đo kiểm
+                  Chạy đo
+                </button>
+                <button
+                  class="btn btn-sm btn-outline-secondary"
+                  id="btn-export-csv"
+                  onclick="exportBenchmarkCSV()"
+                  disabled>
+                  Xuất CSV
+                </button>
+                <button
+                  class="btn btn-sm btn-outline-secondary"
+                  id="btn-export-chart"
+                  onclick="exportBenchmarkChart()"
+                  disabled>
+                  Tải ảnh biểu đồ
                 </button>
               </div>
             </div>
             <div class="panel-body">
-              <div class="row g-3">
-                <div class="col-lg-7">
+              <!-- TIẾN ĐỘ ĐO KHI ĐANG THỰC THI -->
+              <div id="bench-progress-wrap" class="mb-3" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <span class="small text-muted" id="bench-progress-text" style="font-size: 12.5px;">Đang đo...</span>
+                  <span class="small text-muted tabular-nums" id="bench-progress-pct" style="font-size: 12.5px;">0%</span>
+                </div>
+                <div class="progress" style="height: 3px; background-color: #e5e7eb;">
+                  <div id="bench-progress-bar" class="progress-bar bg-primary" role="progressbar" style="width: 0%; transition: width 0.1s linear;"></div>
+                </div>
+              </div>
+
+              <!-- CÁC THẺ CHỈ SỐ TÓM TẮT -->
+              <div class="row g-2 mb-3" id="benchmark-summary-cards">
+                <div class="col-12 col-md-4">
+                  <div class="p-2 px-3 bg-light border rounded-1">
+                    <div class="text-muted" style="font-size: 12px;">Truy vấn cục bộ (1 node)</div>
+                    <div class="d-flex align-items-baseline gap-2 mt-1">
+                      <span class="fs-5 fw-bold text-dark tabular-nums" id="card-local-avg">--</span>
+                      <span class="text-muted" style="font-size: 12px;">mốc so sánh</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-12 col-md-4">
+                  <div class="p-2 px-3 bg-light border rounded-1">
+                    <div class="text-muted" style="font-size: 12px;">Truy vấn phân tán (đọc LAN)</div>
+                    <div class="d-flex align-items-baseline gap-2 mt-1">
+                      <span class="fs-5 fw-bold text-dark tabular-nums" id="card-dist-avg">--</span>
+                      <span class="text-secondary tabular-nums" style="font-size: 12px;" id="card-dist-diff">--</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-12 col-md-4">
+                  <div class="p-2 px-3 bg-light border rounded-1">
+                    <div class="text-muted" style="font-size: 12px;">Truy vấn đa mô hình (MySQL + MongoDB)</div>
+                    <div class="d-flex align-items-baseline gap-2 mt-1">
+                      <span class="fs-5 fw-bold text-dark tabular-nums" id="card-poly-avg">--</span>
+                      <span class="text-secondary tabular-nums" style="font-size: 12px;" id="card-poly-diff">--</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- BẢNG KẾT QUẢ CHIẾM HẾT CHIỀU NGANG -->
+              <div class="row">
+                <div class="col-12">
                   <div class="table-responsive border rounded-2">
-                    <table
-                      class="table table-hover table-sm table-custom align-middle mb-0">
+                    <table class="table table-hover table-sm table-custom align-middle mb-0">
                       <thead>
                         <tr>
-                          <th>Kịch bản truy vấn</th>
+                          <th style="min-width: 250px;">Kịch bản truy vấn</th>
                           <th class="text-end">Trung bình (ms)</th>
                           <th class="text-end">Thấp nhất (ms)</th>
                           <th class="text-end">Cao nhất (ms)</th>
                           <th class="text-end">p95 (ms)</th>
+                          <th class="text-end">Độ lệch chuẩn (ms)</th>
                           <th class="text-end">% chênh lệch</th>
-                          <th class="text-end">Thông lượng (req/s)</th>
+                          <th class="text-end">Truy vấn/giây</th>
                         </tr>
                       </thead>
                       <tbody id="benchmark-table-body">
                         <tr>
-                          <td colspan="7" class="text-center py-4 text-muted">
-                            Nhấn nút "Bắt đầu đo kiểm" ở góc phải phía trên để thực hiện truy vấn thực tế và ghi nhận số liệu.
+                          <td colspan="8" class="text-center py-4 text-muted" style="font-size: 13px;">
+                            Chưa có kết quả. Chọn số vòng và bấm Chạy đo.
                           </td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
 
-                  <div
-                    class="mt-3 p-3 bg-light border rounded-1"
-                    id="benchmark-notes"
-                    style="display: none">
-                    <div class="fw-bold mb-1 text-dark">
-                      Kết luận thực nghiệm:
-                    </div>
-                    <div id="benchmark-dynamic-conclusion" class="fw-semibold text-primary mb-1.5" style="font-size: 13.5px;"></div>
-                    <ul class="mb-0 ps-3 small text-secondary" id="benchmark-notes-list"></ul>
-                  </div>
-                </div>
-                <div class="col-lg-5">
-                  <div class="border p-2 bg-white rounded-1">
-                    <canvas id="benchmarkChart" height="190"></canvas>
+                  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2">
+                    <span class="text-muted" style="font-size: 12px;" id="benchmark-footnote">
+                      Chưa thực hiện đo kiểm. Chọn số vòng và bấm Chạy đo để bắt đầu.
+                    </span>
+                    <span id="benchmark-anomaly-badge" class="badge bg-light text-secondary border" style="display: none; font-size: 11.5px; font-weight: normal;"></span>
                   </div>
                 </div>
               </div>
 
-              <!-- THẺ THÔNG TIN TỔNG QUAN PHƯƠNG PHÁP ĐO VÀ KIẾN TRÚC -->
-              <div class="row g-3 mt-1">
-                <div class="col-md-4">
-                  <div class="p-3 bg-light border rounded h-100">
-                    <div class="fw-bold text-primary mb-1">Truy vấn cục bộ (Local)</div>
-                    <div class="small text-secondary">Thực thi trực tiếp trên Node cục bộ, không phát sinh chi phí mạng LAN. Phù hợp làm thước đo đường cơ sở (Baseline).</div>
+              <!-- BIỂU ĐỒ CHIẾM HẾT CHIỀU NGANG -->
+              <div class="row mt-3">
+                <div class="col-12">
+                  <div class="border p-2 bg-white rounded-1" style="height: 260px; position: relative;">
+                    <canvas id="benchmarkChart"></canvas>
                   </div>
                 </div>
-                <div class="col-md-4">
-                  <div class="p-3 bg-light border rounded h-100">
-                    <div class="fw-bold text-success mb-1">Phân tán MySQL GR (LAN)</div>
-                    <div class="small text-secondary">Phân tải truy vấn đọc sang các Node Secondary qua Read Routing, tối ưu năng lực phục vụ đồng thời.</div>
-                  </div>
-                </div>
-                <div class="col-md-4">
-                  <div class="p-3 bg-light border rounded h-100">
-                    <div class="fw-bold text-info mb-1">Đa mô hình Polyglot Persistence</div>
-                    <div class="small text-secondary">Kết hợp JOIN dữ liệu có cấu trúc trên MySQL và Document bán cấu trúc trên MongoDB Replica Set song song.</div>
+              </div>
+
+              <!-- KẾT LUẬN CHIẾM HẾT CHIỀU NGANG -->
+              <div class="row mt-3">
+                <div class="col-12">
+                  <div
+                    class="p-3 rounded-1"
+                    id="benchmark-notes"
+                    style="display: none; background-color: #f8f9fb; border: 1px solid #e5e7eb;">
+                    <div class="text-secondary mb-1" style="font-size: 13px; font-weight: 500;">
+                      Kết luận thực nghiệm:
+                    </div>
+                    <div id="benchmark-dynamic-conclusion" style="font-size: 14px; color: #374151; line-height: 1.5;"></div>
+                    <ul class="mb-0 ps-3 small text-secondary" id="benchmark-notes-list" style="display: none;"></ul>
                   </div>
                 </div>
               </div>
@@ -2281,7 +2438,7 @@
                 <thead class="table-light sticky-top">
                   <tr>
                     <th style="width: 36px;" class="text-center"></th>
-                    <th style="width: 105px;" class="text-start">Thời gian</th>
+                    <th style="width: 125px; min-width: 125px;" class="text-start">Thời gian</th>
                     <th style="width: 95px;" class="text-start">CSDL</th>
                     <th class="text-start">Sự kiện và tóm tắt</th>
                     <th style="width: 85px;" class="text-start">Nguồn</th>
@@ -2342,6 +2499,18 @@
         </div>
       </div>
     </div>
+
+    <!-- FOOTER HỌC PHẦN / NHÓM THỰC HIỆN -->
+    <footer class="site-footer text-center mt-auto">
+      <div class="container-fluid px-4 text-center">
+        <div>
+          Học phần: <strong>Cơ sở dữ liệu nâng cao (CTH612)</strong> • Đề tài 2 • Nhóm thực hiện: <strong>Nhóm 2</strong>
+        </div>
+        <div class="footer-line-sub tech-detail">
+          Kiến trúc phân tán: MySQL 8.0 Group Replication (Single-Primary) + MongoDB 7.0 Replica Set
+        </div>
+      </div>
+    </footer>
 
     <!-- OFFCANVAS NGĂN XEM CHI TIẾT ĐƠN HÀNG BÊN PHẢI (Tab 1) -->
     <div
@@ -2449,6 +2618,7 @@
       <div class="p-3 bg-light border-top text-end">
         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="offcanvas">Đóng</button>
       </div>
+    </div>
     <!-- MODAL PHÓNG TO HÌNH ẢNH ĐÁNH GIÁ (LIGHTBOX) -->
     <div class="modal fade" id="imageLightboxModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -3150,44 +3320,104 @@
       }
 
       function updateTopBarVisibility() {
-        const compactBar = document.getElementById("compactStatusBar");
-        const detailBox = document.getElementById("detailedStatusBox");
-        const isClusterTab = document.body.classList.contains("on-tab-cluster");
-        if (isClusterTab) {
-          if (compactBar) compactBar.style.setProperty("display", "none", "important");
-          if (detailBox) detailBox.style.setProperty("display", "none", "important");
-          return;
-        }
-        const isTech = document.body.classList.contains("tech-mode-active");
-        if (isTech) {
-          if (compactBar) compactBar.style.setProperty("display", "none", "important");
-          if (detailBox) detailBox.style.setProperty("display", "block", "important");
+        // Quản lý hiển thị hoàn toàn tự động qua CSS:
+        // body.cluster-collapsed và body.on-tab-cluster
+      }
+
+      // =========================================================================
+      // QUẢN LÝ TRẠNG THÁI HIỂN THỊ: CHẾ ĐỘ KỸ THUẬT & THU GỌN KHUNG CỤM
+      // =========================================================================
+      let technicalMode = false;
+      let clusterCollapsed = false;
+
+      function applyClusterPanelState() {
+        const effectiveCollapsed = !technicalMode || clusterCollapsed;
+        const showToggleButton = technicalMode;
+
+        if (effectiveCollapsed) {
+          document.body.classList.add("cluster-effective-collapsed");
         } else {
-          if (compactBar) compactBar.style.setProperty("display", "flex", "important");
-          if (detailBox) detailBox.style.setProperty("display", "none", "important");
+          document.body.classList.remove("cluster-effective-collapsed");
+        }
+
+        if (technicalMode) {
+          document.body.classList.add("tech-on");
+        } else {
+          document.body.classList.remove("tech-on");
+        }
+
+        const btnExpand = document.getElementById("btn-toggle-cluster-expand");
+        if (btnExpand) {
+          btnExpand.style.display = showToggleButton ? "" : "none";
+          btnExpand.setAttribute("aria-expanded", effectiveCollapsed ? "false" : "true");
+        }
+
+        const btnCollapse = document.getElementById("btn-toggle-cluster-collapse");
+        if (btnCollapse) {
+          btnCollapse.style.display = showToggleButton ? "" : "none";
+          btnCollapse.setAttribute("aria-expanded", effectiveCollapsed ? "false" : "true");
+        }
+
+        const sw = document.getElementById("techModeSwitch");
+        if (sw) {
+          sw.checked = technicalMode;
+          sw.setAttribute("role", "switch");
+          sw.setAttribute("aria-checked", technicalMode ? "true" : "false");
         }
       }
 
-      // CHẾ ĐỘ KỸ THUẬT (BẬT KHI DEMO THẦY CÔ / TẮT MẶC ĐỊNH CHO GIAO DIỆN SẢN PHẨM)
+      function toggleTechnicalMode(enabled) {
+        technicalMode = Boolean(enabled);
+        localStorage.setItem("ui.technicalMode", technicalMode ? "1" : "0");
+        applyClusterPanelState();
+      }
+
+      function toggleClusterPanel(collapsed) {
+        clusterCollapsed = Boolean(collapsed);
+        localStorage.setItem("ui.clusterCollapsed", clusterCollapsed ? "1" : "0");
+        applyClusterPanelState();
+      }
+
       function toggleTechMode(isTech) {
-        const sw = document.getElementById("techModeSwitch");
-        if (sw) sw.checked = isTech;
-        if (isTech) {
-          document.body.classList.add("tech-mode-active");
-          localStorage.setItem("ecom_tech_mode", "1");
-        } else {
-          document.body.classList.remove("tech-mode-active");
-          localStorage.setItem("ecom_tech_mode", "0");
+        toggleTechnicalMode(isTech);
+      }
+
+      function initUiState() {
+        const savedTech = localStorage.getItem("ui.technicalMode");
+        technicalMode = savedTech === "1";
+
+        const savedCollapsed = localStorage.getItem("ui.clusterCollapsed");
+        clusterCollapsed = savedCollapsed === "1";
+
+        applyClusterPanelState();
+
+        const techSwitch = document.getElementById("techModeSwitch");
+        if (techSwitch && !techSwitch.dataset.listenerBound) {
+          techSwitch.dataset.listenerBound = "true";
+          techSwitch.addEventListener("change", (e) => {
+            toggleTechnicalMode(e.target.checked);
+          });
         }
-        updateTopBarVisibility();
+
+        const btnExpand = document.getElementById("btn-toggle-cluster-expand");
+        if (btnExpand && !btnExpand.dataset.listenerBound) {
+          btnExpand.dataset.listenerBound = "true";
+          btnExpand.addEventListener("click", () => {
+            toggleClusterPanel(false);
+          });
+        }
+
+        const btnCollapse = document.getElementById("btn-toggle-cluster-collapse");
+        if (btnCollapse && !btnCollapse.dataset.listenerBound) {
+          btnCollapse.dataset.listenerBound = "true";
+          btnCollapse.addEventListener("click", () => {
+            toggleClusterPanel(true);
+          });
+        }
       }
 
       function initTechMode() {
-        const savedMode = localStorage.getItem("ecom_tech_mode");
-        const isTech = savedMode === "1";
-        const sw = document.getElementById("techModeSwitch");
-        if (sw) sw.checked = isTech;
-        toggleTechMode(isTech);
+        initUiState();
       }
 
       // 1. TẢI TRẠNG THÁI CỤM SERVER
@@ -3207,7 +3437,7 @@
             document.getElementById("bar-last-updated-time").innerText = timestampStr;
           }
 
-          // Tóm tắt trên khung chi tiết (Hình 2 - Chế độ kỹ thuật)
+          // Tóm tắt trên khung chi tiết
           const mysqlSummary = data.mysql
             .map((n, idx) => {
               const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
@@ -3224,11 +3454,12 @@
               const pingFormatted = (isOnline && n.ping_ms !== null && n.ping_ms !== undefined)
                 ? Number(n.ping_ms).toFixed(1) + " ms"
                 : "–";
-              const pingHtml = `<div class="cluster-node-ping text-muted">${pingFormatted}</div>`;
+              const pingStyle = isOnline ? "" : 'style="color: #9ca3af;"';
+              const pingHtml = `<div class="cluster-node-ping text-muted tech-detail" ${pingStyle}>${pingFormatted}</div>`;
 
               return `<div class="${rowClass}">
                 <div class="cluster-node-name">${nodeLabel}</div>
-                <div class="cluster-node-ip">${n.host}</div>
+                <div class="cluster-node-ip tech-detail">${n.host}</div>
                 ${roleHtml}
                 ${stateHtml}
                 ${pingHtml}
@@ -3254,11 +3485,12 @@
               const pingFormatted = (isOnline && n.ping_ms !== null && n.ping_ms !== undefined)
                 ? Number(n.ping_ms).toFixed(1) + " ms"
                 : "–";
-              const pingHtml = `<div class="cluster-node-ping text-muted">${pingFormatted}</div>`;
+              const pingStyle = isOnline ? "" : 'style="color: #9ca3af;"';
+              const pingHtml = `<div class="cluster-node-ping text-muted tech-detail" ${pingStyle}>${pingFormatted}</div>`;
 
               return `<div class="${rowClass}">
                 <div class="cluster-node-name">${nodeLabel}</div>
-                <div class="cluster-node-ip">${n.host}</div>
+                <div class="cluster-node-ip tech-detail">${n.host}</div>
                 ${roleHtml}
                 ${stateHtml}
                 ${pingHtml}
@@ -3283,7 +3515,7 @@
           const mongoDocsEl = document.getElementById("summary-mongo-docs");
           if (mongoDocsEl) mongoDocsEl.innerText = mongoFmt;
 
-          // Tóm tắt trên thanh gọn 1 dòng (Hình 1 - Chế độ bình thường)
+          // Tóm tắt trên thanh gọn 1 dòng (Chế độ thu gọn)
           const mysqlTotal = (data.mysql || []).length;
           const mysqlOnline = (data.mysql || []).filter(
             (n) => n.state && n.state.indexOf("ONLINE") !== -1,
@@ -3296,6 +3528,9 @@
               n.state !== "OFFLINE" &&
               n.state.indexOf("not reachable") === -1,
           ).length;
+
+          const primaryNode = (data.mysql || []).find((n) => n.role === "PRIMARY");
+          const primaryName = primaryNode ? (primaryNode.node_name || "Node 2").replace(":", "").trim() : "Node 2";
 
           const barMysqlEl = document.getElementById("bar-mysql-summary");
           if (barMysqlEl) {
@@ -3313,9 +3548,14 @@
             barMongoEl.innerHTML = `<span class="status-dot ${dotClass}"></span>MongoDB: <strong>${mongoOnline}/${mongoTotal} node</strong>`;
           }
 
+          const barPrimaryEl = document.getElementById("bar-primary-summary");
+          if (barPrimaryEl) {
+            barPrimaryEl.innerHTML = `Node chính: <strong>${primaryName}</strong>`;
+          }
+
           const barDataEl = document.getElementById("bar-data-summary");
           if (barDataEl) {
-            barDataEl.innerHTML = `<span class="text-secondary fw-normal">${sqlFmt} dòng MySQL &middot; ${mongoFmt} tài liệu MongoDB</span>`;
+            barDataEl.innerHTML = `${sqlFmt} dòng MySQL &middot; ${mongoFmt} tài liệu MongoDB`;
           }
 
           // Bảng chi tiết MySQL ở Tab 3
@@ -3527,6 +3767,9 @@
             window.lastSyncLogsHash = currentHash;
             loadSyncLogs();
           }
+
+          // Cập nhật lại trạng thái hiển thị của khung cụm theo trạng thái hiệu lực
+          applyClusterPanelState();
         } catch (e) {
           console.error("Cluster status error:", e);
         }
@@ -3624,16 +3867,19 @@
             let tgtHtml = "";
             if (l.status === "PENDING") {
               tgtHtml = `<span class="small text-warning d-inline-flex align-items-center" title="${tgtTitle}"><span class="status-dot dot-warning me-1"></span>${l.target_display || "Chờ Node phụ"}</span>`;
-            } else if (l.status === "PARTIAL") {
-              tgtHtml = `<span class="small text-secondary d-inline-flex align-items-center" title="${tgtTitle}"><span class="status-dot dot-warning me-1"></span>${l.target_display || "Node 3, Node 4"}</span>`;
+            } else if (l.status === "PARTIAL" || (l.target_display && l.target_display.includes("ngoại tuyến"))) {
+              tgtHtml = `<span class="small text-secondary d-inline-flex align-items-center" title="${tgtTitle}">${l.target_display || "Node 3, Node 4"}</span>`;
             } else {
               tgtHtml = `<span class="small text-secondary" title="${tgtTitle}">${l.target_display || "Tất cả node"}</span>`;
             }
 
             // Trạng thái đồng bộ: chấm màu nhỏ + chữ thường
             let statusHtml = "";
-            if (l.status === "PENDING") {
-              statusHtml = `<span class="small text-warning d-inline-flex align-items-center"><span class="status-dot dot-warning me-1"></span>${l.status_text || "Chờ nhân bản"}</span>`;
+            const isLagging = l.status === "LAGGING" || (l.status_text && l.status_text.includes("Trễ"));
+            if (isLagging) {
+              statusHtml = `<span class="small text-danger d-inline-flex align-items-center"><span class="status-dot dot-offline me-1"></span>${l.status_text || "Trễ (>500ms)"}</span>`;
+            } else if (l.status === "PENDING" || (l.status_text && l.status_text.includes("Chờ"))) {
+              statusHtml = `<span class="small text-warning d-inline-flex align-items-center"><span class="status-dot dot-warning me-1"></span>${l.status_text || "Đang chờ"}</span>`;
             } else if (l.status === "PARTIAL") {
               statusHtml = `<span class="small text-secondary d-inline-flex align-items-center"><span class="status-dot dot-warning me-1"></span>${l.status_text || "Đồng bộ một phần"}</span>`;
             } else {
@@ -3663,11 +3909,12 @@
             // Tiêu đề sự kiện: KHÔNG dùng regex chèn badge vào giữa tên sản phẩm
             const titleHtml = `<span class="fw-semibold text-dark">${l.title || "Sự kiện"}</span>`;
 
-            // Độ trễ: nếu cao > 150ms thì cảnh báo màu cam nhẹ
+            // Độ trễ: nếu không đo được độ trễ thật thì hiển thị '-'
+            const latVal = (l.latency_ms !== null && l.latency_ms !== undefined && l.latency_ms !== "") ? `${l.latency_ms} ms` : "-";
             const isHighLatency = (l.latency_ms || 0) > 150;
             const latencyHtml = isHighLatency
-              ? `<span class="font-monospace text-warning fw-semibold">${l.latency_ms} ms</span>`
-              : `<span class="font-monospace text-secondary">${l.latency_ms} ms</span>`;
+              ? `<span class="font-monospace text-warning fw-semibold">${latVal}</span>`
+              : `<span class="font-monospace text-secondary">${latVal}</span>`;
 
             // Danh sách node nhận chi tiết
             let replicaBadges = "";
@@ -3713,9 +3960,9 @@
               <td class="text-center py-2" style="width: 36px;">
                 <i class="bi bi-chevron-right sync-chevron-icon" id="chevron-${detailId}"></i>
               </td>
-              <td class="text-start">
-                <div class="fw-medium text-dark" style="font-size: 13.5px;">${l.time || l.timestamp}</div>
-                <div class="text-secondary font-monospace" style="font-size: 11px;">${l.log_id}</div>
+              <td class="text-start" style="min-width: 125px; line-height: 1.35; padding-top: 8px !important; padding-bottom: 8px !important;">
+                <div class="fw-medium text-dark" style="font-size: 13.5px; line-height: 1.25;">${l.time || l.timestamp}</div>
+                <div class="text-secondary font-monospace" style="font-size: 11px; line-height: 1.25; margin-top: 3px; white-space: nowrap;">${l.log_id || l.id}</div>
               </td>
               <td class="text-start">
                 <span class="small text-secondary">${dbText}</span>
@@ -3759,7 +4006,7 @@
                           <strong>Kết thúc:</strong> 
                           <span class="font-monospace text-dark bg-white px-1.5 py-0.5 border rounded">${endTimeStr}</span>
                           <span class="text-muted ms-1">${l.date || ""}</span>
-                          <span class="badge bg-light text-dark border ms-1 font-monospace">(Độ trễ: ${l.latency_ms} ms)</span>
+                          <span class="badge bg-light text-dark border ms-1 font-monospace">(Độ trễ: ${l.latency_ms !== null && l.latency_ms !== undefined ? l.latency_ms + ' ms' : '-'})</span>
                         </div>
                       </div>
                     </div>
@@ -3898,12 +4145,20 @@
         if (!infoEl) return;
 
         if (totalItems <= limit) {
-          if (controlsEl) controlsEl.style.display = "none";
+          if (controlsEl) {
+            controlsEl.classList.add("d-none");
+            controlsEl.classList.remove("d-flex");
+            controlsEl.style.setProperty("display", "none", "important");
+          }
           infoEl.innerHTML = `Hiển thị <strong>${totalItems.toLocaleString("vi-VN")}</strong> sự kiện đồng bộ`;
           return;
         }
 
-        if (controlsEl) controlsEl.style.display = "flex";
+        if (controlsEl) {
+          controlsEl.classList.remove("d-none");
+          controlsEl.classList.add("d-flex");
+          controlsEl.style.removeProperty("display");
+        }
         const startIdx = (page - 1) * limit + 1;
         const endIdx = Math.min(page * limit, totalItems);
         infoEl.innerHTML =
@@ -4132,14 +4387,65 @@
 
       let currentCatalogPage = 1;
 
+      const CATEGORY_NAMES_VN = {
+        "Smartphone": "Điện thoại",
+        "Laptop": "Máy tính xách tay",
+        "Tablet": "Máy tính bảng",
+        "Audio": "Âm thanh",
+        "Smartwatch": "Đồng hồ",
+        "Monitor": "Màn hình"
+      };
+
+      function getProductThumbnail(category) {
+        const cat = (category || "").toLowerCase();
+        let iconSvg = '';
+        if (cat.includes('smartphone') || cat.includes('thoại')) {
+          iconSvg = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>';
+        } else if (cat.includes('laptop') || cat.includes('xách tay')) {
+          iconSvg = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="12" rx="2"></rect><line x1="2" y1="20" x2="22" y2="20"></line></svg>';
+        } else if (cat.includes('tablet') || cat.includes('bảng')) {
+          iconSvg = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><circle cx="12" cy="18" r="1"></circle></svg>';
+        } else if (cat.includes('audio') || cat.includes('âm thanh') || cat.includes('tai nghe')) {
+          iconSvg = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>';
+        } else if (cat.includes('smartwatch') || cat.includes('đồng hồ')) {
+          iconSvg = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"></circle><polyline points="12 9 12 12 13.5 13.5"></polyline><path d="M16.51 17.35l-.35 3.83a2 2 0 0 1-2 1.82H9.83a2 2 0 0 1-2-1.82l-.35-3.83m.01-10.7l.35-3.83A2 2 0 0 1 9.83 1h4.35a2 2 0 0 1 2 1.82l.35 3.83"></path></svg>';
+        } else if (cat.includes('monitor') || cat.includes('màn hình')) {
+          iconSvg = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>';
+        } else {
+          iconSvg = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>';
+        }
+        return `<div class="product-thumb-placeholder" style="width: 40px; height: 40px; border-radius: 6px; margin-right: 12px; background: #f3f4f6; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #e5e7eb;">${iconSvg}</div>`;
+      }
+
+      let catalogKeywordTimer = null;
+      function handleCatalogKeywordInput() {
+        if (catalogKeywordTimer) clearTimeout(catalogKeywordTimer);
+        catalogKeywordTimer = setTimeout(() => {
+          loadProducts(1);
+        }, 300);
+      }
+
+      function resetProductFilters() {
+        const kwEl = document.getElementById("filter-keyword");
+        if (kwEl) kwEl.value = "";
+        const catEl = document.getElementById("filter-category");
+        if (catEl) catEl.value = "ALL";
+        const rmEl = document.getElementById("filter-readmode");
+        if (rmEl) rmEl.value = "secondary_preferred";
+        loadProducts(1);
+      }
+
       // 2. TẢI DANH SÁCH SẢN PHẨM KẾT HỢP (MYSQL + MONGODB) CÓ PHÂN TRANG
       async function loadProducts(page) {
         if (typeof page === "number" && page >= 1) {
           currentCatalogPage = page;
         }
-        const kw = document.getElementById("filter-keyword").value.trim();
-        const cat = document.getElementById("filter-category").value;
-        const rm = document.getElementById("filter-readmode").value;
+        const kwEl = document.getElementById("filter-keyword");
+        const kw = kwEl ? kwEl.value.trim() : "";
+        const catEl = document.getElementById("filter-category");
+        const cat = catEl ? catEl.value : "ALL";
+        const rmEl = document.getElementById("filter-readmode");
+        const rm = rmEl ? rmEl.value : "secondary_preferred";
         const sizeEl = document.getElementById("catalog-page-size");
         const limit = sizeEl ? parseInt(sizeEl.value || "15", 10) : 15;
 
@@ -4169,45 +4475,80 @@
             role_vn: meta.mongo_role_vn,
             node_name: meta.mongo_node_name
           };
-          document.getElementById("polyglot-route-info").innerHTML =
-            `MySQL: ${formatNodeBadge(mNode, "mysql")} [${meta.mysql_latency_ms || 0} ms] &middot; ` +
-            `MongoDB: ${formatNodeBadge(mgNode, "mongo")} [${meta.mongo_latency_ms || 0} ms]`;
+          const polyglotRouteEl = document.getElementById("polyglot-route-info");
+          if (polyglotRouteEl) {
+            polyglotRouteEl.innerHTML =
+              `MySQL: ${formatNodeBadge(mNode, "mysql")} [${meta.mysql_latency_ms || 0} ms] &middot; ` +
+              `MongoDB: ${formatNodeBadge(mgNode, "mongo")} [${meta.mongo_latency_ms || 0} ms]`;
+          }
 
           const tbody = document.getElementById("product-table-body");
           if (cachedProducts.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="9" class="text-center py-3 text-muted">Không tìm thấy sản phẩm phù hợp.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted">Không tìm thấy sản phẩm phù hợp.</td></tr>`;
             renderCatalogPagination(1, 1, 0, limit);
             return;
           }
 
           tbody.innerHTML = cachedProducts
-            .map(
-              (p, idx) => `
-          <tr>
-            <td class="mono-text">${p.sku}</td>
-            <td>
-              <div class="d-flex align-items-center gap-2.5">
-                <img src="https://picsum.photos/seed/prod_${p.product_id}/60/60" class="rounded border" style="width: 36px; height: 36px; object-fit: cover; flex-shrink: 0;" alt="${p.product_name}" onerror="this.style.display='none'" />
-                <span class="fw-semibold text-dark">${p.product_name}</span>
-              </div>
-            </td>
-            <td><span class="text-secondary">${p.category}</span></td>
-            <td class="text-end fw-semibold text-dark">${fmtMoney(p.price)}</td>
-            <td class="text-center">${p.stock_quantity}</td>
-            <td class="text-center text-secondary">${p.total_units_sold}</td>
-            <td class="text-center text-nowrap">
-              <span class="text-warning">★</span> <span class="fw-bold">${p.avg_rating.toFixed(1)}</span> <span class="text-secondary small">(${p.review_count})</span>
-            </td>
-            <td class="text-center text-secondary">${p.activity_views}</td>
-            <td class="text-center text-nowrap">
-              <div class="d-flex align-items-center justify-content-center gap-2">
-                <button class="btn btn-sm btn-navy py-1 px-2.5" onclick="selectProductForOrder(${p.product_id})">Chọn mua</button>
-                <a href="javascript:void(0)" class="text-secondary small text-decoration-underline" onclick="openProductReviewsById(${p.product_id})">Xem nhận xét</a>
-              </div>
-            </td>
-          </tr>
-        `,
-            )
+            .map((p) => {
+              const vnCat = CATEGORY_NAMES_VN[p.category] || p.category;
+              const thumbHtml = getProductThumbnail(p.category);
+              const isOutOfStock = Number(p.stock_quantity) === 0;
+              const isLowStock = Number(p.stock_quantity) > 0 && Number(p.stock_quantity) < 10;
+
+              let stockHtml = "";
+              if (isOutOfStock) {
+                stockHtml = `<span class="col-num" style="color: #9ca3af;">0</span>`;
+              } else if (isLowStock) {
+                stockHtml = `<span class="col-num d-inline-flex align-items-center justify-content-end gap-1.5" style="color: #ea580c; font-weight: 500;"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#ea580c;"></span>${p.stock_quantity}</span>`;
+              } else {
+                stockHtml = `<span class="col-num" style="color: #374151;">${Number(p.stock_quantity).toLocaleString("vi-VN")}</span>`;
+              }
+
+              let ratingHtml = "";
+              const revCount = Number(p.review_count || 0);
+              if (revCount > 0) {
+                const avgScore = Number(p.avg_rating || 0).toFixed(1);
+                ratingHtml = `<span style="color: #f59e0b; font-size: 13px;">★</span> <span class="col-num" style="color: #1f2937; font-weight: 500;">${avgScore}</span> <span class="col-num" style="color: #9ca3af; font-size: 12px;">(${revCount})</span>`;
+              } else {
+                ratingHtml = `<span style="color: #9ca3af;">-</span>`;
+              }
+
+              const buyBtnHtml = isOutOfStock
+                ? `<button class="btn btn-sm btn-outline-secondary py-1 px-2.5 opacity-50" disabled style="cursor: not-allowed; font-size: 12px;" onclick="event.stopPropagation()">Hết hàng</button>`
+                : `<button class="btn btn-sm btn-buy-outline" onclick="event.stopPropagation(); selectProductForOrder(${p.product_id})">Chọn mua</button>`;
+
+              const actionHtml = `
+                <div class="d-inline-flex align-items-center justify-content-center gap-1" onclick="event.stopPropagation()">
+                  ${buyBtnHtml}
+                  <button class="btn btn-sm btn-link text-secondary p-1 ms-1" title="Xem nhận xét sản phẩm" onclick="event.stopPropagation(); openProductReviewsById(${p.product_id})">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                  </button>
+                </div>
+              `;
+
+              const priceFormatted = `${Number(p.price || 0).toLocaleString("vi-VN")}đ`;
+              const soldFormatted = Number(p.total_units_sold || 0).toLocaleString("vi-VN");
+              const viewsFormatted = Number(p.activity_views || 0).toLocaleString("vi-VN");
+
+              return `
+              <tr onclick="openProductReviewsById(${p.product_id})" title="Nhấp để xem nhận xét & đánh giá">
+                <td class="text-start"><span class="col-sku">${p.sku}</span></td>
+                <td class="text-start">
+                  <div class="d-flex align-items-center">
+                    ${thumbHtml}
+                    <span class="text-dark" style="font-weight: 500; font-size: 13.5px; line-height: 1.35;">${p.product_name}</span>
+                  </div>
+                </td>
+                <td class="text-start col-category">${vnCat}</td>
+                <td class="text-end col-num" style="color: #111827; font-weight: 500;">${priceFormatted}</td>
+                <td class="text-end">${stockHtml}</td>
+                <td class="text-end col-num" style="color: #4b5563;">${soldFormatted}</td>
+                <td class="text-center text-nowrap">${ratingHtml}</td>
+                <td class="text-end col-num" style="color: #6b7280;">${viewsFormatted}</td>
+                <td class="text-center text-nowrap">${actionHtml}</td>
+              </tr>`;
+            })
             .join("");
 
           renderCatalogPagination(
@@ -4539,20 +4880,17 @@
         if (!infoEl || !navEl) return;
 
         if (totalItems === 0) {
-          infoEl.innerHTML = `Hiển thị <strong>0</strong> mặt hàng`;
+          infoEl.innerHTML = `0 / 0`;
           navEl.innerHTML = "";
           return;
         }
 
         const startIdx = (page - 1) * limit + 1;
         const endIdx = Math.min(page * limit, totalItems);
-        infoEl.innerHTML =
-          `Hiển thị <strong>${startIdx.toLocaleString("vi-VN")} &ndash; ${endIdx.toLocaleString("vi-VN")}</strong> ` +
-          `trên tổng số <strong>${totalItems.toLocaleString("vi-VN")}</strong> mặt hàng (Trang ${page}/${totalPages})`;
+        infoEl.innerHTML = `<span style="font-weight: 400; color: #4b5563;">${startIdx.toLocaleString("vi-VN")}&ndash;${endIdx.toLocaleString("vi-VN")} / ${totalItems.toLocaleString("vi-VN")}</span>`;
 
         let html = "";
         const prevDisabled = page <= 1 ? "disabled" : "";
-        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="loadProducts(1)">&laquo; Đầu</button></li>`;
         html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="loadProducts(${page - 1})">&lsaquo; Trước</button></li>`;
 
         const startPage = Math.max(1, page - 2);
@@ -4576,9 +4914,20 @@
 
         const nextDisabled = page >= totalPages ? "disabled" : "";
         html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="loadProducts(${page + 1})">Sau &rsaquo;</button></li>`;
-        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="loadProducts(${totalPages})">Cuối &raquo;</button></li>`;
 
         navEl.innerHTML = html;
+
+        const jumpInput = document.getElementById("catalog-jump-page");
+        if (jumpInput) {
+          jumpInput.value = page;
+          jumpInput.max = totalPages;
+        }
+      }
+
+      function handleCatalogJumpPage(pageVal) {
+        let page = parseInt(pageVal, 10);
+        if (isNaN(page) || page < 1) page = 1;
+        loadProducts(page);
       }
 
       let currentReviewProductId = 1;
@@ -4841,6 +5190,9 @@
 
       // 4. THỰC HIỆN ĐẶT HÀNG (MYSQL TRANSACTION)
       async function submitOrder() {
+        if (window._isSubmittingOrder) return;
+        window._isSubmittingOrder = true;
+
         const prodId = parseInt(document.getElementById("order-product-id")?.value, 10);
         const userId = parseInt(document.getElementById("order-user-id")?.value, 10);
         const qty = parseInt(document.getElementById("order-qty")?.value, 10) || 1;
@@ -4850,16 +5202,19 @@
 
         if (!prodId || isNaN(prodId)) {
           if (fb) fb.innerHTML = `<div class="alert alert-warning py-2 px-3 mb-0 small">Vui lòng chọn sản phẩm cần đặt.</div>`;
+          window._isSubmittingOrder = false;
           return;
         }
         if (!userId || isNaN(userId)) {
           if (fb) fb.innerHTML = `<div class="alert alert-warning py-2 px-3 mb-0 small">Vui lòng chọn khách hàng đặt mua.</div>`;
+          window._isSubmittingOrder = false;
           return;
         }
 
         const stockQty = parseInt(document.getElementById("order-product-stock-qty")?.innerText, 10);
         if (!isNaN(stockQty) && qty > stockQty) {
           if (fb) fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Số lượng đặt mua (${qty}) vượt quá số lượng tồn kho (${stockQty})! Vui lòng giảm số lượng.</div>`;
+          window._isSubmittingOrder = false;
           return;
         }
 
@@ -4869,6 +5224,7 @@
         }
         if (fb) fb.innerHTML = "";
 
+        const idempotencyKey = "ORDER-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9);
         const payload = {
           user_id: userId,
           product_id: prodId,
@@ -4878,7 +5234,10 @@
         try {
           const res = await fetch("/api/orders/checkout", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "X-Idempotency-Key": idempotencyKey
+            },
             body: JSON.stringify(payload),
           });
           const data = await res.json();
@@ -4921,7 +5280,9 @@
         } catch (e) {
           if (fb) fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Không thể kết nối máy chủ: ${e.message}</div>`;
         } finally {
+          window._isSubmittingOrder = false;
           if (btn) {
+            btn.disabled = false;
             btn.innerHTML = "Xác nhận đặt hàng";
             checkOrderFormValidity();
           }
@@ -4930,6 +5291,9 @@
 
       // 5. GỬI ĐÁNH GIÁ SẢN PHẨM (MONGODB)
       async function submitReview() {
+        if (window._isSubmittingReview) return;
+        window._isSubmittingReview = true;
+
         const fb = document.getElementById("review-feedback");
         const btn = document.getElementById("btn-submit-review");
         const titleVal = (document.getElementById("review-title")?.value || "").trim();
@@ -4937,6 +5301,7 @@
 
         if (!titleVal || !commentVal) {
           if (fb) fb.innerHTML = `<div class="alert alert-warning py-2 px-3 mb-0 small">Vui lòng nhập đầy đủ tiêu đề và nội dung nhận xét.</div>`;
+          window._isSubmittingReview = false;
           return;
         }
 
@@ -4950,6 +5315,7 @@
           document.getElementById("review-product-id").value,
           10,
         );
+        const idempotencyKey = "REV-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9);
         const payload = {
           product_id: selectedProdId,
           user_id: parseInt(
@@ -4966,7 +5332,10 @@
         try {
           const res = await fetch("/api/reviews/add", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "X-Idempotency-Key": idempotencyKey
+            },
             body: JSON.stringify(payload),
           });
           const data = await res.json();
@@ -5012,6 +5381,7 @@
         } catch (e) {
           fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Lỗi kết nối máy chủ khi gửi đánh giá.</div>`;
         } finally {
+          window._isSubmittingReview = false;
           if (btn) {
             btn.disabled = false;
             btn.innerHTML = "Gửi đánh giá";
@@ -5137,11 +5507,67 @@
       }
 
       // 7. CHẠY BENCHMARK ĐO KIỂM HIỆU NĂNG
+      let lastBenchmarkData = null;
+      let lastBenchmarkRows = [];
+
+      function generateBenchmarkConclusion(localAvg, distAvg, polyAvg) {
+        const diffPct = localAvg > 0 ? ((distAvg - localAvg) / localAvg) * 100 : 0;
+        const absDiff = Math.abs(diffPct).toFixed(2);
+        const lStr = localAvg.toFixed(2);
+        const dStr = distAvg.toFixed(2);
+        if (distAvg > localAvg) {
+          return `Truy vấn phân tán chậm hơn cục bộ ${absDiff}% (${dStr} ms so với ${lStr} ms) nhưng chia tải đọc sang các node phụ.`;
+        } else if (distAvg < localAvg) {
+          return `Truy vấn phân tán nhanh hơn cục bộ ${absDiff}% (${dStr} ms so với ${lStr} ms) nhờ hiệu quả bộ đệm trên các node phụ.`;
+        } else {
+          return `Truy vấn phân tán và truy vấn cục bộ đạt thời gian tương đương nhau (${dStr} ms so với ${lStr} ms).`;
+        }
+      }
+
+      function formatDiffPct(diffPct) {
+        const sign = diffPct >= 0 ? "+" : "";
+        const formatted = `${sign}${diffPct.toFixed(2)}%`;
+        if (diffPct > 100) {
+          return `<span class="text-danger fw-semibold tabular-nums">${formatted}</span>`;
+        }
+        if (diffPct > 30) {
+          return `<span class="fw-semibold tabular-nums" style="color: #d97706;">${formatted}</span>`;
+        }
+        return `<span class="text-secondary tabular-nums">${formatted}</span>`;
+      }
+
       async function runBenchmarkTest() {
         const btn = document.getElementById("btn-run-bench");
-        const iters = document.getElementById("bench-iterations").value;
+        const itersSelect = document.getElementById("bench-iterations");
+        const iters = parseInt(itersSelect.value, 10) || 50;
+        const progressWrap = document.getElementById("bench-progress-wrap");
+        const progressText = document.getElementById("bench-progress-text");
+        const progressPct = document.getElementById("bench-progress-pct");
+        const progressBar = document.getElementById("bench-progress-bar");
+        const btnExportCsv = document.getElementById("btn-export-csv");
+        const btnExportChart = document.getElementById("btn-export-chart");
+
         btn.disabled = true;
-        btn.innerText = "Đang thực thi đo kiểm...";
+        btn.innerText = "Đang đo...";
+        if (btnExportCsv) btnExportCsv.disabled = true;
+        if (btnExportChart) btnExportChart.disabled = true;
+
+        if (progressWrap) progressWrap.style.display = "block";
+        if (progressText) progressText.innerText = `Đang đo 1/${iters}...`;
+        if (progressPct) progressPct.innerText = `0%`;
+        if (progressBar) progressBar.style.width = `0%`;
+
+        let currentStep = 1;
+        const stepInterval = Math.max(12, Math.floor(650 / iters));
+        const progressTimer = setInterval(() => {
+          if (currentStep < iters - 1) {
+            currentStep++;
+            const pct = Math.round((currentStep / iters) * 100);
+            if (progressText) progressText.innerText = `Đang đo ${currentStep}/${iters}...`;
+            if (progressPct) progressPct.innerText = `${pct}%`;
+            if (progressBar) progressBar.style.width = `${pct}%`;
+          }
+        }, stepInterval);
 
         try {
           const res = await fetch(`/api/benchmark/run?iterations=${iters}`, {
@@ -5149,92 +5575,209 @@
           });
           const data = await res.json();
 
+          clearInterval(progressTimer);
+          if (progressText) progressText.innerText = `Đang đo ${iters}/${iters}...`;
+          if (progressPct) progressPct.innerText = `100%`;
+          if (progressBar) progressBar.style.width = `100%`;
+          setTimeout(() => {
+            if (progressWrap) progressWrap.style.display = "none";
+          }, 300);
+
+          const rawLocal = (data.local_query && data.local_query.times) || [];
+          const rawDist = (data.distributed_query && data.distributed_query.times) || [];
+          const rawPoly = (data.polyglot_query && data.polyglot_query.times) || [];
+
+          const itCount = rawLocal.length || iters;
+          const warmUpCount = itCount > 3 ? 3 : 0;
+
+          const localTimes = rawLocal.slice(warmUpCount);
+          const distTimes = rawDist.slice(warmUpCount);
+          const polyTimes = rawPoly.slice(warmUpCount);
+
+          function computeStats(arr) {
+            if (!arr || arr.length === 0) {
+              return { avg: 0, min: 0, max: 0, p95: 0, stdDev: 0, throughput: 0 };
+            }
+            const sum = arr.reduce((acc, v) => acc + v, 0);
+            const avg = sum / arr.length;
+            const min = Math.min(...arr);
+            const max = Math.max(...arr);
+            const sorted = [...arr].sort((a, b) => a - b);
+            const p95Idx = Math.min(Math.floor(0.95 * sorted.length), sorted.length - 1);
+            const p95 = sorted[p95Idx];
+            const variance = arr.reduce((acc, v) => acc + Math.pow(v - avg, 2), 0) / arr.length;
+            const stdDev = Math.sqrt(variance);
+            const throughput = avg > 0 ? 1000.0 / avg : 0;
+            return { avg, min, max, p95, stdDev, throughput };
+          }
+
+          const localStats = computeStats(localTimes);
+          const distStats = computeStats(distTimes);
+          const polyStats = computeStats(polyTimes);
+
+          const distDiffPct = localStats.avg > 0 ? ((distStats.avg - localStats.avg) / localStats.avg) * 100 : 0;
+          const polyDiffPct = localStats.avg > 0 ? ((polyStats.avg - localStats.avg) / localStats.avg) * 100 : 0;
+
+          // Cập nhật các thẻ chỉ số tóm tắt ở hàng đầu
+          const cardLocalAvg = document.getElementById("card-local-avg");
+          const cardDistAvg = document.getElementById("card-dist-avg");
+          const cardDistDiff = document.getElementById("card-dist-diff");
+          const cardPolyAvg = document.getElementById("card-poly-avg");
+          const cardPolyDiff = document.getElementById("card-poly-diff");
+
+          if (cardLocalAvg) cardLocalAvg.innerText = `${localStats.avg.toFixed(2)} ms`;
+          if (cardDistAvg) cardDistAvg.innerText = `${distStats.avg.toFixed(2)} ms`;
+          if (cardDistDiff) cardDistDiff.innerText = `${distDiffPct >= 0 ? '+' : ''}${distDiffPct.toFixed(2)}%`;
+          if (cardPolyAvg) cardPolyAvg.innerText = `${polyStats.avg.toFixed(2)} ms`;
+          if (cardPolyDiff) cardPolyDiff.innerText = `${polyDiffPct >= 0 ? '+' : ''}${polyDiffPct.toFixed(2)}%`;
+
           const rows = [
             {
-              label: "Truy vấn cục bộ (1 Node MySQL cơ sở)",
-              d: data.local_query,
+              name: "Truy vấn cục bộ (1 node)",
+              note: "Thực thi trực tiếp trên Node cục bộ, không phát sinh chi phí mạng LAN.",
+              techNote: "(Baseline / Single-Node) MySQL Primary &bull; SELECT FROM products LEFT JOIN order_items",
+              stats: localStats,
+              diffHtml: `<span class="text-secondary tabular-nums">mốc so sánh</span>`,
+              rawDiff: "mốc so sánh",
             },
             {
-              label: "Truy vấn phân tán (đọc phân tải qua LAN)",
-              d: data.distributed_query,
+              name: "Truy vấn phân tán (đọc qua LAN)",
+              note: "Phân tải truy vấn đọc sang các Node Replicas trong mạng LAN.",
+              techNote: "(Read Routing) MySQL Replicas xoay vòng &bull; SELECT FROM products LEFT JOIN order_items",
+              stats: distStats,
+              diffHtml: formatDiffPct(distDiffPct),
+              rawDiff: (distDiffPct >= 0 ? "+" : "") + distDiffPct.toFixed(2) + "%",
             },
             {
-              label: "Truy vấn đa mô hình (MySQL + MongoDB)",
-              d: data.polyglot_query,
+              name: "Truy vấn đa mô hình (MySQL + MongoDB)",
+              note: "Kết hợp dữ liệu quan hệ MySQL và tài liệu MongoDB song song.",
+              techNote: "(Polyglot Persistence) MySQL products JOIN + MongoDB product_reviews aggregate",
+              stats: polyStats,
+              diffHtml: formatDiffPct(polyDiffPct),
+              rawDiff: (polyDiffPct >= 0 ? "+" : "") + polyDiffPct.toFixed(2) + "%",
             },
           ];
 
           document.getElementById("benchmark-table-body").innerHTML = rows
             .map(
               (r) => `
-          <tr>
-            <td class="fw-semibold text-dark">${r.label}</td>
-            <td class="text-end fw-bold text-primary">${r.d.avg_ms} ms</td>
-            <td class="text-end text-secondary">${r.d.min_ms} ms</td>
-            <td class="text-end text-secondary">${r.d.max_ms} ms</td>
-            <td class="text-end fw-medium text-dark">${r.d.p95_ms || r.d.avg_ms} ms</td>
-            <td class="text-end fw-medium ${r.d.pct_diff_vs_local && r.d.pct_diff_vs_local.startsWith('+') ? 'text-danger' : 'text-success'}">${r.d.pct_diff_vs_local || '0.0%'}</td>
-            <td class="text-end fw-semibold text-dark">${r.d.throughput_qps} req/s</td>
-          </tr>
-        `,
+            <tr>
+              <td>
+                <div class="fw-semibold text-dark">${r.name}</div>
+                <div class="text-muted" style="font-size: 12px; line-height: 1.35;">${r.note}</div>
+                <div class="tech-detail text-muted mt-1" style="font-family: monospace; font-size: 11px;">${r.techNote}</div>
+              </td>
+              <td class="text-end fw-semibold text-dark tabular-nums">${r.stats.avg.toFixed(2)}</td>
+              <td class="text-end text-secondary tabular-nums">${r.stats.min.toFixed(2)}</td>
+              <td class="text-end text-secondary tabular-nums">${r.stats.max.toFixed(2)}</td>
+              <td class="text-end text-dark tabular-nums">${r.stats.p95.toFixed(2)}</td>
+              <td class="text-end text-secondary tabular-nums">${r.stats.stdDev.toFixed(2)}</td>
+              <td class="text-end">${r.diffHtml}</td>
+              <td class="text-end fw-semibold text-dark tabular-nums">${r.stats.throughput.toFixed(2)}</td>
+            </tr>
+          `,
             )
             .join("");
 
+          // Cập nhật dòng ghi chú dưới bảng
+          const footnoteEl = document.getElementById("benchmark-footnote");
+          if (footnoteEl) {
+            footnoteEl.innerText = `Số liệu từ ${itCount} vòng đo, đã bỏ ${warmUpCount} vòng khởi động. Thông lượng tính tuần tự trên một kết nối.`;
+          }
+
+          // Cảnh báo vòng đo bất thường nếu độ trễ vượt 10 lần trung bình
+          let anomalyCount = 0;
+          [localTimes, distTimes, polyTimes].forEach((arr) => {
+            if (arr.length > 0) {
+              const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+              anomalyCount += arr.filter((t) => t > mean * 10).length;
+            }
+          });
+          const anomalyBadge = document.getElementById("benchmark-anomaly-badge");
+          if (anomalyBadge) {
+            if (anomalyCount > 0) {
+              anomalyBadge.innerText = `Có ${anomalyCount} vòng đo bất thường`;
+              anomalyBadge.style.display = "inline-block";
+            } else {
+              anomalyBadge.style.display = "none";
+            }
+          }
+
+          // Kết luận thực nghiệm sinh động từ số liệu thật
           const notesBox = document.getElementById("benchmark-notes");
-          notesBox.style.display = "block";
+          if (notesBox) notesBox.style.display = "block";
           const conclusionEl = document.getElementById("benchmark-dynamic-conclusion");
           if (conclusionEl) {
-            conclusionEl.innerText = data.dynamic_conclusion || "";
+            conclusionEl.innerText = generateBenchmarkConclusion(
+              localStats.avg,
+              distStats.avg,
+              polyStats.avg,
+            );
           }
-          document.getElementById("benchmark-notes-list").innerHTML = (
-            data.technical_evaluation || []
-          )
-            .slice(1)
-            .map((t) => `<li class="mb-1">${t}</li>`)
-            .join("");
 
-          const ctx = document
-            .getElementById("benchmarkChart")
-            .getContext("2d");
+          // Biểu đồ Chart.js
+          const ctx = document.getElementById("benchmarkChart").getContext("2d");
           if (benchChartInstance) benchChartInstance.destroy();
-          const itCount = (data.local_query.times || []).length;
-          const itLabels = Array.from({ length: itCount }, (_, i) => `${i + 1}`);
+
+          const itLabels = Array.from(
+            { length: localTimes.length },
+            (_, i) => `${warmUpCount + i + 1}`,
+          );
+          const maxP95 = Math.max(localStats.p95, distStats.p95, polyStats.p95);
+          const yMaxLimit = Math.max(4, Math.ceil(maxP95 * 1.5));
+
           benchChartInstance = new Chart(ctx, {
             type: "line",
             data: {
               labels: itLabels,
               datasets: [
                 {
-                  label: "Cục bộ (ms)",
-                  data: data.local_query.times || [],
-                  borderColor: "#004b87",
-                  backgroundColor: "rgba(0, 75, 135, 0.08)",
-                  borderWidth: 2,
-                  tension: 0.25,
-                  pointRadius: 2,
+                  label: "Truy vấn cục bộ",
+                  data: localTimes,
+                  borderColor: "#1f4e8c",
+                  backgroundColor: "rgba(31, 78, 140, 0.05)",
+                  borderWidth: 1.75,
+                  tension: 0.2,
+                  pointRadius: 0,
+                  pointHoverRadius: 4,
+                  pointBackgroundColor: "#1f4e8c",
+                  pointBorderColor: "#ffffff",
+                  pointBorderWidth: 1.5,
+                  fill: false,
                 },
                 {
-                  label: "Phân tán (ms)",
-                  data: data.distributed_query.times || [],
-                  borderColor: "#16a34a",
-                  backgroundColor: "rgba(22, 163, 74, 0.08)",
-                  borderWidth: 2,
-                  tension: 0.25,
-                  pointRadius: 2,
+                  label: "Truy vấn phân tán",
+                  data: distTimes,
+                  borderColor: "#8a94a3",
+                  backgroundColor: "rgba(138, 148, 163, 0.05)",
+                  borderWidth: 1.75,
+                  tension: 0.2,
+                  pointRadius: 0,
+                  pointHoverRadius: 4,
+                  pointBackgroundColor: "#8a94a3",
+                  pointBorderColor: "#ffffff",
+                  pointBorderWidth: 1.5,
+                  fill: false,
                 },
                 {
-                  label: "Đa mô hình (ms)",
-                  data: data.polyglot_query.times || [],
-                  borderColor: "#d97706",
-                  backgroundColor: "rgba(217, 119, 6, 0.08)",
-                  borderWidth: 2,
-                  tension: 0.25,
-                  pointRadius: 2,
+                  label: "Truy vấn đa mô hình",
+                  data: polyTimes,
+                  borderColor: "#d98c3f",
+                  backgroundColor: "rgba(217, 140, 63, 0.05)",
+                  borderWidth: 1.75,
+                  tension: 0.2,
+                  pointRadius: 0,
+                  pointHoverRadius: 4,
+                  pointBackgroundColor: "#d98c3f",
+                  pointBorderColor: "#ffffff",
+                  pointBorderWidth: 1.5,
+                  fill: false,
                 },
               ],
             },
             options: {
               responsive: true,
+              maintainAspectRatio: false,
               interaction: {
                 mode: "index",
                 intersect: false,
@@ -5243,37 +5786,137 @@
                 legend: {
                   display: true,
                   position: "top",
-                  labels: { boxWidth: 12, font: { size: 12 } },
+                  align: "start",
+                  labels: {
+                    boxWidth: 20,
+                    boxHeight: 2,
+                    usePointStyle: false,
+                    font: { size: 12 },
+                    color: "#4b5563",
+                    padding: 12,
+                  },
                 },
                 tooltip: {
+                  backgroundColor: "rgba(30, 41, 59, 0.95)",
+                  titleFont: { size: 12 },
+                  bodyFont: { size: 12 },
+                  padding: 10,
                   callbacks: {
-                    label: function (ctx) {
-                      return ` ${ctx.dataset.label}: ${ctx.parsed.y} ms`;
+                    title: function (items) {
+                      return `Vòng đo thứ ${items[0].label}`;
+                    },
+                    label: function (c) {
+                      return ` ${c.dataset.label}: ${Number(c.parsed.y).toFixed(2)} ms`;
                     },
                   },
                 },
               },
               scales: {
                 x: {
-                  title: { display: true, text: "Lần lặp", font: { size: 11 } },
+                  title: {
+                    display: true,
+                    text: "Vòng đo",
+                    font: { size: 12 },
+                    color: "#6b7280",
+                  },
+                  grid: {
+                    display: false,
+                  },
+                  ticks: {
+                    font: { size: 11 },
+                    color: "#6b7280",
+                  },
                 },
                 y: {
                   beginAtZero: true,
+                  max: yMaxLimit,
                   title: {
                     display: true,
-                    text: "Độ trễ phản hồi (ms)",
+                    text: "Độ trễ (ms)",
+                    font: { size: 12 },
+                    color: "#6b7280",
+                  },
+                  grid: {
+                    color: "#eef0f2",
+                  },
+                  ticks: {
                     font: { size: 11 },
+                    color: "#6b7280",
                   },
                 },
               },
             },
           });
+
+          // Lưu dữ liệu để phục vụ xuất CSV
+          lastBenchmarkData = data;
+          lastBenchmarkRows = rows.map((r) => ({
+            name: r.name,
+            avg: r.stats.avg.toFixed(2),
+            min: r.stats.min.toFixed(2),
+            max: r.stats.max.toFixed(2),
+            p95: r.stats.p95.toFixed(2),
+            stdDev: r.stats.stdDev.toFixed(2),
+            pctDiff: r.rawDiff,
+            throughput: r.stats.throughput.toFixed(2),
+          }));
+
+          if (btnExportCsv) btnExportCsv.disabled = false;
+          if (btnExportChart) btnExportChart.disabled = false;
         } catch (e) {
+          clearInterval(progressTimer);
+          if (progressWrap) progressWrap.style.display = "none";
           alert("Lỗi khi chạy đo kiểm: " + e);
         } finally {
           btn.disabled = false;
-          btn.innerText = "Bắt đầu chạy đo kiểm";
+          btn.innerText = "Chạy đo";
         }
+      }
+
+      function exportBenchmarkCSV() {
+        if (!lastBenchmarkRows || lastBenchmarkRows.length === 0) {
+          alert("Chưa có kết quả đo kiểm để xuất CSV.");
+          return;
+        }
+        const headers = [
+          "Kịch bản truy vấn",
+          "Trung bình (ms)",
+          "Thấp nhất (ms)",
+          "Cao nhất (ms)",
+          "p95 (ms)",
+          "Độ lệch chuẩn (ms)",
+          "% chênh lệch",
+          "Truy vấn/giây",
+        ];
+        const csvRows = [headers.join(",")];
+        lastBenchmarkRows.forEach((r) => {
+          csvRows.push(
+            `"${r.name}",${r.avg},${r.min},${r.max},${r.p95},${r.stdDev},"${r.pctDiff}",${r.throughput}`
+          );
+        });
+        const csvContent = "\uFEFF" + csvRows.join("\r\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `so_sanh_thoi_gian_truy_van_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      function exportBenchmarkChart() {
+        if (!benchChartInstance) {
+          alert("Chưa có dữ liệu biểu đồ để tải ảnh.");
+          return;
+        }
+        const a = document.createElement("a");
+        a.href = benchChartInstance.toBase64Image();
+        a.download = `bieu_do_so_sanh_thoi_gian_truy_van_${new Date().toISOString().slice(0, 10)}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
       }
 
       // 8. TẢI VÀ LƯU CẤU HÌNH IP MẠNG LAN (ĐỒNG BỘ 2 CHIỀU VỚI SERVER)
@@ -5434,7 +6077,7 @@
       }
 
       window.addEventListener("DOMContentLoaded", () => {
-        initTechMode();
+        initUiState();
         loadClusterConfig();
         const configModalEl = document.getElementById("configModal");
         if (configModalEl) {
@@ -5457,17 +6100,5 @@
         updateClusterSyncTimer(2);
       });
     </script>
-
-    <!-- FOOTER HỌC PHẦN / NHÓM THỰC HIỆN (GỌN GÀNG, HỢP LÝ) -->
-    <footer class="site-footer text-center mt-auto">
-      <div class="container-fluid">
-        <div>
-          Học phần: <strong>Cơ sở dữ liệu nâng cao (CTH612)</strong> &bull; Đề tài 2 &bull; Nhóm thực hiện: <strong>Nhóm 2</strong>
-        </div>
-        <div class="footer-line-sub tech-detail">
-          Kiến trúc phân tán: MySQL 8.0 Group Replication (Single-Primary) + MongoDB 7.0 Replica Set
-        </div>
-      </div>
-    </footer>
   </body>
 </html>
