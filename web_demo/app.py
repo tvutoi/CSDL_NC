@@ -1895,6 +1895,17 @@ def get_product_reviews_list(
         ]))
         avg_rating = round(float(avg_res[0]["avg_rating"]), 2) if avg_res else 0.0
 
+        # Thống kê phân bố số sao (1 đến 5 sao)
+        dist_res = list(col.aggregate([
+            {"$match": query_filter},
+            {"$group": {"_id": "$rating", "cnt": {"$sum": 1}}}
+        ]))
+        rating_dist = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+        for d in dist_res:
+            r_val = d.get("_id")
+            if r_val in rating_dist:
+                rating_dist[r_val] = d.get("cnt", 0)
+
         cursor = col.find(query_filter).sort("created_at", -1).skip(offset).limit(limit)
         reviews = []
         for doc in cursor:
@@ -1920,6 +1931,7 @@ def get_product_reviews_list(
             "total_items": total_items,
             "total_pages": total_pages,
             "avg_rating": avg_rating,
+            "rating_distribution": rating_dist,
             "mongo_node": active_host,
             "mongo_role": active_role,
             "mongo_role_vn": mongo_meta.get("role_vn", "Node chính" if active_role == "PRIMARY" else "Node phụ"),
@@ -2321,38 +2333,55 @@ def run_benchmark(iterations: int = Query(20, ge=5, le=100)):
     conn_p.close()
     m_client.close()
 
-    def summarize(arr):
+    def calc_p95(arr):
+        if not arr:
+            return 0.0
+        s = sorted(arr)
+        idx = int(0.95 * len(s))
+        return round(s[min(idx, len(s) - 1)], 2)
+
+    def summarize(arr, baseline_avg=None):
         avg_v = sum(arr) / len(arr) if arr else 0.001
+        p95_v = calc_p95(arr)
+        if baseline_avg is None:
+            pct_diff = "0.0%"
+        else:
+            diff = ((avg_v - baseline_avg) / baseline_avg) * 100.0
+            pct_diff = f"{'+' if diff > 0 else ''}{round(diff, 1)}%"
         return {
             "avg_ms": round(avg_v, 2),
             "min_ms": round(min(arr), 2) if arr else 0,
             "max_ms": round(max(arr), 2) if arr else 0,
+            "p95_ms": p95_v,
+            "pct_diff_vs_local": pct_diff,
             "total_ms": round(sum(arr), 2),
-            "throughput_qps": round(1000.0 / avg_v, 1) if avg_v > 0 else 0
+            "throughput_qps": round(1000.0 / avg_v, 1) if avg_v > 0 else 0,
+            "times": [round(x, 2) for x in arr]
         }
 
-    results["local_query"] = summarize(local_times)
-    results["distributed_query"] = summarize(dist_times)
-    results["polyglot_query"] = summarize(poly_times)
+    local_avg_raw = sum(local_times) / len(local_times) if local_times else 0.001
+    results["local_query"] = summarize(local_times, None)
+    results["distributed_query"] = summarize(dist_times, local_avg_raw)
+    results["polyglot_query"] = summarize(poly_times, local_avg_raw)
     results["iterations"] = iterations
     results["nodes_participated"] = list(nodes_hit)
 
     l_avg = results["local_query"]["avg_ms"]
     d_avg = results["distributed_query"]["avg_ms"]
     p_avg = results["polyglot_query"]["avg_ms"]
-    diff_ms = round(abs(l_avg - d_avg), 2)
+    d_qps = results["distributed_query"]["throughput_qps"]
+    d_p95 = results["distributed_query"]["p95_ms"]
+    d_diff = results["distributed_query"]["pct_diff_vs_local"]
 
-    if l_avg < d_avg:
-        comp_str = f"Truy vấn Cục bộ nhanh hơn Truy vấn Phân tán ~{diff_ms} ms (do không tốn phụ phí chuyển đổi context giữa các kết nối)."
-    elif d_avg < l_avg:
-        comp_str = f"Truy vấn Phân tán nhanh hơn Truy vấn Cục bộ ~{diff_ms} ms (nhờ phân tải đọc song song qua các Node Replicas)."
-    else:
-        comp_str = "Tốc độ hai bên tương đương hoàn toàn."
+    results["dynamic_conclusion"] = (
+        f"Truy vấn phân tán đạt thông lượng {d_qps} req/s ({d_diff} so với cục bộ, p95: {d_p95} ms); "
+        f"truy vấn đa mô hình hoàn tất trung bình trong {p_avg} ms."
+    )
 
     results["technical_evaluation"] = [
-        f"1. So sánh Truy vấn Cục bộ ({l_avg} ms) vs Truy vấn Phân tán ({d_avg} ms): Cả 2 phép đo đều được chuẩn hóa đo thuần túy thời gian thực thi SQL trên kết nối sẵn sàng. {comp_str} Cơ chế Truy vấn Phân tán theo Đọc Phân tải qua các Node ({', '.join(nodes_hit)}) giúp giải tỏa 100% áp lực CPU/RAM cho Node Primary khi hệ thống chịu tải cao.",
-        f"2. Đánh giá Truy vấn Hợp nhất Polyglot ({p_avg} ms, đạt ~{results['polyglot_query']['throughput_qps']} req/s): Kết hợp dữ liệu quan hệ từ MySQL và Aggregation Pipeline từ MongoDB đạt độ trễ cực thấp nhờ đánh chỉ mục (Index) trên khóa liên kết product_id ở cả 2 hệ CSDL.",
-        "3. Cơ chế Đồng thuận & Toàn vẹn dữ liệu: Mọi giao dịch đặt hàng (Ghi) trên MySQL đều đảm bảo ACID thông qua khóa dòng FOR UPDATE và đồng thuận Paxos (Group Replication), trong khi MongoDB đảm nhận lưu trữ linh hoạt luồng đánh giá & log phi cấu trúc khối lượng lớn."
+        results["dynamic_conclusion"],
+        f"Đánh giá truy vấn hợp nhất đa mô hình ({p_avg} ms, ~{results['polyglot_query']['throughput_qps']} req/s): kết hợp dữ liệu quan hệ từ MySQL và pipeline từ MongoDB đạt độ trễ thấp nhờ đánh chỉ mục product_id trên cả 2 hệ CSDL.",
+        "Mọi giao dịch đặt hàng ghi trên MySQL đều đảm bảo ACID qua Paxos Group Replication, trong khi MongoDB lưu trữ luồng đánh giá và log phi cấu trúc."
     ]
     return results
 
