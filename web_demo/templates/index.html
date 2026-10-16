@@ -2248,26 +2248,18 @@
                 <span class="text-secondary" style="font-size: 12px;" id="current-preset-badge">Cấu hình tùy chỉnh</span>
               </div>
               <div class="row g-2">
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-6">
                   <div class="preset-card" id="preset-card-docker" onclick="applyClusterPreset('docker')">
                     <span class="preset-check"><i class="fas fa-check"></i></span>
                     <div class="preset-title">Docker trên 1 máy</div>
                     <div class="preset-desc">4 node chạy cùng máy, địa chỉ 127.0.0.1</div>
                   </div>
                 </div>
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-6">
                   <div class="preset-card" id="preset-card-lan_lab" onclick="applyClusterPreset('lan_lab')">
                     <span class="preset-check"><i class="fas fa-check"></i></span>
                     <div class="preset-title">LAN tĩnh (lab)</div>
                     <div class="preset-desc">4 máy riêng .221 đến .224, cổng mặc định</div>
-                  </div>
-                </div>
-                <div class="col-12 col-md-4">
-                  <div class="preset-card" id="preset-card-wifi_dynamic" onclick="applyClusterPreset('wifi_dynamic')">
-                    <span class="preset-check"><i class="fas fa-check"></i></span>
-                    <div class="preset-title">Theo IP Wi-Fi hiện tại</div>
-                    <div class="preset-desc">Node 2 lấy theo IP Wi-Fi của máy này</div>
-                    <span id="detected-wifi-ip" style="display: none;">192.168.1.43</span>
                   </div>
                 </div>
               </div>
@@ -6218,7 +6210,6 @@
         const cards = {
           docker: document.getElementById("preset-card-docker"),
           lan_lab: document.getElementById("preset-card-lan_lab"),
-          wifi_dynamic: document.getElementById("preset-card-wifi_dynamic"),
         };
         Object.keys(cards).forEach((key) => {
           if (cards[key]) {
@@ -6236,8 +6227,6 @@
             badge.innerText = "Docker trên 1 máy";
           } else if (presetName === "lan_lab") {
             badge.innerText = "LAN tĩnh (lab)";
-          } else if (presetName === "wifi_dynamic") {
-            badge.innerText = "Theo IP Wi-Fi hiện tại";
           } else {
             badge.innerText = "Cấu hình tùy chỉnh";
           }
@@ -6246,15 +6235,12 @@
 
       function detectCurrentPreset() {
         const mysqlVal = document.getElementById("cfg-mysql-nodes")?.value.replace(/\s+/g, "") || "";
-        const detectedIp = window._detectedLocalIp || "192.168.1.43";
 
         const dockerMysql = "127.0.0.1:3305,127.0.0.1:3306,127.0.0.1:3307,127.0.0.1:3308".replace(/\s+/g, "");
         const labMysql = "192.168.1.221,192.168.1.222,192.168.1.223,192.168.1.224".replace(/\s+/g, "");
-        const wifiMysql = `192.168.1.221,${detectedIp},192.168.1.223,192.168.1.224`.replace(/\s+/g, "");
 
         if (mysqlVal === dockerMysql) return "docker";
         if (mysqlVal === labMysql) return "lan_lab";
-        if (mysqlVal === wifiMysql) return "wifi_dynamic";
         return null;
       }
 
@@ -6265,7 +6251,6 @@
       }
 
       function applyClusterPreset(mode) {
-        const detectedIp = window._detectedLocalIp || "192.168.1.43";
         if (mode === "docker") {
           document.getElementById("cfg-mysql-nodes").value = "127.0.0.1:3305, 127.0.0.1:3306, 127.0.0.1:3307, 127.0.0.1:3308";
           document.getElementById("cfg-mongo-nodes").value = "127.0.0.1:27016, 127.0.0.1:27017, 127.0.0.1:27018, 127.0.0.1:27019";
@@ -6274,10 +6259,6 @@
           document.getElementById("cfg-mysql-nodes").value = "192.168.1.221, 192.168.1.222, 192.168.1.223, 192.168.1.224";
           document.getElementById("cfg-mongo-nodes").value = "192.168.1.221, 192.168.1.222, 192.168.1.223, 192.168.1.224";
           document.getElementById("cfg-client-node").value = "192.168.1.224";
-        } else if (mode === "wifi_dynamic") {
-          document.getElementById("cfg-mysql-nodes").value = `192.168.1.221, ${detectedIp}, 192.168.1.223, 192.168.1.224`;
-          document.getElementById("cfg-mongo-nodes").value = `192.168.1.221, ${detectedIp}, 192.168.1.223, 192.168.1.224`;
-          document.getElementById("cfg-client-node").value = detectedIp;
         }
         updateActivePresetCard(mode);
         validateClusterConfigInputs();
