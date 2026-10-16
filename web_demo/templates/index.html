@@ -477,6 +477,10 @@
       body.tech-on .tech-detail-block {
         display: block !important;
       }
+      body.tech-on li.tech-detail,
+      body.tech-on li.nav-item.tech-detail {
+        display: block !important;
+      }
       body.tech-on th.tech-detail,
       body.tech-on td.tech-detail {
         display: table-cell !important;
@@ -1264,7 +1268,7 @@
               <span>Danh mục hàng hóa</span>
             </button>
           </li>
-          <li class="nav-item" role="presentation">
+          <li class="nav-item tech-detail" role="presentation">
             <button
               class="nav-link"
               id="tab-btn-cluster"
@@ -1276,7 +1280,7 @@
               <span>Trạng thái cụm máy chủ</span>
             </button>
           </li>
-          <li class="nav-item" role="presentation">
+          <li class="nav-item tech-detail" role="presentation">
             <button
               class="nav-link"
               id="tab-btn-benchmark"
@@ -3308,6 +3312,20 @@
         if (technicalMode) {
           clusterCollapsed = false;
           localStorage.setItem("ui.clusterCollapsed", "0");
+        } else {
+          // Khi tắt chế độ kỹ thuật, nếu đang ở tab 4 (Trạng thái cụm) hoặc tab 5 (Đo hiệu năng), tự động chuyển về Tab 1
+          const activeClusterBtn = document.getElementById("tab-btn-cluster");
+          const activeBenchmarkBtn = document.getElementById("tab-btn-benchmark");
+          if ((activeClusterBtn && activeClusterBtn.classList.contains("active")) ||
+              (activeBenchmarkBtn && activeBenchmarkBtn.classList.contains("active"))) {
+            const firstTab = document.getElementById("tab-btn-orders");
+            if (firstTab && window.bootstrap && window.bootstrap.Tab) {
+              const tabObj = bootstrap.Tab.getOrCreateInstance(firstTab);
+              tabObj.show();
+            } else if (firstTab) {
+              firstTab.click();
+            }
+          }
         }
         applyClusterPanelState();
       }
@@ -3328,6 +3346,21 @@
 
         const savedCollapsed = localStorage.getItem("ui.clusterCollapsed");
         clusterCollapsed = savedCollapsed === "1";
+
+        if (!technicalMode) {
+          const activeClusterBtn = document.getElementById("tab-btn-cluster");
+          const activeBenchmarkBtn = document.getElementById("tab-btn-benchmark");
+          if ((activeClusterBtn && activeClusterBtn.classList.contains("active")) ||
+              (activeBenchmarkBtn && activeBenchmarkBtn.classList.contains("active"))) {
+            const firstTab = document.getElementById("tab-btn-orders");
+            if (firstTab && window.bootstrap && window.bootstrap.Tab) {
+              const tabObj = bootstrap.Tab.getOrCreateInstance(firstTab);
+              tabObj.show();
+            } else if (firstTab) {
+              firstTab.click();
+            }
+          }
+        }
 
         applyClusterPanelState();
 
