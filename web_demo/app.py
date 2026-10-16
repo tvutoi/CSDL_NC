@@ -1745,13 +1745,14 @@ def get_cluster_status(request: Request):
             }
         try:
             t_start = time.perf_counter()
-            m_single = MongoClient(f"mongodb://{cfg_host}/?directConnection=true", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=400)
+            m_single = MongoClient(f"mongodb://{h_mg}:{p_mg}/?directConnection=true", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=400)
             hello_res = m_single.admin.command("hello")
             ping_ms = round((time.perf_counter() - t_start) * 1000, 2)
             is_prim = hello_res.get("isWritablePrimary") or hello_res.get("ismaster")
             state_str = "PRIMARY" if is_prim else ("SECONDARY" if hello_res.get("secondary") else "ONLINE")
-            if cfg_host in rs_map:
-                raw_st = rs_map[cfg_host].get("stateStr", "")
+            rs_entry = rs_map.get(cfg_host) or rs_map.get(f"{h_mg}:{p_mg}") or next((m for k, m in rs_map.items() if k.split(":")[0] == h_mg), None)
+            if rs_entry:
+                raw_st = rs_entry.get("stateStr", "")
                 if raw_st and raw_st not in ("(not reachable/healthy)", "DOWN", "UNKNOWN"):
                     state_str = raw_st
             m_single.close()

@@ -2234,13 +2234,13 @@
                   <div class="col-md-4">
                     <button type="button" class="btn btn-outline-success w-100 text-start py-2 px-2 h-100" onclick="applyClusterPreset('lan_lab')">
                       <div class="fw-bold small"><i class="fas fa-server me-1 text-success"></i> 2. Cụm LAN IP Tĩnh (Lab)</div>
-                      <div class="text-muted" style="font-size: 11px;">Chuẩn phòng Lab: Node 1 (192.168.1.221), Node 2,3,4 (192.168.1.222).</div>
+                      <div class="text-muted" style="font-size: 11px;">4 máy vật lý riêng (.221 &rarr; .224). Chung port mặc định (3306 & 27017).</div>
                     </button>
                   </div>
                   <div class="col-md-4">
                     <button type="button" class="btn btn-outline-info w-100 text-start py-2 px-2 h-100" onclick="applyClusterPreset('wifi_dynamic')">
                       <div class="fw-bold small"><i class="fas fa-wifi me-1 text-info"></i> 3. Theo IP Wi-Fi/DHCP máy</div>
-                      <div class="text-muted" style="font-size: 11px;">Gán Node 2/3/4 theo IP Wi-Fi động hiện tại (<span id="detected-wifi-ip">192.168.1.43</span>).</div>
+                      <div class="text-muted" style="font-size: 11px;">Gán Node 2 theo IP Wi-Fi động hiện tại (<span id="detected-wifi-ip">192.168.1.43</span>).</div>
                     </button>
                   </div>
                 </div>
@@ -2249,7 +2249,7 @@
 
             <div class="mb-2">
               <label class="form-label fw-semibold small mb-1"
-                >Danh sách IP:Port 4 Node MySQL (cách nhau dấu phẩy)</label
+                >Danh sách IP 4 Node MySQL (cách nhau dấu phẩy, không cần port khi chung port)</label
               >
               <input
                 type="text"
@@ -2258,7 +2258,7 @@
                 value="127.0.0.1:3305, 127.0.0.1:3306, 127.0.0.1:3307, 127.0.0.1:3308" />
             </div>
             <div class="mb-2">
-              <label class="form-label fw-semibold small mb-1">Danh sách IP:Port 4 Node MongoDB</label>
+              <label class="form-label fw-semibold small mb-1">Danh sách IP 4 Node MongoDB (cách nhau dấu phẩy, không cần port khi chung port)</label>
               <input
                 type="text"
                 id="cfg-mongo-nodes"
@@ -5998,16 +5998,16 @@
             badge.innerText = "Giả lập 4 Node Docker";
           }
         } else if (mode === "lan_lab") {
-          document.getElementById("cfg-mysql-nodes").value = "192.168.1.221, 192.168.1.222, 192.168.1.222:3307, 192.168.1.222:3308";
-          document.getElementById("cfg-mongo-nodes").value = "192.168.1.221:27017, 192.168.1.222:27017, 192.168.1.222:27018, 192.168.1.222:27019";
+          document.getElementById("cfg-mysql-nodes").value = "192.168.1.221, 192.168.1.222, 192.168.1.223, 192.168.1.224";
+          document.getElementById("cfg-mongo-nodes").value = "192.168.1.221, 192.168.1.222, 192.168.1.223, 192.168.1.224";
           document.getElementById("cfg-client-node").value = "192.168.1.224";
           if (badge) {
             badge.className = "badge bg-success text-white small";
-            badge.innerText = "IP Tĩnh Lab (192.168.1.221/222)";
+            badge.innerText = "IP Tĩnh Lab (Chung port)";
           }
         } else if (mode === "wifi_dynamic") {
-          document.getElementById("cfg-mysql-nodes").value = `192.168.1.221, ${detectedIp}, ${detectedIp}:3307, ${detectedIp}:3308`;
-          document.getElementById("cfg-mongo-nodes").value = `192.168.1.221:27017, ${detectedIp}:27017, ${detectedIp}:27018, ${detectedIp}:27019`;
+          document.getElementById("cfg-mysql-nodes").value = `192.168.1.221, ${detectedIp}, 192.168.1.223, 192.168.1.224`;
+          document.getElementById("cfg-mongo-nodes").value = `192.168.1.221, ${detectedIp}, 192.168.1.223, 192.168.1.224`;
           document.getElementById("cfg-client-node").value = detectedIp;
           if (badge) {
             badge.className = "badge bg-info text-white small";
@@ -6067,9 +6067,9 @@
             if (first.includes("127.0.0.1")) {
               badge.className = "badge bg-primary text-white small";
               badge.innerText = "Giả lập 4 Node Docker";
-            } else if (first.includes("192.168.1.221") && cfg.mysql_nodes.some(n => n.includes("192.168.1.222"))) {
+            } else if (first.includes("192.168.1.221") && cfg.mysql_nodes.some(n => n.includes("192.168.1.222") || n.includes("192.168.1.223"))) {
               badge.className = "badge bg-success text-white small";
-              badge.innerText = "IP Tĩnh Lab (192.168.1.221/222)";
+              badge.innerText = "IP Tĩnh Lab (Chung port)";
             } else if (cfg.mysql_nodes.some(n => n.includes(window._detectedLocalIp))) {
               badge.className = "badge bg-info text-white small";
               badge.innerText = `Wi-Fi DHCP (${window._detectedLocalIp})`;
