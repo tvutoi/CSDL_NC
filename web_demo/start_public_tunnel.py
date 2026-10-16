@@ -44,19 +44,19 @@ def main():
     print("   HE THONG PUBLIC WEB_DEMO RA INTERNET (CLOUDFLARE QUICK TUNNEL)  ")
     print("=" * 70)
 
-    # 1. Kiem tra web_demo co dang chay khong
+    # check web_demo
     if not check_port_open(TARGET_PORT):
         print(f"[!] Canh bao: Port {TARGET_PORT} chua mo! web_demo (app.py) chua duoc bat.")
         print("[*] Ban hay mo them 1 terminal chay: python app.py")
         print("[*] Tien trinh se tiep tuc cho den khi web_demo khoi dong...\n")
 
-    # 2. Dam bao cloudflared da co mat
+    # check cloudflared
     exe_path = ensure_cloudflared()
     if not exe_path:
         print("[!] Loi: Khong tim thay cloudflared.exe. Vui long kiem tra ket noi mang.")
         sys.exit(1)
 
-    # 3. Khoi dong Cloudflare Tunnel
+    # chay tunnel
     cmd = [
         exe_path,
         "tunnel",
@@ -80,7 +80,6 @@ def main():
 
     try:
         for line in proc.stdout:
-            # Tim link trycloudflare
             match = url_pattern.search(line)
             if match and not tunnel_url:
                 tunnel_url = match.group(0)
@@ -94,13 +93,11 @@ def main():
                 print("=" * 70)
                 print("Luu y: Nhan [Ctrl + C] de dong tunnel khi dung xong.\n")
 
-                # Mo trinh duyet tu dong
                 try:
                     webbrowser.open(tunnel_url)
                 except Exception:
                     pass
 
-            # In tiep log lien quan den request neu can
             if "HTTP" in line or "ERR" in line or "connIndex" in line:
                 print(line.strip())
 

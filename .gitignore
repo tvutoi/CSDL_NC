@@ -223,3 +223,11 @@ __marimo__/
 tools/
 web_demo/tools/
 *.exe
+
+# Cluster config
+cluster_config.json
+web_demo/cluster_config.json
+
+# Corrupt backups from tests
+*.corrupt.*.json
+web_demo/*.corrupt.*.json

@@ -7,7 +7,6 @@
     <link rel="icon" type="image/png" href="/static/img/favicon.png" />
     <link rel="shortcut icon" href="/static/img/favicon.ico" />
     <link rel="apple-touch-icon" href="/static/img/favicon.png" />
-    <!-- Phục vụ Offline 100% qua /static (hoạt động không cần Internet) -->
     <link rel="stylesheet" href="/static/css/bootstrap.min.css" />
     <script src="/static/js/chart.umd.min.js"></script>
     <style>
@@ -231,7 +230,6 @@
         border: 1px solid transparent;
         vertical-align: middle;
       }
-      /* BỐ CỤC GRID KHUNG TRẠNG THÁI CỤM MÁY CHỦ */
       .cluster-col-title {
         font-size: 15px;
         font-weight: 700;
@@ -358,7 +356,6 @@
           display: none !important;
         }
       }
-      /* SEGMENTED CONTROL CHO BỘ LỌC DÒNG SỰ KIỆN ĐỒNG BỘ */
       .seg-filter {
         display: inline-flex;
         align-items: center;
@@ -421,7 +418,6 @@
         color: #d1d5db !important;
       }
 
-      /* HÀNG ĐIỀU KHIỂN ĐỒNG BỘ */
       .sync-toolbar {
         display: flex;
         align-items: center;
@@ -466,7 +462,6 @@
           margin-left: auto;
         }
       }
-      /* CHẾ ĐỘ KỸ THUẬT (tech-on) & THU GỌN KHUNG CỤM (cluster-collapsed) */
       .tech-detail {
         display: none !important;
       }
@@ -490,7 +485,6 @@
         display: inline-block !important;
       }
 
-      /* HIỂN THỊ KHUNG TRẠNG THÁI CỤM MÁY CHỦ (THEO TRẠNG THÁI HIỆU LỰC) */
       body.cluster-effective-collapsed #compactStatusBar {
         display: flex !important;
       }
@@ -505,7 +499,6 @@
         display: block !important;
       }
 
-      /* BỐ CỤC GRID NODE KHI CHẾ ĐỘ KỸ THUẬT BẬT */
       body.tech-on .cluster-node-header,
       body.tech-on .cluster-node-row {
         grid-template-columns: 76px minmax(190px, 1fr) 98px 112px 84px;
@@ -526,7 +519,6 @@
         display: none !important;
       }
 
-      /* THIẾT KẾ CÔNG TẮC CHẾ ĐỘ KỸ THUẬT DẠNG CAPSULE HIỆN ĐẠI */
       .tech-switch-pill {
         display: inline-flex;
         align-items: center;
@@ -635,7 +627,6 @@
         font-variant-numeric: tabular-nums;
         font-feature-settings: "tnum";
       }
-      /* BẢNG DANH MỤC HÀNG HÓA (TAB 5) */
       #catalog-table {
         border-collapse: separate;
         border-spacing: 0;
@@ -783,7 +774,6 @@
         font-family: Consolas, "Courier New", monospace;
         font-size: 12px;
       }
-      /* SEARCHABLE COMBOBOX (FILTERABLE SELECT) */
       .scombo-wrapper {
         position: relative;
         width: 100%;
@@ -937,7 +927,6 @@
         font-size: 12px;
         line-height: 1.55;
       }
-      /* HUY HIỆU TRẠNG THÁI ĐƠN HÀNG THỐNG NHẤT DẠNG VIÊN THUỐC (PILL BADGE) */
       .status-pill {
         display: inline-flex;
         align-items: center;
@@ -975,7 +964,6 @@
         border: 1px solid #cbd5e1;
         color: #475569;
       }
-      /* TAB 2: CHIP ĐÓNG GÓI, VÙNG KÉO THẢ ẢNH & SAO ĐÁNH GIÁ TƯƠNG TÁC */
       .packaging-chip {
         display: inline-flex;
         align-items: center;
@@ -1089,7 +1077,6 @@
         border: 1px solid rgba(255, 255, 255, 0.35);
         color: #ffffff;
       }
-      /* FOOTER HỌC PHẦN / NHÓM THỰC HIỆN */
       .site-footer {
         background-color: #ffffff;
         border-top: 1px solid #eef0f2;
@@ -1108,10 +1095,79 @@
         color: #9ca3af;
         margin-top: 3px;
       }
+      .preset-card {
+        border: 1px solid #d9dde3;
+        background-color: #ffffff;
+        border-radius: 6px;
+        padding: 10px 12px;
+        cursor: pointer;
+        transition: border-color 0.15s ease, background-color 0.15s ease;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        position: relative;
+      }
+      .preset-card:hover {
+        border-color: #94a3b8;
+        background-color: #f8fafc;
+      }
+      .preset-card.active {
+        border: 2px solid #004b87 !important;
+        background-color: #f0f7ff !important;
+      }
+      .preset-card .preset-check {
+        display: none;
+        position: absolute;
+        top: 8px;
+        right: 10px;
+        color: #004b87;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .preset-card.active .preset-check {
+        display: inline-block;
+      }
+      .preset-card .preset-title {
+        color: #1e293b;
+        font-weight: 600;
+        font-size: 13.5px;
+        margin-bottom: 3px;
+      }
+      .preset-card.active .preset-title {
+        color: #004b87;
+      }
+      .preset-card .preset-desc {
+        color: #64748b;
+        font-size: 12px;
+        line-height: 1.35;
+      }
+      .config-input {
+        height: 38px;
+        font-size: 14px;
+        border-radius: 4px;
+        border: 1px solid #cbd5e1;
+      }
+      .config-input:focus {
+        border-color: #004b87;
+        box-shadow: 0 0 0 2px rgba(0, 75, 135, 0.15);
+      }
+      .config-input.is-invalid {
+        border-color: #dc3545 !important;
+      }
+      .config-input-mono {
+        font-family: monospace;
+        font-size: 13px;
+      }
+      @media (max-width: 575.98px) {
+        #configModal .modal-dialog {
+          margin: 10px auto;
+          max-width: calc(100% - 20px);
+        }
+      }
     </style>
   </head>
   <body>
-    <!-- HEADER TRANG -->
     <header class="top-header">
       <div
         class="container-fluid px-4 d-flex justify-content-between align-items-center">
@@ -1126,7 +1182,6 @@
           </div>
         </div>
         <div class="d-flex align-items-center gap-2">
-          <!-- CÔNG TẮC CHẾ ĐỘ KỸ THUẬT -->
           <label
             class="tech-switch-pill me-1"
             for="techModeSwitch"
@@ -1174,7 +1229,6 @@
     </header>
 
     <div class="container-fluid px-4 mt-3 main-content-wrapper">
-      <!-- THANH TRẠNG THÁI GỌN (CHẾ ĐỘ THU GỌN - COMPACT) -->
       <div id="compactStatusBar" class="d-flex flex-wrap justify-content-between align-items-center py-2 px-3 bg-white border rounded mb-3 shadow-sm" style="font-size: 13.5px;">
         <div class="d-flex flex-wrap align-items-center gap-3">
           <span id="bar-mysql-summary"><span class="status-dot dot-online"></span>MySQL: <strong>--/-- node</strong></span>
@@ -1190,7 +1244,6 @@
         </div>
       </div>
 
-      <!-- KHUNG CHI TIẾT TRẠNG THÁI (MỞ RỘNG) -->
       <div id="detailedStatusBox" class="status-strip mb-3">
         <div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom">
           <div class="fw-bold text-navy" style="font-size: 15px;">
@@ -1231,7 +1284,6 @@
         </div>
       </div>
 
-      <!-- THANH MENU TAB (DẠNG CARD SEGMENTED HIỆN ĐẠI) -->
       <div class="nav-bar-sub mb-3">
         <ul class="nav nav-tabs nav-tabs-custom" id="mainTabs" role="tablist">
           <li class="nav-item" role="presentation">
@@ -1295,9 +1347,7 @@
       </div>
 
       <div class="tab-content">
-        <!-- ========================================================================= -->
-        <!-- TAB 5: DANH MỤC HÀNG HÓA (TRUY VẤN KẾT HỢP MYSQL & MONGODB)               -->
-        <!-- ========================================================================= -->
+      <!-- tab 5 -->
         <div class="tab-pane fade" id="tab-catalog" role="tabpanel">
           <div class="panel-box">
             <div class="panel-header">
@@ -1307,7 +1357,6 @@
               >
             </div>
             <div class="panel-body">
-              <!-- Bộ lọc tìm kiếm -->
               <div class="row g-2 mb-3 align-items-end">
                 <div class="col-md-5">
                   <label class="form-label" for="filter-keyword">Tìm sản phẩm</label>
@@ -1345,7 +1394,6 @@
                 </div>
               </div>
 
-              <!-- Bảng dữ liệu sản phẩm toàn chiều rộng -->
               <div class="table-responsive border rounded-2">
                 <table
                   class="table table-hover table-custom align-middle mb-0" id="catalog-table">
@@ -1372,7 +1420,6 @@
                 </table>
               </div>
 
-              <!-- Thanh phân trang cho lưới Danh mục Hàng hóa -->
               <div
                 class="d-flex flex-wrap justify-content-between align-items-center mt-3 pt-2 border-top gap-2">
                 <div class="d-flex align-items-center gap-3">
@@ -1414,12 +1461,9 @@
           </div>
         </div>
 
-        <!-- ========================================================================= -->
-        <!-- TAB 2: NHẬN XÉT & HÌNH ẢNH THỰC TẾ (LƯU TRỮ TRÊN MONGODB REPLICA SET)     -->
-        <!-- ========================================================================= -->
+      <!-- tab 2 -->
         <div class="tab-pane fade" id="tab-reviews" role="tabpanel">
           <div class="row">
-            <!-- Cột trái: Danh sách nhận xét & hình ảnh thực tế -->
             <div class="col-lg-8">
               <div class="panel-box">
                 <div class="panel-header flex-wrap gap-2">
@@ -1479,7 +1523,6 @@
                     <strong class="text-dark">Sản phẩm #1</strong>
                   </div>
 
-                  <!-- Khối tổng quan đánh giá nổi bật (Số lớn + Thanh phân bố 5-1 sao) -->
                   <div class="rating-overview-card bg-light border rounded-2 p-3 mb-3 d-flex flex-wrap align-items-center gap-4">
                     <div class="text-center pe-md-4 border-md-end" style="min-width: 130px;">
                       <div class="display-5 fw-bold text-dark mb-0" id="rating-big-number">4.4</div>
@@ -1531,7 +1574,6 @@
                     </div>
                   </div>
 
-                  <!-- Thanh lọc theo số sao & sắp xếp đánh giá -->
                   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 pb-2 border-bottom">
                     <div class="d-flex flex-wrap align-items-center gap-1.5" id="review-star-filters">
                       <span class="small text-secondary me-1">Lọc sao:</span>
@@ -1558,7 +1600,6 @@
                     </div>
                   </div>
 
-                  <!-- Thanh phân trang cho Nhận xét MongoDB -->
                   <div
                     class="d-flex flex-wrap justify-content-between align-items-center mt-3 pt-2 border-top gap-2">
                     <div class="d-flex align-items-center gap-3">
@@ -1592,7 +1633,6 @@
               </div>
             </div>
 
-            <!-- Cột phải: Form gửi đánh giá sản phẩm mới vào MongoDB -->
             <div class="col-lg-4">
               <div class="panel-box">
                 <div class="panel-header">
@@ -1670,12 +1710,9 @@
           </div>
         </div>
 
-        <!-- ========================================================================= -->
-        <!-- TAB 1: ĐẶT HÀNG & DANH SÁCH ĐƠN HÀNG (MYSQL GROUP REPLICATION)            -->
-        <!-- ========================================================================= -->
+      <!-- tab 1 -->
         <div class="tab-pane fade show active" id="tab-orders" role="tabpanel">
           <div class="row">
-            <!-- Cột trái: Bảng Danh sách Đơn hàng gần đây -->
             <div class="col-lg-8">
               <div class="panel-box">
                 <div class="panel-header flex-wrap gap-2">
@@ -1687,7 +1724,6 @@
                   >
                 </div>
                 <div class="panel-body">
-                  <!-- Bộ lọc tìm kiếm & Phân loại Đơn hàng trên cùng 1 hàng -->
                   <div class="row g-2 mb-3 align-items-end">
                     <div class="col-md-5">
                       <label class="form-label">Tìm kiếm đơn hàng</label>
@@ -1766,7 +1802,6 @@
                     </table>
                   </div>
 
-                  <!-- Thanh phân trang cho Bảng Đơn hàng (Tab 1) -->
                   <div
                     class="d-flex flex-wrap justify-content-between align-items-center mt-3 pt-2 border-top gap-2">
                     <div class="d-flex align-items-center gap-3">
@@ -1799,7 +1834,6 @@
               </div>
             </div>
 
-            <!-- Cột phải: Form Lập Phiếu Đặt Hàng -->
             <div class="col-lg-4">
               <div class="panel-box sticky-top" style="top: 1rem; z-index: 10;">
                 <div class="panel-header">
@@ -1807,7 +1841,6 @@
                   <span class="label-tag tag-primary tech-detail">Ghi vào Primary</span>
                 </div>
                 <div class="panel-body">
-                  <!-- Tìm kiếm Sản phẩm có gợi ý -->
                   <div class="mb-3 position-relative">
                     <label class="form-label">Sản phẩm đặt mua</label>
                     <div class="input-group">
@@ -1831,7 +1864,6 @@
                     <div id="order-product-suggestions" class="suggest-dropdown"></div>
                   </div>
 
-                  <!-- Tìm kiếm Khách hàng có gợi ý -->
                   <div class="mb-3 position-relative">
                     <label class="form-label">Khách hàng</label>
                     <div class="input-group">
@@ -1851,7 +1883,6 @@
                     <div id="order-user-suggestions" class="suggest-dropdown"></div>
                   </div>
 
-                  <!-- Số lượng & Hình thức thanh toán ngang hàng, cùng chiều cao 38px -->
                   <div class="row g-2 mb-3">
                     <div class="col-6">
                       <label class="form-label">Số lượng</label>
@@ -1880,13 +1911,11 @@
                     </div>
                   </div>
 
-                  <!-- Tạm tính tổng tiền (màu chữ đậm trung tính, không dùng màu đỏ) -->
                   <div class="d-flex justify-content-between align-items-center bg-light border px-3 py-2 mb-3 rounded-2">
                     <span class="text-secondary" style="font-size: 13px;">Tạm tính tổng tiền:</span>
                     <strong class="fs-6 text-dark fw-bold" id="order-total-preview">0 đ</strong>
                   </div>
 
-                  <!-- Nút xác nhận đặt hàng vô hiệu khi chưa chọn đủ sản phẩm và khách hàng -->
                   <button
                     class="btn btn-navy w-100 py-2 fw-semibold opacity-50"
                     id="btn-submit-order"
@@ -1902,11 +1931,8 @@
           </div>
         </div>
 
-        <!-- ========================================================================= -->
-        <!-- TAB 3: TRẠNG THÁI CỤM SERVER & ĐỐI CHIẾU ĐỒNG BỘ DỮ LIỆU                 -->
-        <!-- ========================================================================= -->
+      <!-- tab 3 -->
         <div class="tab-pane fade" id="tab-cluster" role="tabpanel">
-          <!-- Bảng đối chiếu số lượng bản ghi giữa các Node -->
           <div class="panel-box mb-3">
             <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2" style="min-height: 48px;">
               <div class="fw-bold">Đối chiếu số bản ghi</div>
@@ -2053,9 +2079,7 @@
           </div>
         </div>
 
-        <!-- ========================================================================= -->
-        <!-- TAB 4: ĐO KIỂM HIỆU NĂNG TRUY VẤN (BENCHMARK CỤC BỘ VS PHÂN TÁN)         -->
-        <!-- ========================================================================= -->
+      <!-- tab 4 -->
         <div class="tab-pane fade" id="tab-benchmark" role="tabpanel">
           <div class="panel-box">
             <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -2202,121 +2226,172 @@
     </div>
 
     <!-- MODAL CẤU HÌNH IP MẠNG LAN -->
-    <div class="modal fade" id="configModal" tabindex="-1">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header py-2 bg-light">
-            <h6 class="modal-title fw-bold text-navy">
-              <i class="fas fa-network-wired me-1"></i> Cấu hình Địa chỉ IP Cụm 4 Máy chủ Phân tán
+    <div class="modal fade" id="configModal" tabindex="-1" aria-labelledby="configModalTitle" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-sm" style="border-radius: 8px;">
+          <div class="modal-header py-2 px-3 bg-white border-bottom">
+            <h6 class="modal-title fw-semibold text-dark mb-0" id="configModalTitle" style="font-size: 15px;">
+              Cấu hình địa chỉ node
             </h6>
             <button
               type="button"
               class="btn-close"
-              data-bs-dismiss="modal"></button>
+              aria-label="Đóng"
+              id="btn-close-modal-x"
+              onclick="handleCloseModalWithCheck()"></button>
           </div>
-          <div class="modal-body">
-            <!-- PRESET PROFILE SELECTION -->
-            <div class="card mb-3 border-primary-subtle bg-light-subtle shadow-sm">
-              <div class="card-body p-3">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                  <span class="fw-bold small text-navy">
-                    <i class="fas fa-bolt text-warning me-1"></i> Chọn nhanh kịch bản kiểm thử (Presets):
-                  </span>
-                  <span class="badge bg-secondary-subtle text-secondary small" id="current-preset-badge">Tùy chỉnh thủ công</span>
+          <div class="modal-body p-3">
+            <!-- CẤU HÌNH MẪU -->
+            <div class="mb-3">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="fw-semibold text-dark" style="font-size: 13.5px;">Cấu hình mẫu</span>
+                <span class="text-secondary" style="font-size: 12px;" id="current-preset-badge">Cấu hình tùy chỉnh</span>
+              </div>
+              <div class="row g-2">
+                <div class="col-12 col-md-4">
+                  <div class="preset-card" id="preset-card-docker" onclick="applyClusterPreset('docker')">
+                    <span class="preset-check"><i class="fas fa-check"></i></span>
+                    <div class="preset-title">Docker trên 1 máy</div>
+                    <div class="preset-desc">4 node chạy cùng máy, địa chỉ 127.0.0.1</div>
+                  </div>
                 </div>
-                <div class="row g-2">
-                  <div class="col-md-4">
-                    <button type="button" class="btn btn-outline-primary w-100 text-start py-2 px-2 h-100" onclick="applyClusterPreset('docker')">
-                      <div class="fw-bold small"><i class="fab fa-docker me-1 text-primary"></i> 1. Giả lập 4 Node Docker</div>
-                      <div class="text-muted" style="font-size: 11px;">Chạy cả 4 node trên 1 máy (127.0.0.1). Không phụ thuộc mạng Wi-Fi/LAN.</div>
-                    </button>
+                <div class="col-12 col-md-4">
+                  <div class="preset-card" id="preset-card-lan_lab" onclick="applyClusterPreset('lan_lab')">
+                    <span class="preset-check"><i class="fas fa-check"></i></span>
+                    <div class="preset-title">LAN tĩnh (lab)</div>
+                    <div class="preset-desc">4 máy riêng .221 đến .224, cổng mặc định</div>
                   </div>
-                  <div class="col-md-4">
-                    <button type="button" class="btn btn-outline-success w-100 text-start py-2 px-2 h-100" onclick="applyClusterPreset('lan_lab')">
-                      <div class="fw-bold small"><i class="fas fa-server me-1 text-success"></i> 2. Cụm LAN IP Tĩnh (Lab)</div>
-                      <div class="text-muted" style="font-size: 11px;">4 máy vật lý riêng (.221 &rarr; .224). Chung port mặc định (3306 & 27017).</div>
-                    </button>
-                  </div>
-                  <div class="col-md-4">
-                    <button type="button" class="btn btn-outline-info w-100 text-start py-2 px-2 h-100" onclick="applyClusterPreset('wifi_dynamic')">
-                      <div class="fw-bold small"><i class="fas fa-wifi me-1 text-info"></i> 3. Theo IP Wi-Fi/DHCP máy</div>
-                      <div class="text-muted" style="font-size: 11px;">Gán Node 2 theo IP Wi-Fi động hiện tại (<span id="detected-wifi-ip">192.168.1.43</span>).</div>
-                    </button>
+                </div>
+                <div class="col-12 col-md-4">
+                  <div class="preset-card" id="preset-card-wifi_dynamic" onclick="applyClusterPreset('wifi_dynamic')">
+                    <span class="preset-check"><i class="fas fa-check"></i></span>
+                    <div class="preset-title">Theo IP Wi-Fi hiện tại</div>
+                    <div class="preset-desc">Node 2 lấy theo IP Wi-Fi của máy này</div>
+                    <span id="detected-wifi-ip" style="display: none;">192.168.1.43</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div class="mb-2">
-              <label class="form-label fw-semibold small mb-1"
-                >Danh sách IP 4 Node MySQL (cách nhau dấu phẩy, không cần port khi chung port)</label
-              >
+            <!-- ĐỊA CHỈ MYSQL -->
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <label for="cfg-mysql-nodes" class="form-label fw-semibold text-dark mb-0" style="font-size: 13.5px;">Địa chỉ node MySQL</label>
+                <span id="test-conn-mysql-status" class="text-secondary" style="font-size: 12px;"></span>
+              </div>
               <input
                 type="text"
                 id="cfg-mysql-nodes"
-                class="form-control font-monospace form-control-sm"
-                value="127.0.0.1:3305, 127.0.0.1:3306, 127.0.0.1:3307, 127.0.0.1:3308" />
+                class="form-control config-input config-input-mono"
+                placeholder="127.0.0.1:3305, 127.0.0.1:3306, 127.0.0.1:3307, 127.0.0.1:3308"
+                value="127.0.0.1:3305, 127.0.0.1:3306, 127.0.0.1:3307, 127.0.0.1:3308"
+                oninput="onClusterConfigInputChanged('mysql')" />
+              <div class="d-flex justify-content-between align-items-center mt-1">
+                <span class="text-secondary" style="font-size: 12px;">Cách nhau bằng dấu phẩy. Bỏ cổng nếu dùng cổng mặc định.</span>
+                <span id="cfg-mysql-error" class="text-danger" style="font-size: 12px; display: none;"></span>
+              </div>
             </div>
-            <div class="mb-2">
-              <label class="form-label fw-semibold small mb-1">Danh sách IP 4 Node MongoDB (cách nhau dấu phẩy, không cần port khi chung port)</label>
+
+            <!-- ĐỊA CHỈ MONGODB -->
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <label for="cfg-mongo-nodes" class="form-label fw-semibold text-dark mb-0" style="font-size: 13.5px;">Địa chỉ node MongoDB</label>
+                <span id="test-conn-mongo-status" class="text-secondary" style="font-size: 12px;"></span>
+              </div>
               <input
                 type="text"
                 id="cfg-mongo-nodes"
-                class="form-control font-monospace form-control-sm"
-                value="127.0.0.1:27016, 127.0.0.1:27017, 127.0.0.1:27018, 127.0.0.1:27019" />
+                class="form-control config-input config-input-mono"
+                placeholder="127.0.0.1:27016, 127.0.0.1:27017, 127.0.0.1:27018, 127.0.0.1:27019"
+                value="127.0.0.1:27016, 127.0.0.1:27017, 127.0.0.1:27018, 127.0.0.1:27019"
+                oninput="onClusterConfigInputChanged('mongo')" />
+              <div class="d-flex justify-content-between align-items-center mt-1">
+                <span class="text-secondary" style="font-size: 12px;">Cách nhau bằng dấu phẩy. Bỏ cổng nếu dùng cổng mặc định.</span>
+                <span id="cfg-mongo-error" class="text-danger" style="font-size: 12px; display: none;"></span>
+              </div>
             </div>
+
+            <!-- HÀNG 3 Ô: CLIENT, PASSWORD, INTERVAL -->
             <div class="row g-2 mb-2">
-              <div class="col-md-4">
-                <label class="form-label fw-semibold small mb-1">IP Máy Client</label>
+              <div class="col-12 col-md-4">
+                <label for="cfg-client-node" class="form-label fw-semibold text-dark mb-1" style="font-size: 13.5px;">IP máy client</label>
                 <input
                   type="text"
                   id="cfg-client-node"
-                  class="form-control font-monospace form-control-sm"
-                  value="127.0.0.1" />
+                  class="form-control config-input config-input-mono"
+                  placeholder="127.0.0.1"
+                  value="127.0.0.1"
+                  oninput="onClusterConfigInputChanged('client')" />
+                <div id="cfg-client-error" class="text-danger mt-1" style="font-size: 12px; display: none;"></div>
               </div>
-              <div class="col-md-4">
-                <label class="form-label fw-semibold small mb-1">Mật khẩu MySQL</label>
-                <input
-                  type="password"
-                  id="cfg-mysql-pass"
-                  class="form-control form-control-sm"
-                  value="root" />
-              </div>
-              <div class="col-md-4">
-                <label class="form-label fw-semibold small mb-1" title="Thời gian tự động đồng bộ và quét trạng thái định kỳ">Tự động đồng bộ</label>
-                <div class="input-group input-group-sm">
+              <div class="col-12 col-md-4">
+                <label for="cfg-mysql-pass" class="form-label fw-semibold text-dark mb-1" style="font-size: 13.5px;">Mật khẩu MySQL</label>
+                <div class="input-group" style="height: 38px;">
                   <input
-                    type="number"
-                    id="cfg-sync-interval"
-                    class="form-control"
-                    value="2"
-                    min="1"
-                    max="60" />
-                  <span class="input-group-text px-2">giây</span>
+                    type="password"
+                    id="cfg-mysql-pass"
+                    class="form-control config-input"
+                    placeholder="(giữ nguyên)"
+                    value=""
+                    autocomplete="new-password"
+                    oninput="onClusterConfigInputChanged('pass')" />
+                  <button
+                    class="btn btn-outline-secondary"
+                    type="button"
+                    id="btn-toggle-pass-visibility"
+                    onclick="togglePasswordVisibility()"
+                    style="height: 38px; border-color: #cbd5e1;"
+                    title="Hiện hoặc ẩn mật khẩu">
+                    <i class="fas fa-eye" id="pass-eye-icon" style="font-size: 13px;"></i>
+                  </button>
                 </div>
               </div>
+              <div class="col-12 col-md-4">
+                <label for="cfg-sync-interval" class="form-label fw-semibold text-dark mb-1" style="font-size: 13.5px;">Chu kỳ quét (giây)</label>
+                <input
+                  type="number"
+                  id="cfg-sync-interval"
+                  class="form-control config-input"
+                  value="2"
+                  min="2"
+                  max="300"
+                  oninput="onClusterConfigInputChanged('interval')" />
+                <div id="cfg-interval-error" class="text-danger mt-1" style="font-size: 12px; display: none;"></div>
+              </div>
             </div>
-            <div
-              class="alert alert-info py-2 px-3 mb-0 mt-2 small"
-              style="font-size: 0.8rem">
-              <i class="fas fa-info-circle me-1"></i> Cấu hình được nạp tự động từ server. Bấm <b>Lưu cấu hình</b> sẽ tự
-              động ghi vĩnh viễn vào file
-              <code>cluster_config.json</code> (áp dụng ngay lập tức cho toàn bộ các tab và lưu bền vững khi khởi động lại).
+
+            <div class="text-secondary mt-3" style="font-size: 12.5px;">
+              Lưu vào cluster_config.json và áp dụng ngay cho các tab.
             </div>
+            <div id="cfg-save-feedback" class="mt-2" style="font-size: 12.5px; display: none;"></div>
           </div>
-          <div class="modal-footer py-2">
+          <div class="modal-footer py-2 px-3 bg-white border-top d-flex justify-content-between align-items-center">
             <button
               type="button"
-              class="btn btn-sm btn-secondary"
-              data-bs-dismiss="modal">
-              Đóng
+              class="btn btn-sm btn-outline-secondary"
+              style="height: 36px; font-size: 13px;"
+              id="btn-test-conn-action"
+              onclick="testClusterConnections()">
+              Kiểm tra kết nối
             </button>
-            <button
-              type="button"
-              class="btn btn-sm btn-navy fw-semibold"
-              onclick="saveClusterConfig()">
-              <i class="fas fa-save me-1"></i> Lưu cấu hình & Áp dụng
-            </button>
+            <div class="d-flex gap-2">
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary px-3"
+                style="height: 36px; font-size: 13px;"
+                id="btn-close-modal-config"
+                onclick="handleCloseModalWithCheck()">
+                Đóng
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm btn-navy px-3 fw-semibold"
+                style="height: 36px; font-size: 13px; background-color: #004b87; border-color: #004b87; color: #ffffff;"
+                id="btn-save-cluster-cfg"
+                onclick="saveClusterConfig()">
+                Lưu và áp dụng
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -2472,7 +2547,6 @@
       </div>
     </div>
 
-    <!-- FOOTER HỌC PHẦN / NHÓM THỰC HIỆN -->
     <footer class="site-footer text-center mt-auto">
       <div class="container-fluid px-4 text-center">
         <div>
@@ -3292,12 +3366,8 @@
       }
 
       function updateTopBarVisibility() {
-        // Quản lý hiển thị tự động qua applyClusterPanelState()
       }
 
-      // =========================================================================
-      // QUẢN LÝ TRẠNG THÁI HIỂN THỊ: CHẾ ĐỘ KỸ THUẬT & THU GỌN KHUNG CỤM
-      // =========================================================================
       let technicalMode = false;
       let clusterCollapsed = false;
 
@@ -3340,10 +3410,7 @@
       function toggleTechnicalMode(enabled) {
         technicalMode = Boolean(enabled);
         localStorage.setItem("ui.technicalMode", technicalMode ? "1" : "0");
-        if (technicalMode) {
-          clusterCollapsed = false;
-          localStorage.setItem("ui.clusterCollapsed", "0");
-        } else {
+        if (!technicalMode) {
           // Khi tắt chế độ kỹ thuật, nếu đang ở tab 4 (Trạng thái cụm) hoặc tab 5 (Đo hiệu năng), tự động chuyển về Tab 1
           const activeClusterBtn = document.getElementById("tab-btn-cluster");
           const activeBenchmarkBtn = document.getElementById("tab-btn-benchmark");
@@ -3522,7 +3589,7 @@
         }
       }
 
-      // 1. TẢI TRẠNG THÁI CỤM SERVER
+      // 1. load cluster status
       async function fetchClusterStatus() {
         try {
           const res = await fetch("/api/cluster/status?_t=" + Date.now(), {
@@ -3619,8 +3686,8 @@
               <tr>
                 <td class="fw-medium text-dark text-start" style="font-size: 14px;">${n.node_name}</td>
                 <td class="font-monospace text-start" style="font-size: 14px;">${n.host}</td>
-                <td class="text-start">${roleBadge}</td>
-                <td class="text-start">${stateBadge}</td>
+                <td class="text-center">${roleBadge}</td>
+                <td class="text-center">${stateBadge}</td>
                 <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.counts?.orders || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
                 <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.counts?.products || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
               </tr>
@@ -3649,8 +3716,8 @@
               <tr>
                 <td class="fw-medium text-dark text-start" style="font-size: 14px;">${n.node_name}</td>
                 <td class="font-monospace text-start" style="font-size: 14px;">${n.host}</td>
-                <td class="text-start">${roleBadge}</td>
-                <td class="text-start">${stateBadge}</td>
+                <td class="text-center">${roleBadge}</td>
+                <td class="text-center">${stateBadge}</td>
                 <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.reviews_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
                 <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.logs_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
               </tr>
@@ -3805,10 +3872,7 @@
             if (lbl) lbl.innerText = `${data.sync_interval_sec}s`;
           }
 
-          // TỰ ĐỘNG ĐỒNG BỘ DÒNG SỰ KIỆN ĐỒNG BỘ (SECTION 4):
-          // Dựa vào mã băm trạng thái toàn cục (sync_logs_hash). Bất cứ khi nào một Node khởi động lại / tắt đi,
-          // hoặc có sự kiện đồng bộ mới, hash này sẽ thay đổi ngay trên chu kỳ quét 2s,
-          // kích hoạt tự động cập nhật Section 4 mà không cần người dùng bấm 'Làm mới' thủ công.
+        // polling hash de reload log khi cluster doi trang thai
           const currentHash = data.sync_logs_hash || `${data.sync_logs_count}`;
           if (window.lastSyncLogsHash === undefined) {
             window.lastSyncLogsHash = currentHash;
@@ -3824,9 +3888,6 @@
         }
       }
 
-      // =========================================================================
-      // 1.1. QUẢN LÝ NHẬT KÝ ĐỒNG BỘ CỤM (REPLICATION & SYNC AUDIT LOG)
-      // =========================================================================
       let currentSyncFilter = "ALL";
       let cachedSyncLogs = [];
       let currentSyncPage = 1;
@@ -3875,7 +3936,6 @@
         const isCurrentlyHidden =
           el.style.display === "none" || !el.style.display;
 
-        // Tự động đóng tất cả các dòng chi tiết khác trong cùng bảng (Accordion behavior)
         document.querySelectorAll(`.sync-detail-row-${prefix}`).forEach((row) => {
           row.style.display = "none";
         });
@@ -3883,9 +3943,17 @@
           row.classList.remove("is-expanded");
         });
 
+        const parts = detailId.split("-");
+        const logId = parts.length >= 4 ? parts.slice(3).join("-") : null;
+
         if (isCurrentlyHidden) {
           el.style.display = "table-row";
           if (mainRow) mainRow.classList.add("is-expanded");
+          if (logId) window.activeExpandedSyncLogId = logId;
+        } else {
+          if (window.activeExpandedSyncLogId === logId) {
+            window.activeExpandedSyncLogId = null;
+          }
         }
       }
 
@@ -3905,10 +3973,8 @@
             const isMySQL = l.db_type === "MYSQL_GR";
             const dbText = isMySQL ? "MySQL" : "MongoDB";
 
-            // Node nguồn: chữ thường, không khung viền rực rỡ
             const srcText = l.source_label || "Node 2";
 
-            // Node đích: văn bản thuần, chỉ chấm cảnh báo nếu có node ngoại tuyến
             const tgtTitle =
               l.target_hosts && l.target_hosts.length
                 ? l.target_hosts.join(", ")
@@ -3922,7 +3988,6 @@
               tgtHtml = `<span class="small text-secondary" title="${tgtTitle}">${l.target_display || "Tất cả node"}</span>`;
             }
 
-            // Trạng thái đồng bộ: chấm màu nhỏ + chữ thường
             let statusHtml = "";
             const isLagging = l.status === "LAGGING" || (l.status_text && l.status_text.includes("Trễ"));
             if (isLagging) {
@@ -3938,7 +4003,6 @@
 
             const detailId = `detail-${prefix}-${itemNum}-${l.log_id}`;
 
-            // Làm sạch phần tóm tắt: bỏ -> và | thay bằng chấm giữa ·
             let cleanSummary = (l.summary || "")
               .replace(/->/g, "xuống")
               .replace(/\|/g, " · ")
@@ -3955,17 +4019,14 @@
               ? `<div class="mt-1 small text-secondary"><strong>Bảng / Bộ sưu tập:</strong> <code class="text-dark bg-white px-1 border rounded">${l.affected_tables}</code></div>`
               : "";
 
-            // Tiêu đề sự kiện: KHÔNG dùng regex chèn badge vào giữa tên sản phẩm
             const titleHtml = `<span class="fw-semibold text-dark">${l.title || "Sự kiện"}</span>`;
 
-            // Độ trễ: nếu không đo được độ trễ thật thì hiển thị '-'
             const latVal = (l.latency_ms !== null && l.latency_ms !== undefined && l.latency_ms !== "") ? `${l.latency_ms} ms` : "-";
             const isHighLatency = (l.latency_ms || 0) > 150;
             const latencyHtml = isHighLatency
               ? `<span class="font-monospace text-warning fw-semibold">${latVal}</span>`
               : `<span class="font-monospace text-secondary">${latVal}</span>`;
 
-            // Danh sách node nhận chi tiết
             let replicaBadges = "";
             if (l.target_statuses && l.target_statuses.length) {
               replicaBadges = l.target_statuses.map((st) => {
@@ -3985,7 +4046,6 @@
               replicaBadges = `<span class="text-muted small">${l.target_display || "Replicas"}</span>`;
             }
 
-            // Thời gian
             let startTimeStr = l.start_time;
             let endTimeStr = l.end_time;
             if (!startTimeStr || !endTimeStr) {
@@ -4004,8 +4064,12 @@
               }
             }
 
+            const isRowExpanded = window.activeExpandedSyncLogId && (window.activeExpandedSyncLogId === l.log_id || window.activeExpandedSyncLogId === l.id);
+            const mainExpandedClass = isRowExpanded ? " is-expanded" : "";
+            const detailDisplay = isRowExpanded ? "table-row" : "none";
+
             return `
-            <tr id="main-${detailId}" class="sync-row-clickable sync-main-row-${prefix}" onclick="toggleSyncRow('${detailId}', '${prefix}')" title="Bấm để xem chi tiết dữ liệu cập nhật và cơ chế đồng bộ">
+            <tr id="main-${detailId}" class="sync-row-clickable sync-main-row-${prefix}${mainExpandedClass}" onclick="toggleSyncRow('${detailId}', '${prefix}')" title="Bấm để xem chi tiết dữ liệu cập nhật và cơ chế đồng bộ">
               <td class="text-center py-2" style="width: 36px;">
                 <i class="bi bi-chevron-right sync-chevron-icon" id="chevron-${detailId}"></i>
               </td>
@@ -4027,7 +4091,7 @@
               <td class="text-end font-monospace" style="font-size: 13.5px;">${latencyHtml}</td>
               <td class="text-start text-nowrap">${statusHtml}</td>
             </tr>
-            <tr id="${detailId}" class="sync-detail-row sync-detail-row-${prefix} bg-light" style="display: none;">
+            <tr id="${detailId}" class="sync-detail-row sync-detail-row-${prefix} bg-light" style="display: ${detailDisplay};">
               <td colspan="8" class="p-3 bg-light border-bottom">
                 <div class="sync-detail-box p-3 rounded">
                   <div class="p-2 mb-2 bg-white rounded border">
@@ -4153,7 +4217,6 @@
           );
         }
 
-        // ÁP DỤNG PHÂN TRANG CHO SECTION 4 (TAB 3)
         const totalSyncItems = filteredTab.length;
         const totalSyncPages = Math.max(1, Math.ceil(totalSyncItems / currentSyncPageSize));
         if (currentSyncPage > totalSyncPages) currentSyncPage = totalSyncPages;
@@ -4251,17 +4314,6 @@
           btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang tải...';
         }
         try {
-          // Ghi nhớ các dòng chi tiết đang được người dùng mở xem để không bị đóng khi tự động làm mới
-          const openLogIds = new Set();
-          document.querySelectorAll(".sync-detail-row").forEach((row) => {
-            if (row.style.display === "table-row") {
-              const parts = row.id.split("-");
-              if (parts.length >= 4) {
-                openLogIds.add(parts.slice(3).join("-"));
-              }
-            }
-          });
-
           const res = await fetch(
             "/api/cluster/sync-logs?limit=100&_t=" + Date.now(),
             {
@@ -4273,9 +4325,21 @@
           const errCount = cachedSyncLogs.filter((l) => l.status === "FAILED" || l.status === "ERROR").length;
           updateSyncLogBadge(cachedSyncLogs.length, errCount);
 
+          const openLogIds = new Set();
+          if (window.activeExpandedSyncLogId) {
+            openLogIds.add(window.activeExpandedSyncLogId);
+          }
+          document.querySelectorAll(".sync-detail-row").forEach((row) => {
+            if (row.style.display === "table-row") {
+              const parts = row.id.split("-");
+              if (parts.length >= 4) {
+                openLogIds.add(parts.slice(3).join("-"));
+              }
+            }
+          });
+
           renderSyncLogsUI();
 
-          // Khôi phục hiển thị cho các dòng chi tiết đang mở
           if (openLogIds.size > 0) {
             document.querySelectorAll(".sync-detail-row").forEach((row) => {
               const parts = row.id.split("-");
@@ -4341,7 +4405,6 @@
         }
       }
 
-      // THÔNG BÁO TOAST NỔI GỌN GÀNG VÀ CHUYÊN NGHIỆP
       function showToastNotification(msg, type = "success") {
         let container = document.getElementById("toast-notification-container");
         if (!container) {
@@ -4484,7 +4547,7 @@
         loadProducts(1);
       }
 
-      // 2. TẢI DANH SÁCH SẢN PHẨM KẾT HỢP (MYSQL + MONGODB) CÓ PHÂN TRANG
+      // 2. load products
       async function loadProducts(page) {
         if (typeof page === "number" && page >= 1) {
           currentCatalogPage = page;
@@ -4611,10 +4674,6 @@
         }
       }
 
-      // =====================================================================
-      // BỘ COMBOBOX CÓ TÌM KIẾM / LỌC DỮ LIỆU NHANH (SEARCHABLE COMBOBOX)
-      // Hỗ trợ 2.000 Sản phẩm & 10.000 Khách hàng mượt mà (Virtual Scroll)
-      // =====================================================================
       const comboRegistry = {};
       let allProductsCatalog = [];
 
@@ -4852,7 +4911,7 @@
         }
       }
 
-      // TẢI ĐẦY ĐỦ 2.000 SẢN PHẨM TỪ MYSQL ĐỂ ĐƯA VÀO CÁC COMBOBOX ĐẶT HÀNG & ĐÁNH GIÁ
+      // load sp cho combobox
       async function loadProductOptions() {
         initSearchableCombo("review-product-id", {
           placeholder: "Gõ ID, SKU, tên sản phẩm để lọc...",
@@ -5004,7 +5063,7 @@
         loadProductReviews(pid, 1);
       }
 
-      // TẢI ĐẦY ĐỦ DANH SÁCH NHẬN XÉT THEO SẢN PHẨM TỪ MONGODB KÈM PHÂN TRANG
+      // load reviews mongo
       async function loadProductReviews(productId, page) {
         if (typeof productId === "number" && productId >= 1) {
           currentReviewProductId = productId;
@@ -5220,7 +5279,7 @@
         }
       }
 
-      // 3. TẢI ĐẦY ĐỦ 10.000 KHÁCH HÀNG TỪ BẢNG USERS VÀO GỢI Ý TAB 1
+      // load users cho combobox
       async function loadUsersList() {
         try {
           const res = await fetch("/api/users/list?limit=10000");
@@ -5237,14 +5296,14 @@
         }
       }
 
-      // 4. THỰC HIỆN ĐẶT HÀNG (MYSQL TRANSACTION)
+      // dat hang
       async function submitOrder() {
         if (window._isSubmittingOrder) return;
         window._isSubmittingOrder = true;
 
         const prodId = parseInt(document.getElementById("order-product-id")?.value, 10);
         const userId = parseInt(document.getElementById("order-user-id")?.value, 10);
-        const qty = parseInt(document.getElementById("order-qty")?.value, 10) || 1;
+        const rawQty = parseInt(document.getElementById("order-qty")?.value, 10);
         const payMethod = document.getElementById("order-payment-method")?.value || "COD";
         const fb = document.getElementById("order-feedback");
         const btn = document.getElementById("btn-submit-order");
@@ -5259,6 +5318,12 @@
           window._isSubmittingOrder = false;
           return;
         }
+        if (isNaN(rawQty) || rawQty <= 0) {
+          if (fb) fb.innerHTML = `<div class="alert alert-warning py-2 px-3 mb-0 small">Số lượng đặt mua không hợp lệ (phải từ 1 trở lên).</div>`;
+          window._isSubmittingOrder = false;
+          return;
+        }
+        const qty = rawQty;
 
         const stockQty = parseInt(document.getElementById("order-product-stock-qty")?.innerText, 10);
         if (!isNaN(stockQty) && qty > stockQty) {
@@ -5309,7 +5374,6 @@
             `;
             }
 
-            // Kích hoạt Toast thông báo góc dưới phải
             const toastEl = document.getElementById("orderSuccessToast");
             if (toastEl && window.bootstrap) {
               const tId = document.getElementById("toast-order-id");
@@ -5338,7 +5402,7 @@
         }
       }
 
-      // 5. GỬI ĐÁNH GIÁ SẢN PHẨM (MONGODB)
+      // gui review
       async function submitReview() {
         if (window._isSubmittingReview) return;
         window._isSubmittingReview = true;
@@ -5391,7 +5455,6 @@
           if (res.ok) {
             showToastNotification("Đã gửi đánh giá", "success");
 
-            // Reset form sau khi gửi thành công
             const titleInput = document.getElementById("review-title");
             if (titleInput) titleInput.value = "";
             const commentInput = document.getElementById("review-comment");
@@ -5401,7 +5464,6 @@
             const firstChip = document.querySelector("#packaging-chips .packaging-chip");
             if (firstChip) selectPackagingChip(firstChip, "Nguyên hộp, bọc chống sốc");
 
-            // Đưa bộ lọc sao về Tất cả để review mới xuất hiện ngay đầu danh sách
             currentReviewStarFilter = "ALL";
             const filterBtns = document.querySelectorAll("#review-star-filters button");
             filterBtns.forEach(b => {
@@ -5438,7 +5500,7 @@
         }
       }
 
-      // 6. TẢI DANH SÁCH ĐƠN HÀNG (JOIN 5 BẢNG MYSQL + BỘ LỌC RIÊNG BIỆT + PHÂN TRANG)
+      // load orders
       async function loadRecentOrders(page) {
         if (typeof page === "number" && page >= 1) {
           currentOrdersPage = page;
@@ -5555,7 +5617,7 @@
         navEl.innerHTML = html;
       }
 
-      // 7. CHẠY BENCHMARK ĐO KIỂM HIỆU NĂNG
+      // benchmark
       let lastBenchmarkData = null;
       let lastBenchmarkRows = [];
 
@@ -5667,7 +5729,6 @@
           const distDiffPct = localStats.avg > 0 ? ((distStats.avg - localStats.avg) / localStats.avg) * 100 : 0;
           const polyDiffPct = localStats.avg > 0 ? ((polyStats.avg - localStats.avg) / localStats.avg) * 100 : 0;
 
-          // Cập nhật các thẻ chỉ số tóm tắt ở hàng đầu
           const cardLocalAvg = document.getElementById("card-local-avg");
           const cardDistAvg = document.getElementById("card-dist-avg");
           const cardDistDiff = document.getElementById("card-dist-diff");
@@ -5728,7 +5789,6 @@
             )
             .join("");
 
-          // Cập nhật dòng ghi chú dưới bảng
           const footnoteEl = document.getElementById("benchmark-footnote");
           if (footnoteEl) {
             footnoteEl.innerText = `Số liệu từ ${itCount} vòng đo, đã bỏ ${warmUpCount} vòng khởi động. Thông lượng tính tuần tự trên một kết nối.`;
@@ -5772,8 +5832,10 @@
             { length: localTimes.length },
             (_, i) => `${warmUpCount + i + 1}`,
           );
+          const allTimes = [...localTimes, ...distTimes, ...polyTimes];
+          const peakMax = allTimes.length > 0 ? Math.max(...allTimes) : 4;
           const maxP95 = Math.max(localStats.p95, distStats.p95, polyStats.p95);
-          const yMaxLimit = Math.max(4, Math.ceil(maxP95 * 1.5));
+          const yHeadroom = Math.ceil(Math.max(peakMax * 1.15, maxP95 * 1.3, 5));
 
           benchChartInstance = new Chart(ctx, {
             type: "line",
@@ -5785,7 +5847,7 @@
                   data: localTimes,
                   borderColor: "#1f4e8c",
                   backgroundColor: "rgba(31, 78, 140, 0.05)",
-                  borderWidth: 1.75,
+                  borderWidth: 2,
                   tension: 0.2,
                   pointRadius: 0,
                   pointHoverRadius: 4,
@@ -5793,6 +5855,7 @@
                   pointBorderColor: "#ffffff",
                   pointBorderWidth: 1.5,
                   fill: false,
+                  order: 1,
                 },
                 {
                   label: "Truy vấn phân tán",
@@ -5807,6 +5870,7 @@
                   pointBorderColor: "#ffffff",
                   pointBorderWidth: 1.5,
                   fill: false,
+                  order: 2,
                 },
                 {
                   label: "Truy vấn đa mô hình",
@@ -5821,12 +5885,19 @@
                   pointBorderColor: "#ffffff",
                   pointBorderWidth: 1.5,
                   fill: false,
+                  order: 3,
                 },
               ],
             },
             options: {
               responsive: true,
               maintainAspectRatio: false,
+              layout: {
+                padding: {
+                  top: 8,
+                  right: 8,
+                },
+              },
               interaction: {
                 mode: "index",
                 intersect: false,
@@ -5878,7 +5949,8 @@
                 },
                 y: {
                   beginAtZero: true,
-                  max: yMaxLimit,
+                  suggestedMax: yHeadroom,
+                  grace: "5%",
                   title: {
                     display: true,
                     text: "Độ trễ (ms)",
@@ -5897,7 +5969,6 @@
             },
           });
 
-          // Lưu dữ liệu để phục vụ xuất CSV
           lastBenchmarkData = data;
           lastBenchmarkRows = rows.map((r) => ({
             name: r.name,
@@ -5968,7 +6039,7 @@
         document.body.removeChild(a);
       }
 
-      // 8. TẢI VÀ LƯU CẤU HÌNH IP MẠNG LAN (ĐỒNG BỘ 2 CHIỀU VỚI SERVER)
+      // config ip lan
       let currentClusterSyncTimer = null;
       let currentClusterIntervalSec = 2;
 
@@ -5985,40 +6056,277 @@
       }
 
       window._detectedLocalIp = "192.168.1.43";
+      let initialClusterConfigSnapshot = null;
+      let _isPasswordVisible = false;
+
+      function togglePasswordVisibility() {
+        const passInput = document.getElementById("cfg-mysql-pass");
+        const icon = document.getElementById("pass-eye-icon");
+        if (!passInput) return;
+        _isPasswordVisible = !_isPasswordVisible;
+        if (_isPasswordVisible) {
+          passInput.type = "text";
+          if (icon) icon.className = "fas fa-eye-slash";
+        } else {
+          passInput.type = "password";
+          if (icon) icon.className = "fas fa-eye";
+        }
+      }
+
+      function getClusterConfigFormValues() {
+        return {
+          mysql: document.getElementById("cfg-mysql-nodes")?.value.trim() || "",
+          mongo: document.getElementById("cfg-mongo-nodes")?.value.trim() || "",
+          client: document.getElementById("cfg-client-node")?.value.trim() || "",
+          pass: document.getElementById("cfg-mysql-pass")?.value || "",
+          interval: document.getElementById("cfg-sync-interval")?.value.trim() || "",
+        };
+      }
+
+      function hasClusterConfigUnsavedChanges() {
+        if (!initialClusterConfigSnapshot) return false;
+        const cur = getClusterConfigFormValues();
+        return (
+          cur.mysql !== initialClusterConfigSnapshot.mysql ||
+          cur.mongo !== initialClusterConfigSnapshot.mongo ||
+          cur.client !== initialClusterConfigSnapshot.client ||
+          cur.pass !== initialClusterConfigSnapshot.pass ||
+          cur.interval !== initialClusterConfigSnapshot.interval
+        );
+      }
+
+      function handleCloseModalWithCheck() {
+        if (hasClusterConfigUnsavedChanges()) {
+          const ok = window.confirm("Bỏ thay đổi chưa lưu?");
+          if (!ok) return;
+        }
+        initialClusterConfigSnapshot = null;
+        const modalEl = document.getElementById("configModal");
+        if (modalEl && window.bootstrap) {
+          const inst = bootstrap.Modal.getInstance(modalEl);
+          if (inst) inst.hide();
+        }
+      }
+
+      function isValidHostPort(str) {
+        if (!str || typeof str !== "string") return false;
+        const s = str.trim();
+        if (!s) return false;
+
+        let host = s;
+        if (s.includes(":")) {
+          const parts = s.split(":");
+          if (parts.length !== 2) return false;
+          host = parts[0].trim();
+          const pStr = parts[1].trim();
+          const p = parseInt(pStr, 10);
+          if (isNaN(p) || p < 1 || p > 65535 || String(p) !== pStr) return false;
+        }
+
+        const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+        const m = host.match(ipv4Regex);
+        if (m) {
+          for (let i = 1; i <= 4; i++) {
+            const oct = parseInt(m[i], 10);
+            if (oct < 0 || oct > 255) return false;
+          }
+          return true;
+        }
+
+        const hostRegex = /^[a-zA-Z0-9]([a-zA-Z0-9\-_]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-_]{0,61}[a-zA-Z0-9])?)*$/;
+        return hostRegex.test(host);
+      }
+
+      function validateNodeList(val) {
+        if (!val || !val.trim()) {
+          return { valid: false, error: "Cần đúng 4 địa chỉ" };
+        }
+        const items = val.split(",").map((x) => x.trim()).filter(Boolean);
+        if (items.length !== 4) {
+          return { valid: false, error: "Cần đúng 4 địa chỉ" };
+        }
+        for (let i = 0; i < items.length; i++) {
+          if (!isValidHostPort(items[i])) {
+            return { valid: false, error: `Địa chỉ thứ ${i + 1} không hợp lệ` };
+          }
+        }
+        return { valid: true, error: "" };
+      }
+
+      function validateClusterConfigInputs() {
+        let isAllValid = true;
+
+        const mysqlVal = document.getElementById("cfg-mysql-nodes")?.value || "";
+        const mysqlRes = validateNodeList(mysqlVal);
+        const mysqlInput = document.getElementById("cfg-mysql-nodes");
+        const mysqlErr = document.getElementById("cfg-mysql-error");
+        if (!mysqlRes.valid) {
+          isAllValid = false;
+          if (mysqlInput) mysqlInput.classList.add("is-invalid");
+          if (mysqlErr) { mysqlErr.innerText = mysqlRes.error; mysqlErr.style.display = "inline"; }
+        } else {
+          if (mysqlInput) mysqlInput.classList.remove("is-invalid");
+          if (mysqlErr) mysqlErr.style.display = "none";
+        }
+
+        const mongoVal = document.getElementById("cfg-mongo-nodes")?.value || "";
+        const mongoRes = validateNodeList(mongoVal);
+        const mongoInput = document.getElementById("cfg-mongo-nodes");
+        const mongoErr = document.getElementById("cfg-mongo-error");
+        if (!mongoRes.valid) {
+          isAllValid = false;
+          if (mongoInput) mongoInput.classList.add("is-invalid");
+          if (mongoErr) { mongoErr.innerText = mongoRes.error; mongoErr.style.display = "inline"; }
+        } else {
+          if (mongoInput) mongoInput.classList.remove("is-invalid");
+          if (mongoErr) mongoErr.style.display = "none";
+        }
+
+        const clientVal = document.getElementById("cfg-client-node")?.value.trim() || "";
+        const clientInput = document.getElementById("cfg-client-node");
+        const clientErr = document.getElementById("cfg-client-error");
+        if (!clientVal || !isValidHostPort(clientVal)) {
+          isAllValid = false;
+          if (clientInput) clientInput.classList.add("is-invalid");
+          if (clientErr) { clientErr.innerText = "IP máy client không hợp lệ"; clientErr.style.display = "block"; }
+        } else {
+          if (clientInput) clientInput.classList.remove("is-invalid");
+          if (clientErr) clientErr.style.display = "none";
+        }
+
+        const intervalInput = document.getElementById("cfg-sync-interval");
+        const intervalVal = parseInt(intervalInput?.value || "", 10);
+        const intervalErr = document.getElementById("cfg-interval-error");
+        if (isNaN(intervalVal) || intervalVal < 2 || intervalVal > 300) {
+          isAllValid = false;
+          if (intervalInput) intervalInput.classList.add("is-invalid");
+          if (intervalErr) { intervalErr.innerText = "Chu kỳ từ 2 đến 300 giây"; intervalErr.style.display = "block"; }
+        } else {
+          if (intervalInput) intervalInput.classList.remove("is-invalid");
+          if (intervalErr) intervalErr.style.display = "none";
+        }
+
+        const btnSave = document.getElementById("btn-save-cluster-cfg");
+        if (btnSave) {
+          btnSave.disabled = !isAllValid;
+        }
+
+        return isAllValid;
+      }
+
+      function updateActivePresetCard(presetName) {
+        const cards = {
+          docker: document.getElementById("preset-card-docker"),
+          lan_lab: document.getElementById("preset-card-lan_lab"),
+          wifi_dynamic: document.getElementById("preset-card-wifi_dynamic"),
+        };
+        Object.keys(cards).forEach((key) => {
+          if (cards[key]) {
+            if (key === presetName) {
+              cards[key].classList.add("active");
+            } else {
+              cards[key].classList.remove("active");
+            }
+          }
+        });
+
+        const badge = document.getElementById("current-preset-badge");
+        if (badge) {
+          if (presetName === "docker") {
+            badge.innerText = "Docker trên 1 máy";
+          } else if (presetName === "lan_lab") {
+            badge.innerText = "LAN tĩnh (lab)";
+          } else if (presetName === "wifi_dynamic") {
+            badge.innerText = "Theo IP Wi-Fi hiện tại";
+          } else {
+            badge.innerText = "Cấu hình tùy chỉnh";
+          }
+        }
+      }
+
+      function detectCurrentPreset() {
+        const mysqlVal = document.getElementById("cfg-mysql-nodes")?.value.replace(/\s+/g, "") || "";
+        const detectedIp = window._detectedLocalIp || "192.168.1.43";
+
+        const dockerMysql = "127.0.0.1:3305,127.0.0.1:3306,127.0.0.1:3307,127.0.0.1:3308".replace(/\s+/g, "");
+        const labMysql = "192.168.1.221,192.168.1.222,192.168.1.223,192.168.1.224".replace(/\s+/g, "");
+        const wifiMysql = `192.168.1.221,${detectedIp},192.168.1.223,192.168.1.224`.replace(/\s+/g, "");
+
+        if (mysqlVal === dockerMysql) return "docker";
+        if (mysqlVal === labMysql) return "lan_lab";
+        if (mysqlVal === wifiMysql) return "wifi_dynamic";
+        return null;
+      }
+
+      function onClusterConfigInputChanged(field) {
+        validateClusterConfigInputs();
+        const matched = detectCurrentPreset();
+        updateActivePresetCard(matched);
+      }
 
       function applyClusterPreset(mode) {
-        const badge = document.getElementById("current-preset-badge");
         const detectedIp = window._detectedLocalIp || "192.168.1.43";
         if (mode === "docker") {
           document.getElementById("cfg-mysql-nodes").value = "127.0.0.1:3305, 127.0.0.1:3306, 127.0.0.1:3307, 127.0.0.1:3308";
           document.getElementById("cfg-mongo-nodes").value = "127.0.0.1:27016, 127.0.0.1:27017, 127.0.0.1:27018, 127.0.0.1:27019";
           document.getElementById("cfg-client-node").value = "127.0.0.1";
-          if (badge) {
-            badge.className = "badge bg-primary text-white small";
-            badge.innerText = "Giả lập 4 Node Docker";
-          }
         } else if (mode === "lan_lab") {
           document.getElementById("cfg-mysql-nodes").value = "192.168.1.221, 192.168.1.222, 192.168.1.223, 192.168.1.224";
           document.getElementById("cfg-mongo-nodes").value = "192.168.1.221, 192.168.1.222, 192.168.1.223, 192.168.1.224";
           document.getElementById("cfg-client-node").value = "192.168.1.224";
-          if (badge) {
-            badge.className = "badge bg-success text-white small";
-            badge.innerText = "IP Tĩnh Lab (Chung port)";
-          }
         } else if (mode === "wifi_dynamic") {
           document.getElementById("cfg-mysql-nodes").value = `192.168.1.221, ${detectedIp}, 192.168.1.223, 192.168.1.224`;
           document.getElementById("cfg-mongo-nodes").value = `192.168.1.221, ${detectedIp}, 192.168.1.223, 192.168.1.224`;
           document.getElementById("cfg-client-node").value = detectedIp;
-          if (badge) {
-            badge.className = "badge bg-info text-white small";
-            badge.innerText = `Wi-Fi DHCP (${detectedIp})`;
+        }
+        updateActivePresetCard(mode);
+        validateClusterConfigInputs();
+      }
+
+      async function testClusterConnections() {
+        const btn = document.getElementById("btn-test-conn-action");
+        const originalText = btn ? btn.innerHTML : "Kiểm tra kết nối";
+        const myStatusEl = document.getElementById("test-conn-mysql-status");
+        const mgStatusEl = document.getElementById("test-conn-mongo-status");
+
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Đang kiểm tra...`;
+        }
+        if (myStatusEl) { myStatusEl.innerText = "Đang kiểm tra..."; myStatusEl.className = "text-secondary small"; }
+        if (mgStatusEl) { mgStatusEl.innerText = "Đang kiểm tra..."; mgStatusEl.className = "text-secondary small"; }
+
+        try {
+          const res = await fetch("/api/cluster/status");
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const data = await res.json();
+          const myNodes = data.mysql || [];
+          const mgNodes = data.mongodb || [];
+
+          const myOnline = myNodes.filter((n) => ["ONLINE", "PRIMARY", "SECONDARY"].includes(n.state)).length;
+          const mgOnline = mgNodes.filter((n) => ["ONLINE", "PRIMARY", "SECONDARY", "STANDALONE"].includes(n.state)).length;
+
+          if (myStatusEl) {
+            myStatusEl.innerText = `${myOnline}/${myNodes.length || 4} node phản hồi`;
+            myStatusEl.className = myOnline === 4 ? "text-success small" : "text-secondary small";
+          }
+          if (mgStatusEl) {
+            mgStatusEl.innerText = `${mgOnline}/${mgNodes.length || 4} node phản hồi`;
+            mgStatusEl.className = mgOnline === 4 ? "text-success small" : "text-secondary small";
+          }
+        } catch (e) {
+          if (myStatusEl) { myStatusEl.innerText = "Không phản hồi"; myStatusEl.className = "text-danger small"; }
+          if (mgStatusEl) { mgStatusEl.innerText = "Không phản hồi"; mgStatusEl.className = "text-danger small"; }
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
           }
         }
       }
 
       async function loadClusterConfig() {
         try {
-          // Cập nhật IP Wi-Fi/DHCP thực tế nếu có
           try {
             const netRes = await fetch("/api/cluster/network-info");
             if (netRes.ok) {
@@ -6050,9 +6358,10 @@
             const el = document.getElementById("cfg-client-node");
             if (el) el.value = cfg.client_node;
           }
-          if (cfg.mysql_password) {
-            const el = document.getElementById("cfg-mysql-pass");
-            if (el) el.value = cfg.mysql_password;
+          const passEl = document.getElementById("cfg-mysql-pass");
+          if (passEl) {
+            passEl.value = "";
+            passEl.placeholder = cfg.has_mysql_password || cfg.mysql_password ? "(giữ nguyên)" : "";
           }
           if (cfg.sync_interval_sec) {
             const el = document.getElementById("cfg-sync-interval");
@@ -6060,41 +6369,31 @@
             updateClusterSyncTimer(cfg.sync_interval_sec);
           }
 
-          // Cập nhật nhãn Preset hiện tại
-          const badge = document.getElementById("current-preset-badge");
-          if (badge && cfg.mysql_nodes && cfg.mysql_nodes.length > 0) {
-            const first = cfg.mysql_nodes[0];
-            if (first.includes("127.0.0.1")) {
-              badge.className = "badge bg-primary text-white small";
-              badge.innerText = "Giả lập 4 Node Docker";
-            } else if (first.includes("192.168.1.221") && cfg.mysql_nodes.some(n => n.includes("192.168.1.222") || n.includes("192.168.1.223"))) {
-              badge.className = "badge bg-success text-white small";
-              badge.innerText = "IP Tĩnh Lab (Chung port)";
-            } else if (cfg.mysql_nodes.some(n => n.includes(window._detectedLocalIp))) {
-              badge.className = "badge bg-info text-white small";
-              badge.innerText = `Wi-Fi DHCP (${window._detectedLocalIp})`;
-            } else {
-              badge.className = "badge bg-secondary-subtle text-secondary small";
-              badge.innerText = "Tùy chỉnh thủ công";
-            }
-          }
+          const matched = detectCurrentPreset();
+          updateActivePresetCard(matched);
+          validateClusterConfigInputs();
 
-          console.log(
-            "[ClusterConfig] Đã nạp cấu hình mới nhất từ server:",
-            cfg,
-          );
+          initialClusterConfigSnapshot = getClusterConfigFormValues();
         } catch (e) {
           console.warn("Không thể tải cấu hình cluster:", e);
         }
       }
 
       async function saveClusterConfig() {
-        const btnSave = document.querySelector("#configModal .btn-navy");
-        const originalText = btnSave ? btnSave.innerText : "Lưu cấu hình";
+        if (!validateClusterConfigInputs()) return;
+
+        const btnSave = document.getElementById("btn-save-cluster-cfg") || document.querySelector("#configModal .btn-navy");
+        const originalText = btnSave ? btnSave.innerText : "Lưu và áp dụng";
+        const fbEl = document.getElementById("cfg-save-feedback");
         if (btnSave) {
           btnSave.disabled = true;
           btnSave.innerText = "Đang lưu...";
         }
+        if (fbEl) {
+          fbEl.style.display = "none";
+          fbEl.innerText = "";
+        }
+
         try {
           const mysqlNodes = document
             .getElementById("cfg-mysql-nodes")
@@ -6109,7 +6408,7 @@
           const clientNode = document
             .getElementById("cfg-client-node")
             .value.trim();
-          const mysqlPass = document.getElementById("cfg-mysql-pass").value;
+          const mysqlPass = document.getElementById("cfg-mysql-pass")?.value || "";
           const syncIntervalVal = parseInt(
             document.getElementById("cfg-sync-interval")?.value || "2",
             10,
@@ -6127,18 +6426,27 @@
             }),
           });
           if (!res.ok) {
-            throw new Error(`Mã lỗi HTTP: ${res.status}`);
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || `Lỗi máy chủ (${res.status})`);
           }
+
+          initialClusterConfigSnapshot = null;
           updateClusterSyncTimer(syncIntervalVal);
-          bootstrap.Modal.getInstance(
-            document.getElementById("configModal"),
-          ).hide();
+
+          const modalEl = document.getElementById("configModal");
+          if (modalEl && window.bootstrap) {
+            const inst = bootstrap.Modal.getInstance(modalEl);
+            if (inst) inst.hide();
+          }
+
           await refreshAll(true);
-          alert(
-            "✓ Đã lưu cấu hình cụm và đồng bộ vĩnh viễn vào cluster_config.json thành công!",
-          );
+          showToastNotification("Đã lưu cấu hình", "success");
         } catch (err) {
-          alert("Lỗi khi lưu cấu hình: " + err);
+          if (fbEl) {
+            fbEl.className = "text-danger small mt-2";
+            fbEl.innerText = "Lỗi khi lưu: " + (err.message || err);
+            fbEl.style.display = "block";
+          }
         } finally {
           if (btnSave) {
             btnSave.disabled = false;
@@ -6198,6 +6506,33 @@
         const configModalEl = document.getElementById("configModal");
         if (configModalEl) {
           configModalEl.addEventListener("show.bs.modal", loadClusterConfig);
+          configModalEl.addEventListener("shown.bs.modal", () => {
+            const firstInput = document.getElementById("cfg-mysql-nodes");
+            if (firstInput) firstInput.focus();
+          });
+          configModalEl.addEventListener("hidden.bs.modal", () => {
+            const triggerBtn = document.querySelector('[data-bs-target="#configModal"]');
+            if (triggerBtn) triggerBtn.focus();
+          });
+          configModalEl.addEventListener("hide.bs.modal", (e) => {
+            if (hasClusterConfigUnsavedChanges()) {
+              const ok = window.confirm("Bỏ thay đổi chưa lưu?");
+              if (!ok) {
+                e.preventDefault();
+                return;
+              }
+              initialClusterConfigSnapshot = null;
+            }
+          });
+          configModalEl.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+              const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
+              if (activeTag === "input") {
+                e.preventDefault();
+                saveClusterConfig();
+              }
+            }
+          });
         }
 
         // Cập nhật bảng cụm máy chủ (5 cột chuẩn: Node | Địa chỉ | Vai trò | Trạng thái | Ping) khi chuyển tab:

@@ -1,7 +1,3 @@
-// =====================================================================================
-// FILE DÀNH CHO NODE 4 (192.168.1.224) - KIỂM TRA ĐỒNG BỘ & ĐO HIỆU NĂNG TRUY VẤN MONGODB
-// Chạy bằng lệnh: mongosh "mongodb://192.168.1.224:27017/ecommerce_nosql" --file node4_mongodb_verify_secondary.js
-// =====================================================================================
 
 db = db.getSiblingDB('ecommerce_nosql');
 db.getMongo().setReadPref('secondaryPreferred');

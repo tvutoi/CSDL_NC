@@ -23,7 +23,7 @@ _IDEMPOTENCY_LOCK = threading.Lock()
 
 
 def is_port_open(host_or_addr: str, default_port: int = 3306, timeout: float = 0.25) -> bool:
-    """Kiểm tra nhanh cổng TCP có mở hay không (0.25s) để không bị treo 21s khi 1 máy tắt mạng trên Windows"""
+    # check socket nhanh 0.25s
     try:
         if ":" in host_or_addr:
             h, p_str = host_or_addr.rsplit(":", 1)
@@ -45,9 +45,7 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
 
-# =====================================================================================
-# CẤU HÌNH KẾT NỐI CỤM PHÂN TÁN (ĐỒNG BỘ 2 CHIỀU VÀ LƯU VĨNH VIỄN VÀO FILE JSON)
-# =====================================================================================
+# config cluster
 CONFIG_FILE = os.path.join(current_dir, "cluster_config.json")
 
 CLUSTER_CONFIG = {
@@ -70,7 +68,6 @@ _CONFIG_LAST_MTIME = 0.0
 
 
 def load_cluster_config(force: bool = False) -> Dict[str, Any]:
-    """Tự động nạp cấu hình trực tiếp từ cluster_config.json, không gán cứng trong code"""
     global CLUSTER_CONFIG, _CONFIG_LAST_MTIME
     if os.path.exists(CONFIG_FILE):
         try:
@@ -123,12 +120,10 @@ def set_active_mongo_primary(host: Optional[str]):
             save_cluster_config_to_file()
 
 
-# Khởi tạo nạp cấu hình ngay khi ứng dụng khởi chạy
 load_cluster_config(force=True)
 
 
 def save_cluster_config_to_file():
-    """Lưu vĩnh viễn cấu hình cụm vào cluster_config.json"""
     global _CONFIG_LAST_MTIME
     try:
         data = {
@@ -162,9 +157,7 @@ def save_cluster_config_to_file():
         print(f"[CONFIG] Lỗi lưu {CONFIG_FILE}: {e}")
 
 
-# =====================================================================================
 # QUẢN LÝ NHẬT KÝ ĐỒNG BỘ CỤM THỜI GIAN THỰC (LƯU VĨNH VIỄN VÀO FILE JSON DUY NHẤT)
-# =====================================================================================
 SYNC_LOGS_FILE = sync_log_store.get_sync_log_file_path()
 SYNC_LOGS_LOCK = sync_log_store._SYNC_LOCK
 SYNC_AUDIT_LOGS: List[Dict[str, Any]] = []
@@ -322,9 +315,7 @@ def evaluate_sync_log_targets(log_item: Dict[str, Any], conn_cache: Optional[Dic
     return log_item
 
 
-# =====================================================================================
 # CƠ CHẾ ĐO ĐỘ TRỄ NHÂN BẢN THẬT VÀ GHI LOG ĐỒNG BỘ NGUYÊN TỬ VÀO FILE JSON DUY NHẤT
-# =====================================================================================
 _BATCH_WINDOW_LOCK = threading.Lock()
 _LAST_BATCH_TIME = 0.0
 _LAST_BATCH_LOG: Optional[Dict[str, Any]] = None
@@ -649,7 +640,6 @@ def record_sync_log(
         "so_ban_ghi": so_ban_ghi,
         "chi_tiet": chi_tiet or [],
 
-        # 2. Các trường tương thích 100% với Frontend Bootstrap hiện tại
         "log_id": log_id,
         "time": now.strftime("%H:%M:%S"),
         "date": now.strftime("%d/%m/%Y"),
@@ -675,11 +665,10 @@ def record_sync_log(
         "status_text": status_text or "Đã đồng bộ"
     }
 
-    # Đánh giá trạng thái nếu chưa có
     if not target_statuses:
         evaluate_sync_log_targets(log_item)
 
-    # Xử lý cửa sổ gộp giao dịch (Sliding Window 2 giây) cho các giao dịch liên tiếp
+        # gom log trong 2s
     with _BATCH_WINDOW_LOCK:
         now_ts = time.time()
         if (
@@ -688,7 +677,6 @@ def record_sync_log(
             and (now_ts - _LAST_BATCH_TIME) < 2.0
             and _LAST_BATCH_LOG.get("action") == "CHECKOUT_ORDER"
         ):
-            # Gộp vào giao dịch trước đó trong cửa sổ 2 giây
             all_logs = sync_log_store.load_sync_logs_safe()
             if all_logs and all_logs[0].get("id") == _LAST_BATCH_LOG.get("id"):
                 head = all_logs[0]
@@ -712,7 +700,6 @@ def record_sync_log(
         _LAST_BATCH_TIME = now_ts
         _LAST_BATCH_LOG = log_item
 
-    # Lưu nguyên tử vào file JSON qua sync_log_store
     sync_log_store.append_sync_log_entry(log_item)
     SYNC_AUDIT_LOGS.clear()
     SYNC_AUDIT_LOGS.extend(sync_log_store.load_sync_logs_safe())
@@ -735,7 +722,7 @@ def ensure_mongo_primary_priority():
     if not mongo_nodes:
         return
 
-    # 1. Kiểm tra xem trong cụm ĐÃ CÓ Node nào đang là PRIMARY hay chưa
+    # check da co primary chua
     active_primary_host = None
     online_hosts = []
     for host in mongo_nodes:
@@ -752,25 +739,28 @@ def ensure_mongo_primary_priority():
             except Exception:
                 pass
 
-    # KHI ĐÃ CÓ NODE CHÍNH: TUYỆT ĐỐI KHÔNG BẦU LẠI!
+        # da co primary thi giu nguyen
     if active_primary_host:
         set_active_mongo_primary(active_primary_host)
         return
 
-    # 2. NẾU CHƯA CÓ NODE CHÍNH: MỚI THỰC HIỆN BẦU LẠI
     if not online_hosts:
         return
 
-    # Lấy node cấu hình từ cluster_config.json
     configured_pri = get_active_mongo_primary()
     chosen_primary = configured_pri if (configured_pri and configured_pri in online_hosts) else online_hosts[0]
 
     try:
         c_prim = MongoClient(f"mongodb://{chosen_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=600)
+        h_pri = c_prim.admin.command("hello")
+        me_host = h_pri.get("me")
+        chosen_port = chosen_primary.split(":")[-1] if ":" in chosen_primary else "27017"
         cfg_rs = c_prim.admin.command("replSetGetConfig")["config"]
         cfg_rs["version"] += 1
         for m in cfg_rs["members"]:
-            if m["host"] == chosen_primary:
+            m_h = m.get("host", "")
+            is_target = (m_h == chosen_primary) or (me_host and m_h == me_host) or (m_h.endswith(f":{chosen_port}"))
+            if is_target:
                 m["votes"] = 1
                 m["priority"] = 1.0
             else:
@@ -820,25 +810,27 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
                 socketTimeoutMS=2000
             )
             hello = c.admin.command("hello")
+            is_prim = bool(hello.get("isWritablePrimary") or hello.get("ismaster"))
+            is_sec = bool(hello.get("secondary"))
+            if not is_prim and not is_sec:
+                c.close()
+                continue
             online_lan_hosts.append((c, h, hello))
-            if hello.get("isWritablePrimary") or hello.get("ismaster"):
+            if is_prim:
                 if primary_client is None:
                     primary_client, primary_host = c, h
         except Exception:
             continue
 
-    # KHI ĐÃ CÓ PRIMARY: Giữ nguyên, không bầu lại!
     if primary_client:
         set_active_mongo_primary(primary_host)
     else:
-        # KHI CHƯA CÓ PRIMARY: Mới gọi bầu chọn lại
         if online_lan_hosts:
             try:
                 ensure_mongo_primary_priority()
             except Exception as e:
                 print(f"[MONGO_PRIMARY_RECOVERY] {e}")
 
-            # Thử tìm lại primary sau khi bầu chọn
             for c_cand, h_cand, _ in online_lan_hosts:
                 try:
                     h_c = c_cand.admin.command("hello")
@@ -849,7 +841,7 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
                     pass
 
     if not primary_client and online_lan_hosts:
-        # Nếu đang ở chế độ primary mà chưa tìm thấy node writable primary, chờ thêm tối đa 2s để election hoàn tất
+        # doi election neu chua co primary
         if read_mode == "primary":
             t_poll = time.time()
             while time.time() - t_poll < 2.0:
@@ -869,7 +861,6 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
             primary_client, primary_host = online_lan_hosts[0][0], online_lan_hosts[0][1]
 
     def _ret(client_obj, host_str, role_str):
-        # Đóng các client còn lại không được chọn để tránh rò rỉ socket pool
         for c_item, h_item, _ in online_lan_hosts:
             if c_item is not client_obj:
                 try:
@@ -893,18 +884,15 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
                 return _ret(primary_client, primary_host, "PRIMARY")
             return _ret(online_lan_hosts[0][0], online_lan_hosts[0][1], "PRIMARY")
         else:
-            # Chế độ đọc Secondary / Nearest:
-            # - Nếu có từ 2 node LAN trở lên đang bật: ưu tiên lấy node SECONDARY
-            # - Nếu chỉ có 1 node LAN đang bật (node đó là PRIMARY): tự động fallback đọc từ chính node PRIMARY đó
+            # uu tien secondary, fallback primary neu chi con 1 node
             if len(online_lan_hosts) >= 2:
                 for c, h, hello in online_lan_hosts:
-                    if h != primary_host:
+                    if h != primary_host and hello.get("secondary"):
                         return _ret(c, h, "SECONDARY")
             if primary_client and primary_host:
                 return _ret(primary_client, primary_host, "PRIMARY")
             return _ret(online_lan_hosts[0][0], online_lan_hosts[0][1], "PRIMARY")
 
-    # Chỉ khi không có bất kỳ Node LAN nào mở cổng 27017 thì mới fallback về 127.0.0.1:27017
     local_client = MongoClient("mongodb://127.0.0.1:27017/?directConnection=true&w=1", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=1000)
     return _ret(local_client, "127.0.0.1:27017", "LOCAL")
 
@@ -927,13 +915,13 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
         CLUSTER_CONFIG["round_robin_idx"] += 1
         candidates = nodes[idx:] + nodes[:idx]
     elif mode == "secondary_preferred":
-        # Ưu tiên các node phụ, đưa Node Primary đang phục vụ về cuối
+        # uu tien secondary de doc
         if active_pri and active_pri in nodes:
             candidates = [h for h in nodes if h != active_pri] + [active_pri]
         else:
             candidates = nodes[1:] + nodes[:1]
     elif mode == "primary":
-        # Ưu tiên kết nối tới Node đang là Primary thực tế (_ACTIVE_MYSQL_PRIMARY, e.g. Node 2 khi Node 1 bị tắt)
+        # connect toi primary hien tai
         if active_pri and active_pri in nodes:
             candidates = [active_pri] + [h for h in nodes if h != active_pri]
         else:
@@ -972,7 +960,7 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
 
     if online_conns:
         ro_zero_nodes = [item for item in online_conns if item[2]["read_only"] == 0]
-        # Nếu cụm mất Quorum (tất cả node còn lại đều read_only=1 do 1 node sập trong cụm 2 node):
+            # neu mat quorum
         if not ro_zero_nodes and len(online_conns) == 1:
             try:
                 c_u = online_conns[0][0]
@@ -987,18 +975,15 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
             except Exception:
                 pass
 
-        # Khi chọn primary: ưu tiên node khớp với _ACTIVE_MYSQL_PRIMARY đang phục vụ
         if ro_zero_nodes:
             matched_active = next((item for item in ro_zero_nodes if item[1] == active_pri), None)
             primary_item = matched_active if matched_active else ro_zero_nodes[0]
         else:
             primary_item = online_conns[0]
 
-        # Ghi nhận lại _ACTIVE_MYSQL_PRIMARY
         if primary_item and primary_item[2].get("read_only") == 0:
             set_active_mysql_primary(primary_item[1])
 
-        # Chọn kết nối trả về theo mode
         chosen = None
         if target_host or mode == "round_robin":
             chosen = online_conns[0]
@@ -1010,7 +995,6 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
         else:
             chosen = primary_item
 
-        # Đóng các kết nối không dùng tới
         for c_item, h_item, _ in online_conns:
             if c_item is not chosen[0]:
                 try:
@@ -1030,7 +1014,6 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
             "role_vn": role_vn
         }
 
-    # Fallback sang 127.0.0.1 nếu các IP LAN chưa bật hoặc đang demo trên 1 máy
     try:
         conn = mysql.connector.connect(
             host="127.0.0.1",
@@ -1081,7 +1064,6 @@ def detect_active_primaries():
     """
     load_cluster_config()
 
-    # 1. Phát hiện MySQL Primary
     mysql_p = None
     try:
         conn, meta = get_mysql_connection(mode="primary")
@@ -1111,7 +1093,6 @@ def detect_active_primaries():
 
     mysql_secs = [n for n in CLUSTER_CONFIG.get("mysql_nodes", []) if n != mysql_p]
 
-    # 2. Phát hiện MongoDB Primary
     mongo_p = None
     try:
         c, meta = get_mongo_client(read_mode="primary", with_meta=True)
@@ -1145,7 +1126,6 @@ def detect_active_primaries():
 
 
 def init_sample_sync_logs(force: bool = False):
-    """Đảm bảo file sync_audit_logs.json tồn tại dưới dạng mảng rỗng [] nếu chưa có, không tạo log giả"""
     global SYNC_AUDIT_LOGS
     logs = sync_log_store.load_sync_logs_safe()
     if force:
@@ -1162,9 +1142,7 @@ except Exception as _e:
     print(f"[SYNC_LOG_INIT] Lỗi khởi tạo nhật ký: {_e}")
 
 
-# =====================================================================================
-# GIAO DIỆN CHÍNH & CẤU HÌNH CỤM
-# =====================================================================================
+# routes
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
     return Response(status_code=204)
@@ -1181,7 +1159,7 @@ class ClusterConfigUpdate(BaseModel):
     mysql_nodes: List[str]
     mongo_nodes: List[str]
     client_node: str
-    mysql_password: str
+    mysql_password: Optional[str] = ""
     sync_interval_sec: Optional[int] = 2
 
 
@@ -1192,7 +1170,8 @@ def get_config():
         "mysql_nodes": CLUSTER_CONFIG["mysql_nodes"],
         "mongo_nodes": CLUSTER_CONFIG["mongo_nodes"],
         "client_node": CLUSTER_CONFIG["client_node"],
-        "mysql_password": CLUSTER_CONFIG["mysql_password"],
+        "has_mysql_password": bool(CLUSTER_CONFIG.get("mysql_password")),
+        "mysql_password": "",
         "sync_interval_sec": int(CLUSTER_CONFIG.get("sync_interval_sec", 2))
     }
 
@@ -1202,17 +1181,16 @@ def update_config(cfg: ClusterConfigUpdate):
     CLUSTER_CONFIG["mysql_nodes"] = [ip.strip() for ip in cfg.mysql_nodes if ip.strip()]
     CLUSTER_CONFIG["mongo_nodes"] = [ip.strip() for ip in cfg.mongo_nodes if ip.strip()]
     CLUSTER_CONFIG["client_node"] = cfg.client_node.strip()
-    if cfg.mysql_password:
-        CLUSTER_CONFIG["mysql_password"] = cfg.mysql_password
+    if cfg.mysql_password and cfg.mysql_password.strip() and cfg.mysql_password.strip() != "(giữ nguyên)":
+        CLUSTER_CONFIG["mysql_password"] = cfg.mysql_password.strip()
     if cfg.sync_interval_sec is not None:
-        CLUSTER_CONFIG["sync_interval_sec"] = max(1, min(60, int(cfg.sync_interval_sec)))
+        CLUSTER_CONFIG["sync_interval_sec"] = max(2, min(300, int(cfg.sync_interval_sec)))
     save_cluster_config_to_file()
     return {"status": "UPDATED", "config": get_config()}
 
 
 @app.get("/api/cluster/network-info")
 def get_network_info():
-    """Tự động phát hiện địa chỉ IP hiện tại của máy host (Wi-Fi/LAN DHCP)"""
     local_ip = "127.0.0.1"
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -1234,7 +1212,6 @@ def get_sync_logs(
     db_type: Optional[str] = Query("ALL", description="ALL | MYSQL_GR | MONGO_RS"),
     search: Optional[str] = Query("", description="Từ khóa tìm kiếm")
 ):
-    """Lấy danh sách nhật ký đồng bộ & nhân bản dữ liệu từ file JSON duy nhất"""
     db_str = str(db_type) if db_type and not hasattr(db_type, "default") else "ALL"
     if db_str in ["MYSQL_GR", "MYSQL"]:
         db_filter = "MYSQL"
@@ -1261,7 +1238,6 @@ def get_sync_logs(
 
 @app.post("/api/cluster/sync-logs/clear")
 def clear_sync_logs():
-    """Xóa toàn bộ nhật ký đồng bộ cụm khỏi file JSON duy nhất (ghi lại [])"""
     global SYNC_AUDIT_LOGS
     SYNC_AUDIT_LOGS.clear()
     sync_log_store.clear_sync_logs_store()
@@ -1270,7 +1246,6 @@ def clear_sync_logs():
 
 @app.post("/api/cluster/sync-logs/deduplicate")
 def deduplicate_sync_logs():
-    """Loại bỏ các bản ghi trùng lặp trong file JSON, chỉ giữ bản ghi sớm nhất"""
     global SYNC_AUDIT_LOGS
     removed = sync_log_store.deduplicate_sync_logs_file()
     SYNC_AUDIT_LOGS.clear()
@@ -1322,7 +1297,7 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
         return {"total_synced_rows": 0, "synced_nodes": [], "elapsed_ms": 0.0}
 
     try:
-        # 1. Quét danh sách order_id trên từng node
+    # lay order_id tung node
         all_orders_by_node = {}
         for host, item in online_conns.items():
             cur = item["cur"]
@@ -1405,7 +1380,7 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
                         except Exception:
                             pass
 
-        # 2. Quét thêm chênh lệch chi tiết tại bảng order_items (ví dụ thiếu 48 item lẻ)
+    # check them order_items
         all_items_by_node = {}
         for host, item in online_conns.items():
             cur = item["cur"]
@@ -1498,7 +1473,6 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
 
 @app.post("/api/cluster/sync-data")
 def manual_sync_cluster_data():
-    """Kích hoạt đối chiếu và đồng bộ dữ liệu giữa Node Primary và toàn bộ các Node Secondary trong cụm"""
     res = reconcile_mysql_cluster_data(log_sync=True)
     msg = f"Đã kiểm tra và đồng bộ dữ liệu thành công! ({res['total_synced_rows']} bản ghi được bù mới trên các Node)" if res["total_synced_rows"] > 0 else "✓ Dữ liệu trên toàn bộ các Node đang trực tuyến đã hoàn toàn đồng bộ 100%!"
     return {
@@ -1510,9 +1484,7 @@ def manual_sync_cluster_data():
     }
 
 
-# =====================================================================================
-# GIÁM SÁT CỤM 4 NODE & ĐỐI CHIẾU ĐỒNG BỘ DỮ LIỆU TRỰC TIẾP
-# =====================================================================================
+# monitor cluster
 @app.get("/api/cluster/status")
 def get_cluster_status(request: Request):
     """
@@ -1531,7 +1503,7 @@ def get_cluster_status(request: Request):
         "timestamp": datetime.now().strftime("%H:%M:%S")
     }
 
-    # 1. QUÉT SONG SONG CẢ 4 NODE MYSQL (TỐC ĐỘ CAO <0.25s)
+    # ping cac node mysql
     def _scan_mysql(idx_host):
         idx, host = idx_host
         t0 = time.perf_counter()
@@ -1567,7 +1539,7 @@ def get_cluster_status(request: Request):
             unreachable_mgr_rows = [r for r in mgr_rows if r.get("MEMBER_STATE") == "UNREACHABLE"]
             self_mgr = next((r for r in mgr_rows if r.get("MEMBER_HOST") == host or r.get("MEMBER_ID") == sys_info["uuid"]), None)
 
-            # Tự động gỡ nghẽn Quorum khi 1 node sập trong cụm 2 node
+            # unblock quorum neu can
             if len(online_mgr_rows) == 1 and len(unreachable_mgr_rows) >= 1 and self_mgr and self_mgr.get("MEMBER_ROLE") != "PRIMARY":
                 try:
                     cur.execute(f"SET GLOBAL group_replication_force_members = '{h_str}:33061'")
@@ -1608,8 +1580,6 @@ def get_cluster_status(request: Request):
     with ThreadPoolExecutor(max_workers=4) as ex:
         mysql_results = list(ex.map(_scan_mysql, enumerate(CLUSTER_CONFIG["mysql_nodes"], start=1)))
 
-    # Chuẩn hóa Single-Primary Tuyệt Đối:
-    # 1. Tìm UUID của Primary thực sự trong cụm
     group_primary_uuid = next((n["_primary_uuid"] for n in mysql_results if n.get("_primary_uuid")), None)
     primary_assigned = False
 
@@ -1621,8 +1591,6 @@ def get_cluster_status(request: Request):
             else:
                 n["role"] = "SECONDARY"
 
-    # Nếu không tìm thấy group_primary_uuid (ví dụ standalone hoặc GR OFFLINE):
-    # GIỮ NGUYÊN Node Primary đang phục vụ (_ACTIVE_MYSQL_PRIMARY), không tự cướp về Node 1!
     if not primary_assigned:
         curr_active = get_active_mysql_primary()
         active_node = next((n for n in mysql_results if n["host"] == curr_active and n["state"] == "ONLINE"), None)
@@ -1630,7 +1598,7 @@ def get_cluster_status(request: Request):
             active_node["role"] = "PRIMARY"
             primary_assigned = True
         else:
-            # Chọn node online có _ro == 0 và có dữ liệu mới nhất (số đơn hàng lớn nhất)
+            # lay node orders moi nhat
             candidates_p = [n for n in mysql_results if n["state"] == "ONLINE" and n.get("_ro") == 0]
             if candidates_p:
                 best_p = max(candidates_p, key=lambda x: x["counts"].get("orders", 0))
@@ -1638,15 +1606,11 @@ def get_cluster_status(request: Request):
                 primary_assigned = True
                 set_active_mysql_primary(best_p["host"])
 
-    # Luôn đồng bộ _ACTIVE_MYSQL_PRIMARY với Node được gán vai trò PRIMARY
     for n in mysql_results:
         if n.get("role") == "PRIMARY":
             set_active_mysql_primary(n["host"])
             break
 
-    # Đảm bảo nguyên tắc bảo toàn dữ liệu phân tán (Single-Primary Write Protection):
-    # - Node PRIMARY được mở ghi (read_only = OFF)
-    # - Các Node SECONDARY đang trực tuyến tự động khóa read_only = ON để chống split-brain
     for n in mysql_results:
         if n["state"] == "ONLINE":
             try:
@@ -1677,7 +1641,7 @@ def get_cluster_status(request: Request):
             for k, v in n["counts"].items():
                 status["data_counts"][k] = v
 
-    # Tự động phát hiện chênh lệch và tự động bù dữ liệu ngầm (Auto-Reconciliation)
+    # check lech du lieu
     online_order_counts = [n["counts"]["orders"] for n in mysql_results if n["counts"]["orders"] > 0]
     if len(online_order_counts) >= 2 and len(set(online_order_counts)) > 1:
         try:
@@ -1697,7 +1661,7 @@ def get_cluster_status(request: Request):
 
     status["mysql"] = mysql_results
 
-    # 2. QUÉT SONG SONG CẢ 4 NODE MONGODB (TỐC ĐỘ CAO <0.15s)
+    # ping cac node mongo
     try:
         ensure_mongo_primary_priority()
     except Exception:
@@ -1771,7 +1735,6 @@ def get_cluster_status(request: Request):
     with ThreadPoolExecutor(max_workers=4) as ex:
         mongo_results = list(ex.map(_scan_mongo, enumerate(CLUSTER_CONFIG["mongo_nodes"], start=1)))
 
-    # Đảm bảo danh sách Node MongoDB đang ONLINE luôn hiển thị đúng 1 PRIMARY
     online_m = [m for m in mongo_results if m["health"] == 1]
     if online_m:
         primaries = [m for m in online_m if m["state"] == "PRIMARY"]
@@ -1792,18 +1755,16 @@ def get_cluster_status(request: Request):
         else:
             set_active_mongo_primary(primaries[0]["host"])
 
-    # Tự động quét và đồng bộ bù dữ liệu cho các node offline vừa mở lại
     try:
         reconcile_offline_nodes_in_file()
     except Exception as e:
         print(f"[RECONCILE_STATUS_ERROR] {e}")
 
-    # Đọc nhật ký đồng bộ trực tiếp từ file JSON an toàn (không ghi đè lịch sử)
     global SYNC_AUDIT_LOGS
     all_logs = sync_log_store.load_sync_logs_safe()
     SYNC_AUDIT_LOGS = all_logs
 
-    # Tạo mã băm trạng thái nhật ký để frontend tự động phát hiện khi có bản ghi mới
+    # hash de fe check log moi
     sig_parts = [f"{l.get('id', l.get('log_id'))}:{l.get('trang_thai', l.get('status'))}" for l in all_logs[:15]]
     sync_logs_hash = f"{len(all_logs)}|" + "|".join(sig_parts)
 
@@ -1815,9 +1776,7 @@ def get_cluster_status(request: Request):
     return status
 
 
-# =====================================================================================
-# TRUY VẤN TỔNG HỢP ĐA MÔ HÌNH (POLYGLOT PERSISTENCE QUERY)
-# =====================================================================================
+# polyglot query
 @app.get("/api/polyglot/products")
 def get_polyglot_products(
     category: Optional[str] = Query(None),
@@ -1833,7 +1792,7 @@ def get_polyglot_products(
     """
     t_start = time.perf_counter()
 
-    # Bước 1: Truy vấn phân tán trên MySQL
+    # query mysql
     t_mysql_0 = time.perf_counter()
     conn, mysql_meta = get_mysql_connection(mode=read_mode)
     cur = conn.cursor(dictionary=True)
@@ -1850,7 +1809,6 @@ def get_polyglot_products(
 
     where_sql = " AND ".join(where_clauses)
 
-    # Đếm tổng số mặt hàng thỏa điều kiện lọc để phân trang
     count_sql = f"SELECT COUNT(*) AS total FROM products p WHERE {where_sql}"
     cur.execute(count_sql, tuple(filter_params))
     total_items = int(cur.fetchone()["total"] or 0)
@@ -1880,7 +1838,7 @@ def get_polyglot_products(
     conn.close()
     mysql_ms = round((time.perf_counter() - t_mysql_0) * 1000, 2)
 
-    # Bước 2: Truy vấn Aggregation trên MongoDB cho danh sách product_id vừa lấy
+    # aggregate mongo reviews
     t_mongo_0 = time.perf_counter()
     product_ids = [p["product_id"] for p in products]
     reviews_map = {}
@@ -1895,7 +1853,6 @@ def get_polyglot_products(
             mongo_role_used = mongo_meta["role"]
             mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
 
-            # Pipeline 1: Tổng hợp điểm sao & bình luận mới nhất từ product_reviews
             pipeline_rev = [
                 {"$match": {"product_id": {"$in": product_ids}}},
                 {"$sort": {"created_at": -1}},
@@ -1921,7 +1878,6 @@ def get_polyglot_products(
                     "recent_reviews": doc["recent_reviews"][:3]
                 }
 
-            # Pipeline 2: Đếm lượt tương tác xem hàng từ user_activity_logs
             pipeline_logs = [
                 {"$match": {"product_id": {"$in": product_ids}}},
                 {"$group": {"_id": "$product_id", "view_count": {"$sum": 1}}}
@@ -1935,7 +1891,7 @@ def get_polyglot_products(
 
     mongo_ms = round((time.perf_counter() - t_mongo_0) * 1000, 2)
 
-    # Bước 3: Hợp nhất kết quả Polyglot (Relational + Document)
+    # merge ket qua
     combined_results = []
     for p in products:
         pid = p["product_id"]
@@ -1980,9 +1936,7 @@ def get_polyglot_products(
     }
 
 
-# =====================================================================================
-# GIAO DỊCH ĐƠN HÀNG ACID TRÊN MYSQL & GHI PHI CẤU TRÚC MONGODB
-# =====================================================================================
+# checkout order
 class OrderRequest(BaseModel):
     user_id: int
     product_id: int
@@ -2040,7 +1994,6 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
         conn.commit()
         tx_ms = round((time.perf_counter() - t0) * 1000, 2)
 
-        # Đảm bảo đồng bộ sang các Node Secondary đang bật trên LAN nếu kênh XCom 33061 chưa kịp ghép nhóm
         try:
             cursor.execute("SELECT MEMBER_HOST FROM performance_schema.replication_group_members WHERE MEMBER_STATE = 'ONLINE'")
             xcom_hosts = {r["MEMBER_HOST"] for r in cursor.fetchall() if r.get("MEMBER_HOST")}
@@ -2091,7 +2044,7 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
             except Exception:
                 pass
 
-        # Ghi thêm nhật ký hành vi mua hàng vào MongoDB
+        # log activity vao mongo
         try:
             m_client, _ = get_mongo_client("primary")
             m_client[CLUSTER_CONFIG["mongo_db"]]["user_activity_logs"].with_options(
@@ -2108,14 +2061,13 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
         except Exception:
             pass
 
-        # Ghi nhận vào Nhật ký Đồng bộ Cụm (Replication & Sync Audit Log)
         sync_entry = None
         try:
             total_fmt = f"{total:,.0f} đ".replace(",", ".")
             unit_price_fmt = f"{prod['price']:,.0f} đ".replace(",", ".")
             new_stock = int(prod["stock_quantity"] - req.quantity)
 
-            # Đo lường trạng thái nhân bản thực tế từ MySQL
+        # lay gtid mysql
             meas_host = mysql_meta.get("host") or get_active_mysql_primary() or "localhost"
             meas = measure_mysql_replicas_for_log(conn, meas_host, t0)
             gtid_val = meas.get("gtid", f"GTID-{int(time.time())}")
@@ -2278,10 +2230,9 @@ def add_review(req: ReviewRequest, x_idempotency_key: Optional[str] = Header(Non
 
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
 
-    # Ghi nhận vào Nhật ký Đồng bộ Cụm (Replication & Sync Audit Log)
     sync_entry = None
     try:
-        # Đo lường trạng thái nhân bản thực tế từ MongoDB
+        # lay optime mongo
         meas_client = MongoClient(f"mongodb://{active_host}/?directConnection=true", serverSelectionTimeoutMS=500)
         meas = measure_mongo_replicas_for_log(meas_client, active_host, t0)
         meas_client.close()
@@ -2356,7 +2307,6 @@ def get_product_reviews_list(
     rating: Optional[int] = Query(None, ge=1, le=5),
     sort_by: Optional[str] = Query("newest")
 ):
-    """Lấy đầy đủ danh sách nhận xét của 1 sản phẩm từ MongoDB Replica Set kèm phân trang, lọc sao & sắp xếp"""
     t0 = time.perf_counter()
     try:
         m_client, mongo_meta = get_mongo_client(read_mode, with_meta=True)
@@ -2376,14 +2326,12 @@ def get_product_reviews_list(
             page = total_pages
         offset = (page - 1) * limit
 
-        # Tính điểm đánh giá trung bình của sản phẩm này (trên toàn bộ đánh giá)
         avg_res = list(col.aggregate([
             {"$match": base_filter},
             {"$group": {"_id": "$product_id", "avg_rating": {"$avg": "$rating"}}}
         ]))
         avg_rating = round(float(avg_res[0]["avg_rating"]), 2) if avg_res else 0.0
 
-        # Thống kê phân bố số sao (1 đến 5 sao) trên toàn bộ sản phẩm
         dist_res = list(col.aggregate([
             {"$match": base_filter},
             {"$group": {"_id": "$rating", "cnt": {"$sum": 1}}}
@@ -2394,7 +2342,6 @@ def get_product_reviews_list(
             if r_val in rating_dist:
                 rating_dist[r_val] = d.get("cnt", 0)
 
-        # Cấu hình sắp xếp
         if sort_by in ("rating_desc", "highest"):
             sort_spec = [("rating", -1), ("created_at", -1)]
         elif sort_by in ("rating_asc", "lowest"):
@@ -2447,7 +2394,6 @@ def get_products_options(
     q: Optional[str] = Query(None, description="Từ khóa lọc theo ID, SKU, tên SP, thương hiệu, danh mục"),
     limit: int = Query(2000, ge=10, le=5000)
 ):
-    """Lấy đầy đủ danh sách sản phẩm thực tế từ MySQL để hiển thị & lọc trong Combobox"""
     conn, meta = get_mysql_connection(mode="secondary_preferred")
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT COUNT(*) AS total FROM products")
@@ -2489,7 +2435,6 @@ def get_users_list(
     q: Optional[str] = Query(None, description="Từ khóa lọc theo ID, họ tên, username, SĐT, tỉnh/thành phố"),
     limit: int = Query(10000, ge=5, le=10000)
 ):
-    """Lấy đầy đủ danh sách khách hàng thực tế từ MySQL để hiển thị & lọc trong Combobox đặt hàng"""
     conn, meta = get_mysql_connection(mode="secondary_preferred")
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT COUNT(*) AS total FROM users")
@@ -2537,7 +2482,6 @@ def get_recent_orders(
     status: Optional[str] = Query(None, description="Lọc theo trạng thái: COMPLETED | CANCELLED | PENDING | PROCESSING"),
     filter_group: Optional[str] = Query(None, description="ALL | REGION:... | PAY:... | STATUS:...")
 ):
-    """Lấy danh sách các đơn hàng từ cụm MySQL (JOIN 5 bảng + Gom nhóm theo đơn hàng + Bộ lọc riêng biệt + Phân trang)"""
     t0 = time.perf_counter()
     conn, meta = get_mysql_connection(mode=read_mode)
     cur = conn.cursor(dictionary=True, buffered=True)
@@ -2629,11 +2573,10 @@ def get_recent_orders(
 
     for r in rows:
         r["total_amount"] = float(r["total_amount"] or 0)
-        # Loại bỏ đuôi #id khỏi tên khách hàng (vd: "Lê Văn Châu #1002" -> "Lê Văn Châu")
+        # bo suffix id
         if r.get("full_name"):
             r["full_name"] = re.sub(r"\s*#[0-9]+", "", r["full_name"]).strip()
 
-        # Hiển thị gom sản phẩm: làm rõ số mặt hàng khác và số lượng
         items_cnt = int(r.get("total_items_count") or 0)
         first_prod = r.get("first_product_name") or "Chưa có thông tin"
         if items_cnt > 1:
@@ -2667,7 +2610,6 @@ def get_recent_orders(
 
 @app.get("/api/orders/{order_id}")
 def get_order_detail(order_id: int, read_mode: Optional[str] = Query(None)):
-    """Lấy chi tiết đầy đủ của đơn hàng từ cụm MySQL (các mặt hàng, thanh toán, khách hàng)"""
     mode = read_mode if read_mode in ["primary", "secondary_preferred", "round_robin"] else "secondary_preferred"
     conn, meta = get_mysql_connection(mode=mode)
     cur = conn.cursor(dictionary=True, buffered=True)
@@ -2718,9 +2660,7 @@ def get_order_detail(order_id: int, read_mode: Optional[str] = Query(None)):
     return order
 
 
-# =====================================================================================
-# ĐO LƯỜNG & SO SÁNH HIỆU NĂNG TRỰC TIẾP (LOCAL VS DISTRIBUTED BENCHMARK)
-# =====================================================================================
+# benchmark
 @app.post("/api/benchmark/run")
 def run_benchmark(iterations: int = Query(50, ge=5, le=100)):
     """
@@ -2731,7 +2671,7 @@ def run_benchmark(iterations: int = Query(50, ge=5, le=100)):
     """
     results = {}
 
-    # 1. Đo Truy vấn Cục bộ (Local Single-Node Query trên Primary)
+    # 1. single node query
     local_times = []
     conn, primary_meta = get_mysql_connection(mode="primary")
     cur = conn.cursor(dictionary=True)
@@ -2750,12 +2690,10 @@ def run_benchmark(iterations: int = Query(50, ge=5, le=100)):
     cur.close()
     conn.close()
 
-    # 2. Đo Đọc Phân tải (Read Load Balancing qua các Node Online trong cụm)
+    # 2. distributed query
     dist_times = []
     nodes_hit = set()
 
-    # Khởi tạo trước danh sách kết nối tới các Node MySQL đang ONLINE (Connection Pool)
-    # để đo công bằng thuần túy thời gian thực thi câu lệnh SQL (không tính chi phí socket timeout của node offline)
     online_pools = []
     for host in CLUSTER_CONFIG["mysql_nodes"]:
         h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
@@ -2806,7 +2744,7 @@ def run_benchmark(iterations: int = Query(50, ge=5, le=100)):
         except Exception:
             pass
 
-    # 3. Đo Truy vấn Hợp nhất Đa mô hình (Polyglot Join MySQL + MongoDB Aggregation)
+    # 3. polyglot query
     poly_times = []
     m_client, _ = get_mongo_client("secondary_preferred")
     mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
@@ -2893,9 +2831,7 @@ def run_benchmark(iterations: int = Query(50, ge=5, le=100)):
     return results
 
 
-# =====================================================================================
-# CÔNG CỤ KHỞI TẠO & BƠM DỮ LIỆU LỚN TRỰC TIẾP TỪ WEB (NẾU CHƯA CHẠY FILE SQL)
-# =====================================================================================
+# seed data
 @app.post("/api/database/seed-large")
 def seed_large_database_api(scale: str = Query("standard", description="standard (212k SQL + 100k Mongo) | quick (25k SQL + 20k Mongo)")):
     """
@@ -2908,13 +2844,11 @@ def seed_large_database_api(scale: str = Query("standard", description="standard
     conn, mysql_meta = get_mysql_connection(mode="primary")
     cur = conn.cursor()
 
-    # Đọc và thực thi từng câu lệnh trong file SQL chuẩn
     with open(sql_file, "r", encoding="utf-8") as f:
         sql_content = f.read()
 
     statements = [s.strip() for s in sql_content.split(";") if s.strip()]
     for stmt in statements:
-        # Bỏ qua câu SELECT cuối cùng
         if stmt.upper().startswith("SELECT 'USERS'"):
             continue
         cur.execute(stmt)
@@ -2922,7 +2856,6 @@ def seed_large_database_api(scale: str = Query("standard", description="standard
     cur.close()
     conn.close()
 
-    # Nạp dữ liệu vào MongoDB
     m_client, mongo_host = get_mongo_client("primary")
     mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
     mdb["product_reviews"].drop()
@@ -2993,7 +2926,6 @@ def seed_large_database_api(scale: str = Query("standard", description="standard
 
     elapsed_sec = round(time.perf_counter() - t0, 2)
 
-    # Ghi nhận 1 bản ghi gộp duy nhất cho thao tác khởi tạo dữ liệu lớn
     try:
         total_seeded = 212000 + rev_total + log_total
         record_sync_log(
@@ -3152,7 +3084,6 @@ def reconcile_offline_nodes_in_file(force: bool = False):
         node_dich = log.get("node_dich") or []
         target_statuses = log.get("target_statuses") or []
 
-        # Chỉ xử lý các log có node đang chờ hoặc ngoại tuyến
         has_waiting = any(nd.get("trang_thai") == "OFFLINE_WAITING" for nd in node_dich) or \
                       any(ts.get("state") == "OFFLINE" for ts in target_statuses)
         if not has_waiting:
@@ -3187,7 +3118,7 @@ def reconcile_offline_nodes_in_file(force: bool = False):
                                     ts["state"] = "ONLINE"
                                     ts["message"] = "Đã nhận bù"
 
-                            # Tạo log sự kiện CATCHUP_SYNC nếu chưa tồn tại
+                    # tao log catchup sync
                             caught_lbl = nd.get("node", "Node 1")
                             caught_host = nd.get("host", h_sec)
                             tx_id = f"CATCHUP-{log.get('id', log.get('log_id', ''))}-{caught_lbl}"
@@ -3275,7 +3206,7 @@ def reconcile_offline_nodes_in_file(force: bool = False):
                                         ts["state"] = "ONLINE"
                                         ts["message"] = "Đã nhận bù"
 
-                                # Tạo log sự kiện CATCHUP_SYNC nếu chưa tồn tại
+                    # tao log catchup sync
                                 caught_lbl = nd.get("node", "Node 1")
                                 caught_host = nd.get("host", h_sec)
                                 tx_id = f"CATCHUP-{log.get('id', log.get('log_id', ''))}-{caught_lbl}"
@@ -3341,7 +3272,6 @@ def reconcile_offline_nodes_in_file(force: bool = False):
                         except Exception:
                             pass
 
-        # Cập nhật lại target_statuses nếu còn sót trạng thái OFFLINE mà node_dich đã APPLIED
         for ts in target_statuses:
             if ts.get("state") == "OFFLINE":
                 for nd in node_dich:
@@ -3350,7 +3280,6 @@ def reconcile_offline_nodes_in_file(force: bool = False):
                         ts["message"] = "Đã nhận bù"
                         updated_any = True
 
-        # Nếu toàn bộ node đích đã APPLIED thành công thì chuyển trạng thái cha thành SYNCED
         if node_dich and all(nd.get("trang_thai") == "APPLIED" for nd in node_dich):
             log["trang_thai"] = "SYNCED"
             log["status"] = "SYNCED"

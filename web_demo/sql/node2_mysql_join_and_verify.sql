@@ -1,12 +1,5 @@
--- =====================================================================================
--- FILE DÀNH CHO NODE 2 (192.168.1.222) - GIA NHẬP CỤM & KIỂM TRA ĐỒNG BỘ DỮ LIỆU
--- Người phụ trách: Thành viên 2 (Máy Secondary 1 - Đọc phân tải & Dự phòng Failover)
--- =====================================================================================
 
--- =====================================================================================
--- PHẦN 1: THIẾT LẬP TÀI KHOẢN REPLICATION & GIA NHẬP CỤM GROUP REPLICATION
--- (Chạy sau khi Node 1 đã Bootstrap thành công)
--- =====================================================================================
+-- 1. tao user replication
 SET SQL_LOG_BIN = 0;
 CREATE USER IF NOT EXISTS 'repl'@'%' IDENTIFIED WITH mysql_native_password BY 'ReplPass_Nhom2@2026';
 ALTER USER 'repl'@'%' IDENTIFIED WITH mysql_native_password BY 'ReplPass_Nhom2@2026';
@@ -23,12 +16,10 @@ CHANGE REPLICATION SOURCE TO
     SOURCE_PASSWORD = 'ReplPass_Nhom2@2026' 
     FOR CHANNEL 'group_replication_recovery';
 
--- Khởi động Group Replication để gia nhập vào cụm của Node 1
+-- start group replication
 START GROUP_REPLICATION;
 
--- =====================================================================================
--- PHẦN 2: KIỂM TRA TRẠNG THÁI CỤM & ĐỐI CHIẾU ĐỒNG BỘ 212,000 DÒNG DỮ LIỆU TRÊN NODE 2
--- =====================================================================================
+-- 2. check trang thai va dem dong
 SELECT 
     @@hostname AS Node2_Hostname,
     @@server_id AS Node2_ServerID,
@@ -39,7 +30,6 @@ SELECT
     MEMBER_ID, MEMBER_HOST, MEMBER_PORT, MEMBER_STATE, MEMBER_ROLE
 FROM performance_schema.replication_group_members;
 
--- Kiểm tra tổng số dòng dữ liệu đã tự động sao chép từ Node 1 sang Node 2:
 USE ecommerce_db;
 SELECT 'Node 2 - users' AS Table_Check, COUNT(*) AS Total_Rows FROM users
 UNION ALL
@@ -51,9 +41,7 @@ SELECT 'Node 2 - order_items', COUNT(*) FROM order_items
 UNION ALL
 SELECT 'Node 2 - payments', COUNT(*) FROM payments;
 
--- =====================================================================================
--- PHẦN 3: TRUY VẤN ĐỌC PHÂN TÁN TẠI NODE 2 (READ SCALING - THỐNG KÊ DOANH THU MIỀN TRUNG)
--- =====================================================================================
+-- 3. query thong ke doanh thu mien trung
 SELECT 
     p.category,
     COUNT(DISTINCT o.order_id) AS total_orders,
@@ -66,10 +54,7 @@ WHERE o.shipping_region = 'MIEN_TRUNG' AND o.status = 'COMPLETED'
 GROUP BY p.category
 ORDER BY total_revenue_vnd DESC;
 
--- =====================================================================================
--- PHẦN 4: GIAO DỊCH KIỂM THỬ FAILOVER TRÊN NODE 2
--- (Chỉ chạy phần này khi rút dây mạng Node 1 -> Node 2 tự động thăng cấp lên PRIMARY)
--- =====================================================================================
+-- 4. test failover neu len primary
 /*
 START TRANSACTION;
 UPDATE products SET stock_quantity = stock_quantity - 1 WHERE product_id = 1;

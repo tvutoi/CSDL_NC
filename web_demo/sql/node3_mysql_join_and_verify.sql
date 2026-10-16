@@ -1,11 +1,5 @@
--- =====================================================================================
--- FILE DÀNH CHO NODE 3 (192.168.1.223) - GIA NHẬP CỤM QUORUM & KIỂM TRA ĐỒNG BỘ
--- Người phụ trách: Thành viên 3 (Máy Secondary 2 - Đảm bảo Quorum 3 nút & Đọc phân tải)
--- =====================================================================================
 
--- =====================================================================================
--- PHẦN 1: THIẾT LẬP TÀI KHOẢN REPLICATION & GIA NHẬP CỤM GROUP REPLICATION
--- =====================================================================================
+-- 1. tao user replication
 SET SQL_LOG_BIN = 0;
 CREATE USER IF NOT EXISTS 'repl'@'%' IDENTIFIED WITH mysql_native_password BY 'ReplPass_Nhom2@2026';
 ALTER USER 'repl'@'%' IDENTIFIED WITH mysql_native_password BY 'ReplPass_Nhom2@2026';
@@ -22,12 +16,10 @@ CHANGE REPLICATION SOURCE TO
     SOURCE_PASSWORD = 'ReplPass_Nhom2@2026' 
     FOR CHANNEL 'group_replication_recovery';
 
--- Khởi động Group Replication để gia nhập vào cụm (đạt đủ 3/3 nút ONLINE)
+-- start group replication
 START GROUP_REPLICATION;
 
--- =====================================================================================
--- PHẦN 2: KIỂM TRA TRẠNG THÁI QUORUM 3 NÚT & ĐỐI CHIẾU 212,000 DÒNG DỮ LIỆU TẠI NODE 3
--- =====================================================================================
+-- 2. check trang thai
 SELECT 
     @@hostname AS Node3_Hostname,
     @@server_id AS Node3_ServerID,
@@ -49,9 +41,7 @@ SELECT 'Node 3 - order_items', COUNT(*) FROM order_items
 UNION ALL
 SELECT 'Node 3 - payments', COUNT(*) FROM payments;
 
--- =====================================================================================
--- PHẦN 3: TRUY VẤN ĐỌC PHÂN TÁN TẠI NODE 3 (THỐNG KÊ KHÁCH HÀNG & PHƯƠNG THỨC THANH TOÁN)
--- =====================================================================================
+-- 3. query thong ke khach hang
 SELECT 
     u.city,
     pm.payment_method,

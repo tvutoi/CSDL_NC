@@ -1,34 +1,29 @@
--- =====================================================================================
--- FILE DÀNH CHO NODE 1 (192.168.1.221) - BƯỚC 1: KHỞI TẠO CỤM MYSQL GROUP REPLICATION
--- Người phụ trách: Thành viên 1 (Trưởng nhóm - Máy Primary ban đầu)
--- Hướng dẫn chạy: Mở MySQL Command Line hoặc MySQL Workbench trên Node 1 và thực thi
--- =====================================================================================
 
--- 1. Tạo tài khoản Replication chuyên dụng (Không ghi vào binlog để tránh xung đột GTID)
+-- 1. tao user replication
 SET SQL_LOG_BIN = 0;
 CREATE USER IF NOT EXISTS 'repl'@'%' IDENTIFIED WITH mysql_native_password BY 'ReplPass_Nhom2@2026';
 ALTER USER 'repl'@'%' IDENTIFIED WITH mysql_native_password BY 'ReplPass_Nhom2@2026';
 GRANT REPLICATION SLAVE ON *.* TO 'repl'@'%';
 GRANT CONNECTION_ADMIN, BACKUP_ADMIN, GROUP_REPLICATION_STREAM ON *.* TO 'repl'@'%';
 
--- Tạo tài khoản root cho phép kết nối từ các máy trong mạng LAN (Node 2, 3, 4)
+-- allow root tu lan
 CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY 'RootPassword@2026';
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 SET SQL_LOG_BIN = 1;
 
--- 2. Cấu hình kênh phục hồi dữ liệu phân tán (Recovery Channel)
+-- 2. recovery channel
 CHANGE REPLICATION SOURCE TO 
     SOURCE_USER = 'repl', 
     SOURCE_PASSWORD = 'ReplPass_Nhom2@2026' 
     FOR CHANNEL 'group_replication_recovery';
 
--- 3. BOOTSTRAP KHỞI TẠO NHÓM (CHỈ CHẠY TRÊN NODE 1 DUY NHẤT)
+-- 3. bootstrap group tren node 1
 SET GLOBAL group_replication_bootstrap_group = ON;
 START GROUP_REPLICATION;
 SET GLOBAL group_replication_bootstrap_group = OFF;
 
--- 4. Kiểm tra trạng thái Node 1 (Kết quả chuẩn: MEMBER_STATE = 'ONLINE', MEMBER_ROLE = 'PRIMARY')
+-- 4. check trang thai
 SELECT 
     MEMBER_ID, 
     MEMBER_HOST, 

@@ -1,7 +1,3 @@
-// =====================================================================================
-// FILE DÀNH CHO NODE 3 (192.168.1.223) - KIỂM TRA ĐỒNG BỘ & THỐNG KÊ LOG HÀNH VI MONGODB
-// Chạy bằng lệnh: mongosh "mongodb://192.168.1.223:27017/ecommerce_nosql" --file node3_mongodb_verify_secondary.js
-// =====================================================================================
 
 db = db.getSiblingDB('ecommerce_nosql');
 db.getMongo().setReadPref('secondaryPreferred');

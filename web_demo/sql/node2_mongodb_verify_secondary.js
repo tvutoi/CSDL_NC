@@ -1,11 +1,7 @@
-// =====================================================================================
-// FILE DÀNH CHO NODE 2 (192.168.1.222) - KIỂM TRA ĐỒNG BỘ & ĐỌC PHÂN TÁN MONGODB
-// Chạy bằng lệnh: mongosh "mongodb://192.168.1.222:27017/ecommerce_nosql" --file node2_mongodb_verify_secondary.js
-// =====================================================================================
 
 db = db.getSiblingDB('ecommerce_nosql');
 
-// Cho phép đọc dữ liệu trực tiếp trên Node Secondary để phân tải (Read Scaling)
+// cho phep doc secondary
 db.getMongo().setReadPref('secondaryPreferred');
 
 print("=== KIỂM TRA TRẠNG THÁI ĐỒNG BỘ REPLICA SET TẠI NODE 2 (192.168.1.222) ===");
