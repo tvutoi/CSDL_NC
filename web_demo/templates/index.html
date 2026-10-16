@@ -252,6 +252,9 @@
         font-weight: 600;
         border-bottom: 1px solid #eef0f2;
       }
+      .cluster-node-header span {
+        white-space: nowrap;
+      }
       .cluster-node-row {
         display: grid;
         grid-template-columns: 76px minmax(190px, 1fr) 98px 112px 84px;
@@ -508,13 +511,29 @@
       /* BỐ CỤC 7 CỘT RIÊNG CHO TAB 3 (TRẠNG THÁI CỤM MÁY CHỦ - HÌNH 2 + CỘT PING CUỐI CÙNG) */
       .cluster-node-header.cluster-grid-tab3-mysql,
       .cluster-node-row.cluster-grid-tab3-mysql {
-        grid-template-columns: 66px minmax(115px, 1.2fr) 88px 100px 75px 75px 72px !important;
+        grid-template-columns: 58px minmax(115px, 1fr) 82px 90px 72px 72px 60px !important;
         column-gap: 6px !important;
       }
       .cluster-node-header.cluster-grid-tab3-mongo,
       .cluster-node-row.cluster-grid-tab3-mongo {
-        grid-template-columns: 66px minmax(130px, 1.2fr) 88px 100px 72px 115px 72px !important;
+        grid-template-columns: 58px minmax(130px, 1fr) 82px 90px 66px 145px 60px !important;
         column-gap: 6px !important;
+      }
+      .cluster-node-header.cluster-grid-tab3-mysql,
+      .cluster-node-header.cluster-grid-tab3-mongo {
+        font-size: 13px !important;
+      }
+      .cluster-node-header.cluster-grid-tab3-mysql span,
+      .cluster-node-header.cluster-grid-tab3-mongo span {
+        white-space: nowrap !important;
+      }
+      .cluster-grid-tab3-mysql .badge-pill,
+      .cluster-grid-tab3-mongo .badge-pill {
+        min-width: unset !important;
+        width: 100% !important;
+        max-width: 86px !important;
+        padding: 3px 4px !important;
+        font-size: 12px !important;
       }
 
       /* Khung trạng thái cụm máy chủ hiển thị cố định ở vị trí trên đỉnh (như hình 1) cho tất cả các tab */
