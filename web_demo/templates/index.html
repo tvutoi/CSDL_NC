@@ -505,6 +505,18 @@
         column-gap: 12px;
       }
 
+      /* BỐ CỤC 6 CỘT RIÊNG CHO TAB 3 (TRẠNG THÁI CỤM MÁY CHỦ - HÌNH 2) */
+      .cluster-node-header.cluster-grid-tab3-mysql,
+      .cluster-node-row.cluster-grid-tab3-mysql {
+        grid-template-columns: 68px minmax(125px, 1.2fr) 92px 105px 82px 80px !important;
+        column-gap: 8px !important;
+      }
+      .cluster-node-header.cluster-grid-tab3-mongo,
+      .cluster-node-row.cluster-grid-tab3-mongo {
+        grid-template-columns: 68px minmax(140px, 1.2fr) 92px 105px 78px 120px !important;
+        column-gap: 8px !important;
+      }
+
       /* Khung trạng thái cụm máy chủ hiển thị cố định ở vị trí trên đỉnh (như hình 1) cho tất cả các tab */
       body:not(.tech-on) #detailedStatusBox {
         display: none !important;
@@ -1199,7 +1211,7 @@
         <div class="row g-0 cluster-grid-container">
           <div class="col-lg-6 cluster-col pe-lg-3">
             <div class="cluster-col-title">Cụm MySQL Group Replication</div>
-            <div class="cluster-node-header">
+            <div class="cluster-node-header" id="header-mysql-nodes">
               <span class="text-start">Node</span>
               <span class="text-start tech-detail">Địa chỉ</span>
               <span class="text-center">Vai trò</span>
@@ -1210,7 +1222,7 @@
           </div>
           <div class="col-lg-6 cluster-col ps-lg-3 border-start-lg">
             <div class="cluster-col-title">Cụm MongoDB Replica Set</div>
-            <div class="cluster-node-header">
+            <div class="cluster-node-header" id="header-mongo-nodes">
               <span class="text-start">Node</span>
               <span class="text-start tech-detail">Địa chỉ</span>
               <span class="text-center">Vai trò</span>
@@ -3355,26 +3367,136 @@
         initUiState();
       }
 
-      // 1. TẢI TRẠNG THÁI CỤM SERVER
-      async function fetchClusterStatus() {
-        try {
-          const res = await fetch("/api/cluster/status?_t=" + Date.now(), {
-            cache: "no-store",
-          });
-          const data = await res.json();
-          const timestampStr = data.timestamp || new Date().toLocaleTimeString("vi-VN");
-          const headerUpd = document.getElementById("header-last-updated");
-          if (headerUpd) headerUpd.innerText = timestampStr;
-          if (document.getElementById("last-updated-time")) {
-            document.getElementById("last-updated-time").innerText = timestampStr;
-          }
-          if (document.getElementById("bar-last-updated-time")) {
-            document.getElementById("bar-last-updated-time").innerText = timestampStr;
+      let cachedClusterData = null;
+
+      function isTabClusterActive() {
+        const btn = document.getElementById("tab-btn-cluster");
+        return Boolean(btn && btn.classList.contains("active"));
+      }
+
+      function renderClusterStatusSummary(data) {
+        if (!data) return;
+        cachedClusterData = data;
+
+        const isTab3 = isTabClusterActive();
+        const headerMysql = document.getElementById("header-mysql-nodes");
+        const headerMongo = document.getElementById("header-mongo-nodes");
+        const summaryMysql = document.getElementById("summary-mysql-nodes");
+        const summaryMongo = document.getElementById("summary-mongo-nodes");
+
+        if (isTab3) {
+          // =========================================================================
+          // HIỂN THỊ DÀNH RIÊNG CHO TAB 3 (TRẠNG THÁI CỤM MÁY CHỦ - HÌNH 2)
+          // Có các cột: Đơn hàng, Sản phẩm (MySQL) & Đánh giá, Nhật ký hoạt động (MongoDB)
+          // =========================================================================
+          if (headerMysql) {
+            headerMysql.className = "cluster-node-header cluster-grid-tab3-mysql";
+            headerMysql.innerHTML = `
+              <span class="text-start">Node</span>
+              <span class="text-start">Địa chỉ IP</span>
+              <span class="text-center">Vai trò</span>
+              <span class="text-center">Trạng thái</span>
+              <span class="text-end">Đơn hàng</span>
+              <span class="text-end">Sản phẩm</span>
+            `;
           }
 
-          // Tóm tắt trên khung chi tiết
-          const mysqlSummary = data.mysql
-            .map((n, idx) => {
+          if (headerMongo) {
+            headerMongo.className = "cluster-node-header cluster-grid-tab3-mongo";
+            headerMongo.innerHTML = `
+              <span class="text-start">Node</span>
+              <span class="text-start">Địa chỉ IP:Port</span>
+              <span class="text-center">Vai trò</span>
+              <span class="text-center">Trạng thái</span>
+              <span class="text-end">Đánh giá</span>
+              <span class="text-end">Nhật ký hoạt động</span>
+            `;
+          }
+
+          if (summaryMysql && data.mysql) {
+            summaryMysql.innerHTML = data.mysql.map((n, idx) => {
+              const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
+              const nodeLabel = (n.node_name || `Node ${idx + 1}`).replace(":", "").trim();
+              const rowClass = isOnline ? "cluster-node-row cluster-grid-tab3-mysql" : "cluster-node-row cluster-grid-tab3-mysql is-offline";
+              const roleHtml = !isOnline
+                ? `<div class="cluster-node-role"><span class="text-muted small">-</span></div>`
+                : (n.role === "PRIMARY"
+                  ? `<div class="cluster-node-role"><span class="badge-pill badge-pill--primary">Node chính</span></div>`
+                  : `<div class="cluster-node-role"><span class="badge-pill badge-pill--muted">Node phụ</span></div>`);
+              const stateHtml = !isOnline
+                ? `<div class="cluster-node-status"><span class="badge-pill badge-pill--danger">Mất kết nối</span></div>`
+                : `<div class="cluster-node-status"><span class="badge-pill badge-pill--ok">Sẵn sàng</span></div>`;
+              const ordersFmt = isOnline ? (n.counts?.orders || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>';
+              const productsFmt = isOnline ? (n.counts?.products || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>';
+
+              return `<div class="${rowClass}">
+                <div class="cluster-node-name">${nodeLabel}</div>
+                <div class="cluster-node-ip">${n.host}</div>
+                ${roleHtml}
+                ${stateHtml}
+                <div class="text-end font-monospace" style="font-size: 14px;">${ordersFmt}</div>
+                <div class="text-end font-monospace" style="font-size: 14px;">${productsFmt}</div>
+              </div>`;
+            }).join("");
+          }
+
+          if (summaryMongo && data.mongodb) {
+            summaryMongo.innerHTML = data.mongodb.map((n, idx) => {
+              const isOnline = n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1;
+              const nodeLabel = (n.node_name || `Node ${idx + 1}`).replace(":", "").trim();
+              const rowClass = isOnline ? "cluster-node-row cluster-grid-tab3-mongo" : "cluster-node-row cluster-grid-tab3-mongo is-offline";
+              const isPrimary = n.state === "PRIMARY";
+              const roleHtml = !isOnline
+                ? `<div class="cluster-node-role"><span class="text-muted small">-</span></div>`
+                : (isPrimary
+                  ? `<div class="cluster-node-role"><span class="badge-pill badge-pill--primary">Node chính</span></div>`
+                  : `<div class="cluster-node-role"><span class="badge-pill badge-pill--muted">Node phụ</span></div>`);
+              const stateHtml = !isOnline
+                ? `<div class="cluster-node-status"><span class="badge-pill badge-pill--danger">Mất kết nối</span></div>`
+                : `<div class="cluster-node-status"><span class="badge-pill badge-pill--ok">Sẵn sàng</span></div>`;
+              const reviewsFmt = isOnline ? (n.reviews_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>';
+              const logsFmt = isOnline ? (n.logs_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>';
+
+              return `<div class="${rowClass}">
+                <div class="cluster-node-name">${nodeLabel}</div>
+                <div class="cluster-node-ip">${n.host}</div>
+                ${roleHtml}
+                ${stateHtml}
+                <div class="text-end font-monospace" style="font-size: 14px;">${reviewsFmt}</div>
+                <div class="text-end font-monospace" style="font-size: 14px;">${logsFmt}</div>
+              </div>`;
+            }).join("");
+          }
+
+        } else {
+          // =========================================================================
+          // HIỂN THỊ DÀNH CHO CÁC TAB CÒN LẠI (HÌNH 1)
+          // Có các cột: Node, Địa chỉ, Vai trò, Trạng thái, Ping
+          // =========================================================================
+          if (headerMysql) {
+            headerMysql.className = "cluster-node-header";
+            headerMysql.innerHTML = `
+              <span class="text-start">Node</span>
+              <span class="text-start tech-detail">Địa chỉ</span>
+              <span class="text-center">Vai trò</span>
+              <span class="text-center">Trạng thái</span>
+              <span class="text-end cluster-col-ping tech-detail">Ping</span>
+            `;
+          }
+
+          if (headerMongo) {
+            headerMongo.className = "cluster-node-header";
+            headerMongo.innerHTML = `
+              <span class="text-start">Node</span>
+              <span class="text-start tech-detail">Địa chỉ</span>
+              <span class="text-center">Vai trò</span>
+              <span class="text-center">Trạng thái</span>
+              <span class="text-end cluster-col-ping tech-detail">Ping</span>
+            `;
+          }
+
+          if (summaryMysql && data.mysql) {
+            summaryMysql.innerHTML = data.mysql.map((n, idx) => {
               const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
               const nodeLabel = (n.node_name || `Node ${idx + 1}`).replace(":", "").trim();
               const rowClass = isOnline ? "cluster-node-row" : "cluster-node-row is-offline";
@@ -3399,12 +3521,11 @@
                 ${stateHtml}
                 ${pingHtml}
               </div>`;
-            })
-            .join("");
-          document.getElementById("summary-mysql-nodes").innerHTML = mysqlSummary;
+            }).join("");
+          }
 
-          const mongoSummary = data.mongodb
-            .map((n, idx) => {
+          if (summaryMongo && data.mongodb) {
+            summaryMongo.innerHTML = data.mongodb.map((n, idx) => {
               const isOnline = n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1;
               const nodeLabel = (n.node_name || `Node ${idx + 1}`).replace(":", "").trim();
               const rowClass = isOnline ? "cluster-node-row" : "cluster-node-row is-offline";
@@ -3430,9 +3551,30 @@
                 ${stateHtml}
                 ${pingHtml}
               </div>`;
-            })
-            .join("");
-          document.getElementById("summary-mongo-nodes").innerHTML = mongoSummary;
+            }).join("");
+          }
+        }
+      }
+
+      // 1. TẢI TRẠNG THÁI CỤM SERVER
+      async function fetchClusterStatus() {
+        try {
+          const res = await fetch("/api/cluster/status?_t=" + Date.now(), {
+            cache: "no-store",
+          });
+          const data = await res.json();
+          const timestampStr = data.timestamp || new Date().toLocaleTimeString("vi-VN");
+          const headerUpd = document.getElementById("header-last-updated");
+          if (headerUpd) headerUpd.innerText = timestampStr;
+          if (document.getElementById("last-updated-time")) {
+            document.getElementById("last-updated-time").innerText = timestampStr;
+          }
+          if (document.getElementById("bar-last-updated-time")) {
+            document.getElementById("bar-last-updated-time").innerText = timestampStr;
+          }
+
+          // Cập nhật khung chi tiết trạng thái cụm máy chủ (tự động theo Tab 3 vs các tab khác)
+          renderClusterStatusSummary(data);
 
           const dc = data.data_counts || {};
           const totalSql =
@@ -6025,7 +6167,16 @@
           configModalEl.addEventListener("show.bs.modal", loadClusterConfig);
         }
 
-        // Giữ vị trí hiển thị bảng cụm máy chủ cố định trên đỉnh ở tất cả các tab
+        // Tự động chuyển đổi các cột hiển thị của bảng cụm máy chủ:
+        // - Khi ở Tab 3 (Trạng thái cụm máy chủ): hiển thị chi tiết số liệu bản ghi như Hình 2 (Đơn hàng, Sản phẩm / Đánh giá, Nhật ký)
+        // - Khi ở các tab còn lại: hiển thị cột giám sát mạng như Hình 1 (Ping)
+        document.querySelectorAll('button[data-bs-toggle="tab"]').forEach((btn) => {
+          btn.addEventListener("shown.bs.tab", () => {
+            if (cachedClusterData) {
+              renderClusterStatusSummary(cachedClusterData);
+            }
+          });
+        });
 
         refreshAll(false);
         updateClusterSyncTimer(2);
