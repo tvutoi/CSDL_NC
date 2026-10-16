@@ -2203,11 +2203,11 @@
 
     <!-- MODAL CẤU HÌNH IP MẠNG LAN -->
     <div class="modal fade" id="configModal" tabindex="-1">
-      <div class="modal-dialog">
+      <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header py-2 bg-light">
-            <h6 class="modal-title fw-bold">
-              Cấu hình Địa chỉ IP Cụm 4 Máy chủ LAN
+            <h6 class="modal-title fw-bold text-navy">
+              <i class="fas fa-network-wired me-1"></i> Cấu hình Địa chỉ IP Cụm 4 Máy chủ Phân tán
             </h6>
             <button
               type="button"
@@ -2215,44 +2215,76 @@
               data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
+            <!-- PRESET PROFILE SELECTION -->
+            <div class="card mb-3 border-primary-subtle bg-light-subtle shadow-sm">
+              <div class="card-body p-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <span class="fw-bold small text-navy">
+                    <i class="fas fa-bolt text-warning me-1"></i> Chọn nhanh kịch bản kiểm thử (Presets):
+                  </span>
+                  <span class="badge bg-secondary-subtle text-secondary small" id="current-preset-badge">Tùy chỉnh thủ công</span>
+                </div>
+                <div class="row g-2">
+                  <div class="col-md-4">
+                    <button type="button" class="btn btn-outline-primary w-100 text-start py-2 px-2 h-100" onclick="applyClusterPreset('docker')">
+                      <div class="fw-bold small"><i class="fab fa-docker me-1 text-primary"></i> 1. Giả lập 4 Node Docker</div>
+                      <div class="text-muted" style="font-size: 11px;">Chạy cả 4 node trên 1 máy (127.0.0.1). Không phụ thuộc mạng Wi-Fi/LAN.</div>
+                    </button>
+                  </div>
+                  <div class="col-md-4">
+                    <button type="button" class="btn btn-outline-success w-100 text-start py-2 px-2 h-100" onclick="applyClusterPreset('lan_lab')">
+                      <div class="fw-bold small"><i class="fas fa-server me-1 text-success"></i> 2. Cụm LAN IP Tĩnh (Lab)</div>
+                      <div class="text-muted" style="font-size: 11px;">Chuẩn phòng Lab: Node 1 (192.168.1.221), Node 2,3,4 (192.168.1.222).</div>
+                    </button>
+                  </div>
+                  <div class="col-md-4">
+                    <button type="button" class="btn btn-outline-info w-100 text-start py-2 px-2 h-100" onclick="applyClusterPreset('wifi_dynamic')">
+                      <div class="fw-bold small"><i class="fas fa-wifi me-1 text-info"></i> 3. Theo IP Wi-Fi/DHCP máy</div>
+                      <div class="text-muted" style="font-size: 11px;">Gán Node 2/3/4 theo IP Wi-Fi động hiện tại (<span id="detected-wifi-ip">192.168.1.43</span>).</div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="mb-2">
-              <label class="form-label"
-                >Danh sách IP 4 Node MySQL (cách nhau dấu phẩy)</label
+              <label class="form-label fw-semibold small mb-1"
+                >Danh sách IP:Port 4 Node MySQL (cách nhau dấu phẩy)</label
               >
               <input
                 type="text"
                 id="cfg-mysql-nodes"
-                class="form-control"
-                value="192.168.1.221, 192.168.1.222, 192.168.1.222:3307, 192.168.1.222:3308" />
+                class="form-control font-monospace form-control-sm"
+                value="127.0.0.1:3305, 127.0.0.1:3306, 127.0.0.1:3307, 127.0.0.1:3308" />
             </div>
             <div class="mb-2">
-              <label class="form-label">Danh sách IP:Port 4 Node MongoDB</label>
+              <label class="form-label fw-semibold small mb-1">Danh sách IP:Port 4 Node MongoDB</label>
               <input
                 type="text"
                 id="cfg-mongo-nodes"
-                class="form-control"
-                value="192.168.1.221:27017, 192.168.1.222:27017, 192.168.1.222:27018, 192.168.1.222:27019" />
+                class="form-control font-monospace form-control-sm"
+                value="127.0.0.1:27016, 127.0.0.1:27017, 127.0.0.1:27018, 127.0.0.1:27019" />
             </div>
             <div class="row g-2 mb-2">
               <div class="col-md-4">
-                <label class="form-label">IP Client / Router</label>
+                <label class="form-label fw-semibold small mb-1">IP Máy Client</label>
                 <input
                   type="text"
                   id="cfg-client-node"
-                  class="form-control"
-                  value="192.168.1.224" />
+                  class="form-control font-monospace form-control-sm"
+                  value="127.0.0.1" />
               </div>
               <div class="col-md-4">
-                <label class="form-label">Mật khẩu MySQL</label>
+                <label class="form-label fw-semibold small mb-1">Mật khẩu MySQL</label>
                 <input
                   type="password"
                   id="cfg-mysql-pass"
-                  class="form-control"
+                  class="form-control form-control-sm"
                   value="root" />
               </div>
               <div class="col-md-4">
-                <label class="form-label" title="Thời gian tự động đồng bộ và quét trạng thái định kỳ">Tự động đồng bộ</label>
-                <div class="input-group">
+                <label class="form-label fw-semibold small mb-1" title="Thời gian tự động đồng bộ và quét trạng thái định kỳ">Tự động đồng bộ</label>
+                <div class="input-group input-group-sm">
                   <input
                     type="number"
                     id="cfg-sync-interval"
@@ -2265,12 +2297,11 @@
               </div>
             </div>
             <div
-              class="alert alert-info py-1 px-2 mb-0 mt-2 small"
+              class="alert alert-info py-2 px-3 mb-0 mt-2 small"
               style="font-size: 0.8rem">
-              Cấu hình được nạp tự động từ server. Bấm <b>Lưu cấu hình</b> sẽ tự
+              <i class="fas fa-info-circle me-1"></i> Cấu hình được nạp tự động từ server. Bấm <b>Lưu cấu hình</b> sẽ tự
               động ghi vĩnh viễn vào file
-              <code>cluster_config.json</code> (không bị mất khi restart
-              server).
+              <code>cluster_config.json</code> (áp dụng ngay lập tức cho toàn bộ các tab và lưu bền vững khi khởi động lại).
             </div>
           </div>
           <div class="modal-footer py-2">
@@ -2282,9 +2313,9 @@
             </button>
             <button
               type="button"
-              class="btn btn-sm btn-navy"
+              class="btn btn-sm btn-navy fw-semibold"
               onclick="saveClusterConfig()">
-              Lưu cấu hình
+              <i class="fas fa-save me-1"></i> Lưu cấu hình & Áp dụng
             </button>
           </div>
         </div>
@@ -5953,8 +5984,55 @@
         currentClusterSyncTimer = setInterval(fetchClusterStatus, intervalSec * 1000);
       }
 
+      window._detectedLocalIp = "192.168.1.43";
+
+      function applyClusterPreset(mode) {
+        const badge = document.getElementById("current-preset-badge");
+        const detectedIp = window._detectedLocalIp || "192.168.1.43";
+        if (mode === "docker") {
+          document.getElementById("cfg-mysql-nodes").value = "127.0.0.1:3305, 127.0.0.1:3306, 127.0.0.1:3307, 127.0.0.1:3308";
+          document.getElementById("cfg-mongo-nodes").value = "127.0.0.1:27016, 127.0.0.1:27017, 127.0.0.1:27018, 127.0.0.1:27019";
+          document.getElementById("cfg-client-node").value = "127.0.0.1";
+          if (badge) {
+            badge.className = "badge bg-primary text-white small";
+            badge.innerText = "Giả lập 4 Node Docker";
+          }
+        } else if (mode === "lan_lab") {
+          document.getElementById("cfg-mysql-nodes").value = "192.168.1.221, 192.168.1.222, 192.168.1.222:3307, 192.168.1.222:3308";
+          document.getElementById("cfg-mongo-nodes").value = "192.168.1.221:27017, 192.168.1.222:27017, 192.168.1.222:27018, 192.168.1.222:27019";
+          document.getElementById("cfg-client-node").value = "192.168.1.224";
+          if (badge) {
+            badge.className = "badge bg-success text-white small";
+            badge.innerText = "IP Tĩnh Lab (192.168.1.221/222)";
+          }
+        } else if (mode === "wifi_dynamic") {
+          document.getElementById("cfg-mysql-nodes").value = `192.168.1.221, ${detectedIp}, ${detectedIp}:3307, ${detectedIp}:3308`;
+          document.getElementById("cfg-mongo-nodes").value = `192.168.1.221:27017, ${detectedIp}:27017, ${detectedIp}:27018, ${detectedIp}:27019`;
+          document.getElementById("cfg-client-node").value = detectedIp;
+          if (badge) {
+            badge.className = "badge bg-info text-white small";
+            badge.innerText = `Wi-Fi DHCP (${detectedIp})`;
+          }
+        }
+      }
+
       async function loadClusterConfig() {
         try {
+          // Cập nhật IP Wi-Fi/DHCP thực tế nếu có
+          try {
+            const netRes = await fetch("/api/cluster/network-info");
+            if (netRes.ok) {
+              const netData = await netRes.json();
+              if (netData.local_ip && netData.local_ip !== "127.0.0.1") {
+                window._detectedLocalIp = netData.local_ip;
+              }
+            }
+          } catch (_) {}
+          const elWifi = document.getElementById("detected-wifi-ip");
+          if (elWifi && window._detectedLocalIp) {
+            elWifi.innerText = window._detectedLocalIp;
+          }
+
           const res = await fetch("/api/cluster/config?_t=" + Date.now(), {
             cache: "no-store",
           });
@@ -5981,6 +6059,26 @@
             if (el) el.value = cfg.sync_interval_sec;
             updateClusterSyncTimer(cfg.sync_interval_sec);
           }
+
+          // Cập nhật nhãn Preset hiện tại
+          const badge = document.getElementById("current-preset-badge");
+          if (badge && cfg.mysql_nodes && cfg.mysql_nodes.length > 0) {
+            const first = cfg.mysql_nodes[0];
+            if (first.includes("127.0.0.1")) {
+              badge.className = "badge bg-primary text-white small";
+              badge.innerText = "Giả lập 4 Node Docker";
+            } else if (first.includes("192.168.1.221") && cfg.mysql_nodes.some(n => n.includes("192.168.1.222"))) {
+              badge.className = "badge bg-success text-white small";
+              badge.innerText = "IP Tĩnh Lab (192.168.1.221/222)";
+            } else if (cfg.mysql_nodes.some(n => n.includes(window._detectedLocalIp))) {
+              badge.className = "badge bg-info text-white small";
+              badge.innerText = `Wi-Fi DHCP (${window._detectedLocalIp})`;
+            } else {
+              badge.className = "badge bg-secondary-subtle text-secondary small";
+              badge.innerText = "Tùy chỉnh thủ công";
+            }
+          }
+
           console.log(
             "[ClusterConfig] Đã nạp cấu hình mới nhất từ server:",
             cfg,

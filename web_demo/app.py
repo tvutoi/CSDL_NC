@@ -1210,6 +1210,23 @@ def update_config(cfg: ClusterConfigUpdate):
     return {"status": "UPDATED", "config": get_config()}
 
 
+@app.get("/api/cluster/network-info")
+def get_network_info():
+    """Tự động phát hiện địa chỉ IP hiện tại của máy host (Wi-Fi/LAN DHCP)"""
+    local_ip = "127.0.0.1"
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        pass
+    return {
+        "local_ip": local_ip,
+        "is_dynamic": local_ip not in ["192.168.1.221", "192.168.1.222", "127.0.0.1"]
+    }
+
+
 @app.get("/api/cluster/sync-logs")
 def get_sync_logs(
     limit: int = Query(100, ge=1, le=500),
