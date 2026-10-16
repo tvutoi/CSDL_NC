@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <clipPath id="blueBagClip">
+      <rect x="1" y="90" width="320" height="358" rx="24" ry="24" />
+    </clipPath>
+  </defs>
+  <!-- Orange Bag (Back) -->
+  <rect x="235" y="198" width="270" height="286" rx="24" ry="24" fill="#f9c23c" />
+  <path d="M 460 242 V 305 C 460 365 390 380 320 355" fill="none" stroke="#ff6723" stroke-width="18" stroke-linecap="round" />
+
+  <!-- Blue Bag (Front) -->
+  <!-- Handle -->
+  <path d="M 63 140 V 95 C 63 20 259 20 259 95 V 140" fill="none" stroke="#0074ba" stroke-width="18" stroke-linecap="round" />
+  <!-- Body -->
+  <rect x="1" y="90" width="320" height="358" rx="24" ry="24" fill="#00a6ed" />
+  <!-- Stripes (clipped) -->
+  <g clip-path="url(#blueBagClip)">
+    <rect x="0" y="210" width="325" height="42" fill="#0074ba" />
+    <rect x="0" y="291" width="325" height="42" fill="#0074ba" />
+    <rect x="0" y="372" width="325" height="42" fill="#0074ba" />
+  </g>
+</svg>
