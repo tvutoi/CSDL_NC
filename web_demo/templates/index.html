@@ -508,33 +508,7 @@
         column-gap: 12px;
       }
 
-      /* BỐ CỤC 7 CỘT RIÊNG CHO TAB 3 (TRẠNG THÁI CỤM MÁY CHỦ - HÌNH 2 + CỘT PING CUỐI CÙNG) */
-      .cluster-node-header.cluster-grid-tab3-mysql,
-      .cluster-node-row.cluster-grid-tab3-mysql {
-        grid-template-columns: 58px minmax(115px, 1fr) 82px 90px 72px 72px 60px !important;
-        column-gap: 6px !important;
-      }
-      .cluster-node-header.cluster-grid-tab3-mongo,
-      .cluster-node-row.cluster-grid-tab3-mongo {
-        grid-template-columns: 58px minmax(130px, 1fr) 82px 90px 66px 145px 60px !important;
-        column-gap: 6px !important;
-      }
-      .cluster-node-header.cluster-grid-tab3-mysql,
-      .cluster-node-header.cluster-grid-tab3-mongo {
-        font-size: 13px !important;
-      }
-      .cluster-node-header.cluster-grid-tab3-mysql span,
-      .cluster-node-header.cluster-grid-tab3-mongo span {
-        white-space: nowrap !important;
-      }
-      .cluster-grid-tab3-mysql .badge-pill,
-      .cluster-grid-tab3-mongo .badge-pill {
-        min-width: unset !important;
-        width: 100% !important;
-        max-width: 86px !important;
-        padding: 3px 4px !important;
-        font-size: 12px !important;
-      }
+
 
       /* Khung trạng thái cụm máy chủ hiển thị cố định ở vị trí trên đỉnh (như hình 1) cho tất cả các tab */
       body:not(.tech-on) #detailedStatusBox {
@@ -3405,31 +3379,28 @@
 
         if (isTab3) {
           // =========================================================================
-          // HIỂN THỊ DÀNH RIÊNG CHO TAB 3 (TRẠNG THÁI CỤM MÁY CHỦ - HÌNH 2)
-          // Có các cột: Đơn hàng, Sản phẩm (MySQL) & Đánh giá, Nhật ký hoạt động (MongoDB) + Ping cuối cùng
+          // HIỂN THỊ DÀNH CHO TAB 3 (TRẠNG THÁI CỤM MÁY CHỦ)
+          // 5 cột: Node, Địa chỉ IP/Port, Vai trò, Trạng thái, Ping
+          // (Đã xóa cột Đơn hàng & Sản phẩm ở MySQL; Đánh giá & Nhật ký ở MongoDB)
           // =========================================================================
           if (headerMysql) {
-            headerMysql.className = "cluster-node-header cluster-grid-tab3-mysql";
+            headerMysql.className = "cluster-node-header";
             headerMysql.innerHTML = `
               <span class="text-start">Node</span>
               <span class="text-start">Địa chỉ IP</span>
               <span class="text-center">Vai trò</span>
               <span class="text-center">Trạng thái</span>
-              <span class="text-end">Đơn hàng</span>
-              <span class="text-end">Sản phẩm</span>
               <span class="text-end cluster-col-ping">Ping</span>
             `;
           }
 
           if (headerMongo) {
-            headerMongo.className = "cluster-node-header cluster-grid-tab3-mongo";
+            headerMongo.className = "cluster-node-header";
             headerMongo.innerHTML = `
               <span class="text-start">Node</span>
               <span class="text-start">Địa chỉ IP:Port</span>
               <span class="text-center">Vai trò</span>
               <span class="text-center">Trạng thái</span>
-              <span class="text-end">Đánh giá</span>
-              <span class="text-end">Nhật ký hoạt động</span>
               <span class="text-end cluster-col-ping">Ping</span>
             `;
           }
@@ -3438,7 +3409,7 @@
             summaryMysql.innerHTML = data.mysql.map((n, idx) => {
               const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
               const nodeLabel = (n.node_name || `Node ${idx + 1}`).replace(":", "").trim();
-              const rowClass = isOnline ? "cluster-node-row cluster-grid-tab3-mysql" : "cluster-node-row cluster-grid-tab3-mysql is-offline";
+              const rowClass = isOnline ? "cluster-node-row" : "cluster-node-row is-offline";
               const roleHtml = !isOnline
                 ? `<div class="cluster-node-role"><span class="text-muted small">-</span></div>`
                 : (n.role === "PRIMARY"
@@ -3447,8 +3418,6 @@
               const stateHtml = !isOnline
                 ? `<div class="cluster-node-status"><span class="badge-pill badge-pill--danger">Mất kết nối</span></div>`
                 : `<div class="cluster-node-status"><span class="badge-pill badge-pill--ok">Sẵn sàng</span></div>`;
-              const ordersFmt = isOnline ? (n.counts?.orders || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>';
-              const productsFmt = isOnline ? (n.counts?.products || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>';
               const pingFormatted = (isOnline && n.ping_ms !== null && n.ping_ms !== undefined)
                 ? Number(n.ping_ms).toFixed(1) + " ms"
                 : "–";
@@ -3460,8 +3429,6 @@
                 <div class="cluster-node-ip">${n.host}</div>
                 ${roleHtml}
                 ${stateHtml}
-                <div class="text-end font-monospace" style="font-size: 14px;">${ordersFmt}</div>
-                <div class="text-end font-monospace" style="font-size: 14px;">${productsFmt}</div>
                 ${pingHtml}
               </div>`;
             }).join("");
@@ -3471,7 +3438,7 @@
             summaryMongo.innerHTML = data.mongodb.map((n, idx) => {
               const isOnline = n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1;
               const nodeLabel = (n.node_name || `Node ${idx + 1}`).replace(":", "").trim();
-              const rowClass = isOnline ? "cluster-node-row cluster-grid-tab3-mongo" : "cluster-node-row cluster-grid-tab3-mongo is-offline";
+              const rowClass = isOnline ? "cluster-node-row" : "cluster-node-row is-offline";
               const isPrimary = n.state === "PRIMARY";
               const roleHtml = !isOnline
                 ? `<div class="cluster-node-role"><span class="text-muted small">-</span></div>`
@@ -3481,8 +3448,6 @@
               const stateHtml = !isOnline
                 ? `<div class="cluster-node-status"><span class="badge-pill badge-pill--danger">Mất kết nối</span></div>`
                 : `<div class="cluster-node-status"><span class="badge-pill badge-pill--ok">Sẵn sàng</span></div>`;
-              const reviewsFmt = isOnline ? (n.reviews_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>';
-              const logsFmt = isOnline ? (n.logs_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>';
               const pingFormatted = (isOnline && n.ping_ms !== null && n.ping_ms !== undefined)
                 ? Number(n.ping_ms).toFixed(1) + " ms"
                 : "–";
@@ -3494,8 +3459,6 @@
                 <div class="cluster-node-ip">${n.host}</div>
                 ${roleHtml}
                 ${stateHtml}
-                <div class="text-end font-monospace" style="font-size: 14px;">${reviewsFmt}</div>
-                <div class="text-end font-monospace" style="font-size: 14px;">${logsFmt}</div>
                 ${pingHtml}
               </div>`;
             }).join("");
@@ -6200,9 +6163,7 @@
           configModalEl.addEventListener("show.bs.modal", loadClusterConfig);
         }
 
-        // Tự động chuyển đổi các cột hiển thị của bảng cụm máy chủ:
-        // - Khi ở Tab 3 (Trạng thái cụm máy chủ): hiển thị chi tiết số liệu bản ghi như Hình 2 (Đơn hàng, Sản phẩm / Đánh giá, Nhật ký)
-        // - Khi ở các tab còn lại: hiển thị cột giám sát mạng như Hình 1 (Ping)
+        // Cập nhật bảng cụm máy chủ (5 cột chuẩn: Node | Địa chỉ | Vai trò | Trạng thái | Ping) khi chuyển tab:
         document.querySelectorAll('button[data-bs-toggle="tab"]').forEach((btn) => {
           btn.addEventListener("shown.bs.tab", () => {
             if (cachedClusterData) {
