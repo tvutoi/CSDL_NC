@@ -505,16 +505,16 @@
         column-gap: 12px;
       }
 
-      /* BỐ CỤC 6 CỘT RIÊNG CHO TAB 3 (TRẠNG THÁI CỤM MÁY CHỦ - HÌNH 2) */
+      /* BỐ CỤC 7 CỘT RIÊNG CHO TAB 3 (TRẠNG THÁI CỤM MÁY CHỦ - HÌNH 2 + CỘT PING CUỐI CÙNG) */
       .cluster-node-header.cluster-grid-tab3-mysql,
       .cluster-node-row.cluster-grid-tab3-mysql {
-        grid-template-columns: 68px minmax(125px, 1.2fr) 92px 105px 82px 80px !important;
-        column-gap: 8px !important;
+        grid-template-columns: 66px minmax(115px, 1.2fr) 88px 100px 75px 75px 72px !important;
+        column-gap: 6px !important;
       }
       .cluster-node-header.cluster-grid-tab3-mongo,
       .cluster-node-row.cluster-grid-tab3-mongo {
-        grid-template-columns: 68px minmax(140px, 1.2fr) 92px 105px 78px 120px !important;
-        column-gap: 8px !important;
+        grid-template-columns: 66px minmax(130px, 1.2fr) 88px 100px 72px 115px 72px !important;
+        column-gap: 6px !important;
       }
 
       /* Khung trạng thái cụm máy chủ hiển thị cố định ở vị trí trên đỉnh (như hình 1) cho tất cả các tab */
@@ -3387,7 +3387,7 @@
         if (isTab3) {
           // =========================================================================
           // HIỂN THỊ DÀNH RIÊNG CHO TAB 3 (TRẠNG THÁI CỤM MÁY CHỦ - HÌNH 2)
-          // Có các cột: Đơn hàng, Sản phẩm (MySQL) & Đánh giá, Nhật ký hoạt động (MongoDB)
+          // Có các cột: Đơn hàng, Sản phẩm (MySQL) & Đánh giá, Nhật ký hoạt động (MongoDB) + Ping cuối cùng
           // =========================================================================
           if (headerMysql) {
             headerMysql.className = "cluster-node-header cluster-grid-tab3-mysql";
@@ -3398,6 +3398,7 @@
               <span class="text-center">Trạng thái</span>
               <span class="text-end">Đơn hàng</span>
               <span class="text-end">Sản phẩm</span>
+              <span class="text-end cluster-col-ping">Ping</span>
             `;
           }
 
@@ -3410,6 +3411,7 @@
               <span class="text-center">Trạng thái</span>
               <span class="text-end">Đánh giá</span>
               <span class="text-end">Nhật ký hoạt động</span>
+              <span class="text-end cluster-col-ping">Ping</span>
             `;
           }
 
@@ -3428,6 +3430,11 @@
                 : `<div class="cluster-node-status"><span class="badge-pill badge-pill--ok">Sẵn sàng</span></div>`;
               const ordersFmt = isOnline ? (n.counts?.orders || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>';
               const productsFmt = isOnline ? (n.counts?.products || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>';
+              const pingFormatted = (isOnline && n.ping_ms !== null && n.ping_ms !== undefined)
+                ? Number(n.ping_ms).toFixed(1) + " ms"
+                : "–";
+              const pingStyle = isOnline ? "" : 'style="color: #9ca3af;"';
+              const pingHtml = `<div class="cluster-node-ping text-muted" ${pingStyle}>${pingFormatted}</div>`;
 
               return `<div class="${rowClass}">
                 <div class="cluster-node-name">${nodeLabel}</div>
@@ -3436,6 +3443,7 @@
                 ${stateHtml}
                 <div class="text-end font-monospace" style="font-size: 14px;">${ordersFmt}</div>
                 <div class="text-end font-monospace" style="font-size: 14px;">${productsFmt}</div>
+                ${pingHtml}
               </div>`;
             }).join("");
           }
@@ -3456,6 +3464,11 @@
                 : `<div class="cluster-node-status"><span class="badge-pill badge-pill--ok">Sẵn sàng</span></div>`;
               const reviewsFmt = isOnline ? (n.reviews_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>';
               const logsFmt = isOnline ? (n.logs_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>';
+              const pingFormatted = (isOnline && n.ping_ms !== null && n.ping_ms !== undefined)
+                ? Number(n.ping_ms).toFixed(1) + " ms"
+                : "–";
+              const pingStyle = isOnline ? "" : 'style="color: #9ca3af;"';
+              const pingHtml = `<div class="cluster-node-ping text-muted" ${pingStyle}>${pingFormatted}</div>`;
 
               return `<div class="${rowClass}">
                 <div class="cluster-node-name">${nodeLabel}</div>
@@ -3464,6 +3477,7 @@
                 ${stateHtml}
                 <div class="text-end font-monospace" style="font-size: 14px;">${reviewsFmt}</div>
                 <div class="text-end font-monospace" style="font-size: 14px;">${logsFmt}</div>
+                ${pingHtml}
               </div>`;
             }).join("");
           }
