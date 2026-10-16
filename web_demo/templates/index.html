@@ -505,13 +505,15 @@
         column-gap: 12px;
       }
 
-      /* Khi ở Tab Trạng thái Cụm Server (Tab 3), ẩn cả 2 khung trạng thái trên đỉnh để tránh lặp lại các bảng bên dưới */
-      body.on-tab-cluster #compactStatusBar,
-      body.on-tab-cluster #detailedStatusBox,
-      body:has(#tab-btn-cluster.active) #compactStatusBar,
-      body:has(#tab-btn-cluster.active) #detailedStatusBox,
-      body:has(#tab-cluster.active) #compactStatusBar,
-      body:has(#tab-cluster.active) #detailedStatusBox {
+      /* Khung trạng thái cụm máy chủ hiển thị cố định ở vị trí trên đỉnh (như hình 1) cho tất cả các tab */
+      body:not(.tech-on) #detailedStatusBox {
+        display: none !important;
+      }
+      body:not(.tech-on) #compactStatusBar {
+        display: flex !important;
+      }
+      body:not(.tech-on) #btn-toggle-cluster-expand,
+      body:not(.tech-on) #btn-toggle-cluster-collapse {
         display: none !important;
       }
 
@@ -903,10 +905,6 @@
         border-radius: 4px;
         border: 1px solid #bbf7d0;
       }
-      body.on-tab-cluster #compactStatusBar,
-      body.on-tab-cluster #detailedStatusBox {
-        display: none !important;
-      }
       .sync-row-clickable {
         cursor: pointer;
         transition: background-color 0.12s ease;
@@ -1168,18 +1166,18 @@
 
     <div class="container-fluid px-4 mt-3 main-content-wrapper">
       <!-- THANH TRẠNG THÁI GỌN (CHẾ ĐỘ THU GỌN - COMPACT) -->
-      <div id="compactStatusBar" class="d-flex flex-wrap justify-content-between align-items-center py-2 px-3 bg-white border rounded mb-3 shadow-sm" style="font-size: 13px;">
+      <div id="compactStatusBar" class="d-flex flex-wrap justify-content-between align-items-center py-2 px-3 bg-white border rounded mb-3 shadow-sm" style="font-size: 13.5px;">
         <div class="d-flex flex-wrap align-items-center gap-3">
           <span id="bar-mysql-summary"><span class="status-dot dot-online"></span>MySQL: <strong>--/-- node</strong></span>
           <span class="text-muted">&middot;</span>
           <span id="bar-mongo-summary"><span class="status-dot dot-online"></span>MongoDB: <strong>--/-- node</strong></span>
           <span class="text-muted">&middot;</span>
-          <span id="bar-primary-summary" class="text-secondary">Node chính: <strong>--</strong></span>
+          <span id="bar-primary-summary" class="text-secondary">Node chính: <strong class="text-dark">--</strong></span>
           <span class="text-muted tech-detail">&middot;</span>
           <span id="bar-data-summary" class="text-secondary small tech-detail">-- dòng MySQL &middot; -- tài liệu MongoDB</span>
         </div>
         <div class="d-flex align-items-center gap-2">
-          <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" id="btn-toggle-cluster-expand" aria-expanded="false" style="font-size: 12px;">Mở rộng &#9662;</button>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2 tech-detail" type="button" id="btn-toggle-cluster-expand" aria-expanded="false" style="font-size: 12px;">Mở rộng &#9662;</button>
         </div>
       </div>
 
@@ -1187,14 +1185,14 @@
       <div id="detailedStatusBox" class="status-strip mb-3">
         <div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom">
           <div class="fw-bold text-navy" style="font-size: 15px;">
-            <i class="bi bi-hdd-network-fill me-1.5 text-primary"></i>Trạng thái cụm máy chủ
+            Trạng thái cụm máy chủ
           </div>
           <div class="d-flex align-items-center gap-3">
             <div class="text-secondary tech-detail" id="cluster-data-scale-wrap" style="font-size: 13.5px;">
               Quy mô dữ liệu: <strong class="text-dark" id="summary-sql-rows">0</strong> dòng MySQL &middot; <strong class="text-dark" id="summary-mongo-docs">0</strong> tài liệu MongoDB
             </div>
             <button class="btn btn-sm btn-link text-secondary text-decoration-none py-0 px-1" id="btn-toggle-cluster-collapse" aria-expanded="true" title="Thu gọn" style="font-size: 13px;">
-              Thu gọn &#9652;
+              Thu gọn -
             </button>
           </div>
         </div>
@@ -1899,72 +1897,6 @@
         <!-- TAB 3: TRẠNG THÁI CỤM SERVER & ĐỐI CHIẾU ĐỒNG BỘ DỮ LIỆU                 -->
         <!-- ========================================================================= -->
         <div class="tab-pane fade" id="tab-cluster" role="tabpanel">
-          <div class="row g-3 mb-3">
-            <div class="col-lg-6">
-              <div class="panel-box h-100 mb-0 d-flex flex-column">
-                <div class="panel-header d-flex justify-content-between align-items-center" style="min-height: 48px;">
-                  <span class="fw-bold">Cụm MySQL Group Replication</span>
-                  <button
-                    class="btn btn-sm btn-outline-secondary"
-                    id="btn-refresh-mysql-cluster"
-                    onclick="refreshClusterTables(this)">
-                    &#x21bb; Kiểm tra lại
-                  </button>
-                </div>
-                <div class="panel-body p-0 flex-grow-1">
-                  <div class="table-responsive">
-                    <table
-                      class="table table-bordered table-sm table-custom mb-0 align-middle">
-                      <thead>
-                        <tr>
-                          <th class="text-start">Node</th>
-                          <th class="text-start">Địa chỉ IP</th>
-                          <th class="text-start">Vai trò</th>
-                          <th class="text-start">Trạng thái</th>
-                          <th class="text-end">Đơn hàng</th>
-                          <th class="text-end">Sản phẩm</th>
-                        </tr>
-                      </thead>
-                      <tbody id="cluster-mysql-table"></tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-lg-6">
-              <div class="panel-box h-100 mb-0 d-flex flex-column">
-                <div class="panel-header d-flex justify-content-between align-items-center" style="min-height: 48px;">
-                  <span class="fw-bold">Cụm MongoDB Replica Set</span>
-                  <button
-                    class="btn btn-sm btn-outline-secondary"
-                    id="btn-refresh-mongo-cluster"
-                    onclick="refreshClusterTables(this)">
-                    &#x21bb; Kiểm tra lại
-                  </button>
-                </div>
-                <div class="panel-body p-0 flex-grow-1">
-                  <div class="table-responsive">
-                    <table
-                      class="table table-bordered table-sm table-custom mb-0 align-middle">
-                      <thead>
-                        <tr>
-                          <th class="text-start">Node</th>
-                          <th class="text-start">Địa chỉ IP:Port</th>
-                          <th class="text-start">Vai trò</th>
-                          <th class="text-start">Trạng thái</th>
-                          <th class="text-end">Đánh giá</th>
-                          <th class="text-end">Nhật ký hoạt động</th>
-                        </tr>
-                      </thead>
-                      <tbody id="cluster-mongo-table"></tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <!-- Bảng đối chiếu số lượng bản ghi giữa các Node -->
           <div class="panel-box mb-3">
             <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2" style="min-height: 48px;">
@@ -3320,8 +3252,7 @@
       }
 
       function updateTopBarVisibility() {
-        // Quản lý hiển thị hoàn toàn tự động qua CSS:
-        // body.cluster-collapsed và body.on-tab-cluster
+        // Quản lý hiển thị tự động qua applyClusterPanelState()
       }
 
       // =========================================================================
@@ -3369,6 +3300,10 @@
       function toggleTechnicalMode(enabled) {
         technicalMode = Boolean(enabled);
         localStorage.setItem("ui.technicalMode", technicalMode ? "1" : "0");
+        if (technicalMode) {
+          clusterCollapsed = false;
+          localStorage.setItem("ui.clusterCollapsed", "0");
+        }
         applyClusterPanelState();
       }
 
@@ -3558,57 +3493,63 @@
             barDataEl.innerHTML = `${sqlFmt} dòng MySQL &middot; ${mongoFmt} tài liệu MongoDB`;
           }
 
-          // Bảng chi tiết MySQL ở Tab 3
-          document.getElementById("cluster-mysql-table").innerHTML = data.mysql
-            .map((n) => {
-              const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
-              const stateBadge = isOnline
-                ? `<span class="badge-pill badge-pill--ok">Sẵn sàng</span>`
-                : `<span class="badge-pill badge-pill--danger">Mất kết nối</span>`;
-              const roleBadge = !isOnline
-                ? `<span class="text-muted small">-</span>`
-                : n.role === "PRIMARY"
-                  ? `<span class="badge-pill badge-pill--primary">Node chính</span>`
-                  : `<span class="badge-pill badge-pill--muted">Node phụ</span>`;
-              return `
-            <tr>
-              <td class="fw-medium text-dark text-start" style="font-size: 14px;">${n.node_name}</td>
-              <td class="font-monospace text-start" style="font-size: 14px;">${n.host}</td>
-              <td class="text-start">${roleBadge}</td>
-              <td class="text-start">${stateBadge}</td>
-              <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.counts?.orders || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
-              <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.counts?.products || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
-            </tr>
-          `;
-            })
-            .join("");
-
-          // Bảng chi tiết MongoDB ở Tab 3
-          document.getElementById("cluster-mongo-table").innerHTML =
-            data.mongodb
+          // Bảng chi tiết MySQL ở Tab 3 (nếu có phần tử trong DOM)
+          const mysqlClusterTbl = document.getElementById("cluster-mysql-table");
+          if (mysqlClusterTbl) {
+            mysqlClusterTbl.innerHTML = data.mysql
               .map((n) => {
-                const isOnline = n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1;
+                const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
                 const stateBadge = isOnline
                   ? `<span class="badge-pill badge-pill--ok">Sẵn sàng</span>`
                   : `<span class="badge-pill badge-pill--danger">Mất kết nối</span>`;
-                const displayRole = !isOnline ? "OFFLINE" : (n.state === "PRIMARY" ? "PRIMARY" : "SECONDARY");
                 const roleBadge = !isOnline
                   ? `<span class="text-muted small">-</span>`
-                  : displayRole === "PRIMARY"
+                  : n.role === "PRIMARY"
                     ? `<span class="badge-pill badge-pill--primary">Node chính</span>`
                     : `<span class="badge-pill badge-pill--muted">Node phụ</span>`;
                 return `
-            <tr>
-              <td class="fw-medium text-dark text-start" style="font-size: 14px;">${n.node_name}</td>
-              <td class="font-monospace text-start" style="font-size: 14px;">${n.host}</td>
-              <td class="text-start">${roleBadge}</td>
-              <td class="text-start">${stateBadge}</td>
-              <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.reviews_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
-              <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.logs_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
-            </tr>
-          `;
+              <tr>
+                <td class="fw-medium text-dark text-start" style="font-size: 14px;">${n.node_name}</td>
+                <td class="font-monospace text-start" style="font-size: 14px;">${n.host}</td>
+                <td class="text-start">${roleBadge}</td>
+                <td class="text-start">${stateBadge}</td>
+                <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.counts?.orders || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
+                <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.counts?.products || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
+              </tr>
+            `;
               })
               .join("");
+          }
+
+          // Bảng chi tiết MongoDB ở Tab 3 (nếu có phần tử trong DOM)
+          const mongoClusterTbl = document.getElementById("cluster-mongo-table");
+          if (mongoClusterTbl) {
+            mongoClusterTbl.innerHTML =
+              data.mongodb
+                .map((n) => {
+                  const isOnline = n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1;
+                  const stateBadge = isOnline
+                    ? `<span class="badge-pill badge-pill--ok">Sẵn sàng</span>`
+                    : `<span class="badge-pill badge-pill--danger">Mất kết nối</span>`;
+                  const displayRole = !isOnline ? "OFFLINE" : (n.state === "PRIMARY" ? "PRIMARY" : "SECONDARY");
+                  const roleBadge = !isOnline
+                    ? `<span class="text-muted small">-</span>`
+                    : displayRole === "PRIMARY"
+                      ? `<span class="badge-pill badge-pill--primary">Node chính</span>`
+                      : `<span class="badge-pill badge-pill--muted">Node phụ</span>`;
+                  return `
+              <tr>
+                <td class="fw-medium text-dark text-start" style="font-size: 14px;">${n.node_name}</td>
+                <td class="font-monospace text-start" style="font-size: 14px;">${n.host}</td>
+                <td class="text-start">${roleBadge}</td>
+                <td class="text-start">${stateBadge}</td>
+                <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.reviews_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
+                <td class="text-end font-monospace" style="font-size: 14px;">${isOnline ? (n.logs_count || 0).toLocaleString("vi-VN") : '<span class="text-muted">-</span>'}</td>
+              </tr>
+            `;
+                })
+                .join("");
+          }
 
           // Bảng đối chiếu đồng bộ giữa cả 4 Node
           const m1 = data.mysql[0]?.counts || {};
@@ -6084,17 +6025,7 @@
           configModalEl.addEventListener("show.bs.modal", loadClusterConfig);
         }
 
-        // Tự động ẩn khung trạng thái trên đỉnh khi xem Tab 3 (tránh lặp lại với các bảng bên dưới)
-        document.querySelectorAll('button[data-bs-toggle="tab"]').forEach((btn) => {
-          btn.addEventListener("shown.bs.tab", (e) => {
-            if (e.target.id === "tab-btn-cluster") {
-              document.body.classList.add("on-tab-cluster");
-            } else {
-              document.body.classList.remove("on-tab-cluster");
-            }
-            updateTopBarVisibility();
-          });
-        });
+        // Giữ vị trí hiển thị bảng cụm máy chủ cố định trên đỉnh ở tất cả các tab
 
         refreshAll(false);
         updateClusterSyncTimer(2);
