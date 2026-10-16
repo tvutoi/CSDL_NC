@@ -3371,184 +3371,90 @@
         if (!data) return;
         cachedClusterData = data;
 
-        const isTab3 = isTabClusterActive();
         const headerMysql = document.getElementById("header-mysql-nodes");
         const headerMongo = document.getElementById("header-mongo-nodes");
         const summaryMysql = document.getElementById("summary-mysql-nodes");
         const summaryMongo = document.getElementById("summary-mongo-nodes");
 
-        if (isTab3) {
-          // =========================================================================
-          // HIỂN THỊ DÀNH CHO TAB 3 (TRẠNG THÁI CỤM MÁY CHỦ)
-          // 5 cột: Node, Địa chỉ IP/Port, Vai trò, Trạng thái, Ping
-          // (Đã xóa cột Đơn hàng & Sản phẩm ở MySQL; Đánh giá & Nhật ký ở MongoDB)
-          // =========================================================================
-          if (headerMysql) {
-            headerMysql.className = "cluster-node-header";
-            headerMysql.innerHTML = `
-              <span class="text-start">Node</span>
-              <span class="text-start">Địa chỉ IP</span>
-              <span class="text-center">Vai trò</span>
-              <span class="text-center">Trạng thái</span>
-              <span class="text-end cluster-col-ping">Ping</span>
-            `;
-          }
+        if (headerMysql) {
+          headerMysql.className = "cluster-node-header";
+          headerMysql.innerHTML = `
+            <span class="text-start">Node</span>
+            <span class="text-start tech-detail">Địa chỉ</span>
+            <span class="text-center">Vai trò</span>
+            <span class="text-center">Trạng thái</span>
+            <span class="text-end cluster-col-ping tech-detail">Ping</span>
+          `;
+        }
 
-          if (headerMongo) {
-            headerMongo.className = "cluster-node-header";
-            headerMongo.innerHTML = `
-              <span class="text-start">Node</span>
-              <span class="text-start">Địa chỉ IP:Port</span>
-              <span class="text-center">Vai trò</span>
-              <span class="text-center">Trạng thái</span>
-              <span class="text-end cluster-col-ping">Ping</span>
-            `;
-          }
+        if (headerMongo) {
+          headerMongo.className = "cluster-node-header";
+          headerMongo.innerHTML = `
+            <span class="text-start">Node</span>
+            <span class="text-start tech-detail">Địa chỉ</span>
+            <span class="text-center">Vai trò</span>
+            <span class="text-center">Trạng thái</span>
+            <span class="text-end cluster-col-ping tech-detail">Ping</span>
+          `;
+        }
 
-          if (summaryMysql && data.mysql) {
-            summaryMysql.innerHTML = data.mysql.map((n, idx) => {
-              const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
-              const nodeLabel = (n.node_name || `Node ${idx + 1}`).replace(":", "").trim();
-              const rowClass = isOnline ? "cluster-node-row" : "cluster-node-row is-offline";
-              const roleHtml = !isOnline
-                ? `<div class="cluster-node-role"><span class="text-muted small">-</span></div>`
-                : (n.role === "PRIMARY"
-                  ? `<div class="cluster-node-role"><span class="badge-pill badge-pill--primary">Node chính</span></div>`
-                  : `<div class="cluster-node-role"><span class="badge-pill badge-pill--muted">Node phụ</span></div>`);
-              const stateHtml = !isOnline
-                ? `<div class="cluster-node-status"><span class="badge-pill badge-pill--danger">Mất kết nối</span></div>`
-                : `<div class="cluster-node-status"><span class="badge-pill badge-pill--ok">Sẵn sàng</span></div>`;
-              const pingFormatted = (isOnline && n.ping_ms !== null && n.ping_ms !== undefined)
-                ? Number(n.ping_ms).toFixed(1) + " ms"
-                : "–";
-              const pingStyle = isOnline ? "" : 'style="color: #9ca3af;"';
-              const pingHtml = `<div class="cluster-node-ping text-muted" ${pingStyle}>${pingFormatted}</div>`;
+        if (summaryMysql && data.mysql) {
+          summaryMysql.innerHTML = data.mysql.map((n, idx) => {
+            const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
+            const nodeLabel = (n.node_name || `Node ${idx + 1}`).replace(":", "").trim();
+            const rowClass = isOnline ? "cluster-node-row" : "cluster-node-row is-offline";
+            const roleHtml = !isOnline
+              ? `<div class="cluster-node-role"></div>`
+              : (n.role === "PRIMARY"
+                ? `<div class="cluster-node-role"><span class="badge-pill badge-pill--primary">Node chính</span></div>`
+                : `<div class="cluster-node-role"><span class="badge-pill badge-pill--muted">Node phụ</span></div>`);
+            const stateHtml = !isOnline
+              ? `<div class="cluster-node-status"><span class="badge-pill badge-pill--danger">Mất kết nối</span></div>`
+              : `<div class="cluster-node-status"><span class="badge-pill badge-pill--ok">Sẵn sàng</span></div>`;
+            const pingFormatted = (isOnline && n.ping_ms !== null && n.ping_ms !== undefined)
+              ? Number(n.ping_ms).toFixed(1) + " ms"
+              : "–";
+            const pingStyle = isOnline ? "" : 'style="color: #9ca3af;"';
+            const pingHtml = `<div class="cluster-node-ping text-muted tech-detail" ${pingStyle}>${pingFormatted}</div>`;
 
-              return `<div class="${rowClass}">
-                <div class="cluster-node-name">${nodeLabel}</div>
-                <div class="cluster-node-ip">${n.host}</div>
-                ${roleHtml}
-                ${stateHtml}
-                ${pingHtml}
-              </div>`;
-            }).join("");
-          }
+            return `<div class="${rowClass}">
+              <div class="cluster-node-name">${nodeLabel}</div>
+              <div class="cluster-node-ip tech-detail">${n.host}</div>
+              ${roleHtml}
+              ${stateHtml}
+              ${pingHtml}
+            </div>`;
+          }).join("");
+        }
 
-          if (summaryMongo && data.mongodb) {
-            summaryMongo.innerHTML = data.mongodb.map((n, idx) => {
-              const isOnline = n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1;
-              const nodeLabel = (n.node_name || `Node ${idx + 1}`).replace(":", "").trim();
-              const rowClass = isOnline ? "cluster-node-row" : "cluster-node-row is-offline";
-              const isPrimary = n.state === "PRIMARY";
-              const roleHtml = !isOnline
-                ? `<div class="cluster-node-role"><span class="text-muted small">-</span></div>`
-                : (isPrimary
-                  ? `<div class="cluster-node-role"><span class="badge-pill badge-pill--primary">Node chính</span></div>`
-                  : `<div class="cluster-node-role"><span class="badge-pill badge-pill--muted">Node phụ</span></div>`);
-              const stateHtml = !isOnline
-                ? `<div class="cluster-node-status"><span class="badge-pill badge-pill--danger">Mất kết nối</span></div>`
-                : `<div class="cluster-node-status"><span class="badge-pill badge-pill--ok">Sẵn sàng</span></div>`;
-              const pingFormatted = (isOnline && n.ping_ms !== null && n.ping_ms !== undefined)
-                ? Number(n.ping_ms).toFixed(1) + " ms"
-                : "–";
-              const pingStyle = isOnline ? "" : 'style="color: #9ca3af;"';
-              const pingHtml = `<div class="cluster-node-ping text-muted" ${pingStyle}>${pingFormatted}</div>`;
+        if (summaryMongo && data.mongodb) {
+          summaryMongo.innerHTML = data.mongodb.map((n, idx) => {
+            const isOnline = n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1;
+            const nodeLabel = (n.node_name || `Node ${idx + 1}`).replace(":", "").trim();
+            const rowClass = isOnline ? "cluster-node-row" : "cluster-node-row is-offline";
+            const isPrimary = n.state === "PRIMARY";
+            const roleHtml = !isOnline
+              ? `<div class="cluster-node-role"></div>`
+              : (isPrimary
+                ? `<div class="cluster-node-role"><span class="badge-pill badge-pill--primary">Node chính</span></div>`
+                : `<div class="cluster-node-role"><span class="badge-pill badge-pill--muted">Node phụ</span></div>`);
+            const stateHtml = !isOnline
+              ? `<div class="cluster-node-status"><span class="badge-pill badge-pill--danger">Mất kết nối</span></div>`
+              : `<div class="cluster-node-status"><span class="badge-pill badge-pill--ok">Sẵn sàng</span></div>`;
+            const pingFormatted = (isOnline && n.ping_ms !== null && n.ping_ms !== undefined)
+              ? Number(n.ping_ms).toFixed(1) + " ms"
+              : "–";
+            const pingStyle = isOnline ? "" : 'style="color: #9ca3af;"';
+            const pingHtml = `<div class="cluster-node-ping text-muted tech-detail" ${pingStyle}>${pingFormatted}</div>`;
 
-              return `<div class="${rowClass}">
-                <div class="cluster-node-name">${nodeLabel}</div>
-                <div class="cluster-node-ip">${n.host}</div>
-                ${roleHtml}
-                ${stateHtml}
-                ${pingHtml}
-              </div>`;
-            }).join("");
-          }
-
-        } else {
-          // =========================================================================
-          // HIỂN THỊ DÀNH CHO CÁC TAB CÒN LẠI (HÌNH 1)
-          // Có các cột: Node, Địa chỉ, Vai trò, Trạng thái, Ping
-          // =========================================================================
-          if (headerMysql) {
-            headerMysql.className = "cluster-node-header";
-            headerMysql.innerHTML = `
-              <span class="text-start">Node</span>
-              <span class="text-start tech-detail">Địa chỉ</span>
-              <span class="text-center">Vai trò</span>
-              <span class="text-center">Trạng thái</span>
-              <span class="text-end cluster-col-ping tech-detail">Ping</span>
-            `;
-          }
-
-          if (headerMongo) {
-            headerMongo.className = "cluster-node-header";
-            headerMongo.innerHTML = `
-              <span class="text-start">Node</span>
-              <span class="text-start tech-detail">Địa chỉ</span>
-              <span class="text-center">Vai trò</span>
-              <span class="text-center">Trạng thái</span>
-              <span class="text-end cluster-col-ping tech-detail">Ping</span>
-            `;
-          }
-
-          if (summaryMysql && data.mysql) {
-            summaryMysql.innerHTML = data.mysql.map((n, idx) => {
-              const isOnline = n.state && n.state.indexOf("ONLINE") !== -1;
-              const nodeLabel = (n.node_name || `Node ${idx + 1}`).replace(":", "").trim();
-              const rowClass = isOnline ? "cluster-node-row" : "cluster-node-row is-offline";
-              const roleHtml = !isOnline
-                ? `<div class="cluster-node-role"></div>`
-                : (n.role === "PRIMARY"
-                  ? `<div class="cluster-node-role"><span class="badge-pill badge-pill--primary">Node chính</span></div>`
-                  : `<div class="cluster-node-role"><span class="badge-pill badge-pill--muted">Node phụ</span></div>`);
-              const stateHtml = !isOnline
-                ? `<div class="cluster-node-status"><span class="badge-pill badge-pill--danger">Mất kết nối</span></div>`
-                : `<div class="cluster-node-status"><span class="badge-pill badge-pill--ok">Sẵn sàng</span></div>`;
-              const pingFormatted = (isOnline && n.ping_ms !== null && n.ping_ms !== undefined)
-                ? Number(n.ping_ms).toFixed(1) + " ms"
-                : "–";
-              const pingStyle = isOnline ? "" : 'style="color: #9ca3af;"';
-              const pingHtml = `<div class="cluster-node-ping text-muted tech-detail" ${pingStyle}>${pingFormatted}</div>`;
-
-              return `<div class="${rowClass}">
-                <div class="cluster-node-name">${nodeLabel}</div>
-                <div class="cluster-node-ip tech-detail">${n.host}</div>
-                ${roleHtml}
-                ${stateHtml}
-                ${pingHtml}
-              </div>`;
-            }).join("");
-          }
-
-          if (summaryMongo && data.mongodb) {
-            summaryMongo.innerHTML = data.mongodb.map((n, idx) => {
-              const isOnline = n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1;
-              const nodeLabel = (n.node_name || `Node ${idx + 1}`).replace(":", "").trim();
-              const rowClass = isOnline ? "cluster-node-row" : "cluster-node-row is-offline";
-              const isPrimary = n.state === "PRIMARY";
-              const roleHtml = !isOnline
-                ? `<div class="cluster-node-role"></div>`
-                : (isPrimary
-                  ? `<div class="cluster-node-role"><span class="badge-pill badge-pill--primary">Node chính</span></div>`
-                  : `<div class="cluster-node-role"><span class="badge-pill badge-pill--muted">Node phụ</span></div>`);
-              const stateHtml = !isOnline
-                ? `<div class="cluster-node-status"><span class="badge-pill badge-pill--danger">Mất kết nối</span></div>`
-                : `<div class="cluster-node-status"><span class="badge-pill badge-pill--ok">Sẵn sàng</span></div>`;
-              const pingFormatted = (isOnline && n.ping_ms !== null && n.ping_ms !== undefined)
-                ? Number(n.ping_ms).toFixed(1) + " ms"
-                : "–";
-              const pingStyle = isOnline ? "" : 'style="color: #9ca3af;"';
-              const pingHtml = `<div class="cluster-node-ping text-muted tech-detail" ${pingStyle}>${pingFormatted}</div>`;
-
-              return `<div class="${rowClass}">
-                <div class="cluster-node-name">${nodeLabel}</div>
-                <div class="cluster-node-ip tech-detail">${n.host}</div>
-                ${roleHtml}
-                ${stateHtml}
-                ${pingHtml}
-              </div>`;
-            }).join("");
-          }
+            return `<div class="${rowClass}">
+              <div class="cluster-node-name">${nodeLabel}</div>
+              <div class="cluster-node-ip tech-detail">${n.host}</div>
+              ${roleHtml}
+              ${stateHtml}
+              ${pingHtml}
+            </div>`;
+          }).join("");
         }
       }
 
