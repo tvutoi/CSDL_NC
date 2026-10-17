@@ -1953,12 +1953,11 @@
                 </button>
                 <button
                   type="button"
-                  class="btn btn-sm btn-outline-warning text-dark py-1 px-2.5"
-                  id="btn-sync-node1"
-                  onclick="triggerSyncNode1()"
-                  style="display: none;"
-                  title="Đồng bộ bù dữ liệu cho Node 1">
-                  <i class="bi bi-arrow-repeat me-1"></i>Đồng bộ lại Node 1
+                  class="btn btn-sm btn-primary py-1 px-3 fw-medium shadow-sm"
+                  id="btn-manual-sync-data"
+                  onclick="triggerFullDataSync(this)"
+                  title="Tự động tìm kiếm các bản ghi bị lệch và nạp bù 2 chiều vào các Node còn thiếu">
+                  <i class="bi bi-arrow-repeat me-1" id="icon-data-sync"></i>Đồng bộ bù dữ liệu
                 </button>
               </div>
             </div>
@@ -4483,13 +4482,11 @@
         }
       }
 
-      // KÍCH HOẠT ĐỒNG BỘ BÙ DỮ LIỆU RIÊNG CHO NODE 1 KHI CÓ NODE NGOẠI TUYẾN
-      async function triggerSyncNode1() {
-        if (!confirm("Node 1 hiện đang ngoại tuyến hoặc cần nạp bù dữ liệu. Bạn có muốn thực hiện đồng bộ lại dữ liệu cho Node 1 không?")) return;
-        const btn = document.getElementById("btn-sync-node1");
+      // KÍCH HOẠT ĐỒNG BỘ BÙ DỮ LIỆU TỰ ĐỘNG GIỮA TOÀN BỘ CÁC NODE TRỰC TUYẾN
+      async function triggerFullDataSync(btn) {
         if (btn) {
           btn.disabled = true;
-          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang đồng bộ...';
+          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang đồng bộ bù...';
         }
         try {
           const res = await fetch("/api/cluster/sync-data", {
@@ -4497,17 +4494,30 @@
             headers: { "Content-Type": "application/json" }
           });
           const data = await res.json();
-          showToastNotification(data.message || "Đã gửi yêu cầu đồng bộ lại cho Node 1", "success");
-          await fetchClusterStatus();
-          await loadSyncLogs(false);
+          if (data.status === "SUCCESS") {
+            if (data.total_synced_rows > 0) {
+              const nodeStr = data.synced_nodes && data.synced_nodes.length ? ` vào ${data.synced_nodes.join(", ")}` : '';
+              showToastNotification(`✓ Đã nạp bù thành công ${data.total_synced_rows} bản ghi${nodeStr}!`, "success");
+            } else {
+              showToastNotification(data.message || "✓ Tất cả các Node trực tuyến đã đồng bộ 100%!", "success");
+            }
+            await fetchClusterStatus();
+            await loadSyncLogs(false);
+          } else {
+            showToastNotification("Đồng bộ thất bại: " + (data.message || "Lỗi không xác định"), "danger");
+          }
         } catch (err) {
-          showToastNotification("Lỗi đồng bộ: " + err.message, "danger");
+          showToastNotification("Lỗi kết nối khi đồng bộ: " + err.message, "danger");
         } finally {
           if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Đồng bộ lại Node 1';
+            btn.innerHTML = '<i class="bi bi-arrow-repeat me-1" id="icon-data-sync"></i>Đồng bộ bù dữ liệu';
           }
         }
+      }
+
+      function triggerSyncNode1() {
+        return triggerFullDataSync(document.getElementById("btn-manual-sync-data"));
       }
 
       function triggerManualSync() {

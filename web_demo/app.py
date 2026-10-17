@@ -1626,6 +1626,62 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
                             cur.execute("SET GLOBAL super_read_only = ON")
                         except Exception:
                             pass
+
+        # 3. Kiem tra va nap bu doc lap cho payments (xu ly truong hop order co nhung payment bi thieu)
+        all_payments_by_node = {}
+        for host, item in online_conns.items():
+            cur = item["cur"]
+            cur.execute("SELECT payment_id FROM payments")
+            all_payments_by_node[host] = set(r["payment_id"] for r in cur.fetchall())
+
+        all_known_payment_ids = set.union(*all_payments_by_node.values()) if all_payments_by_node else set()
+        missing_payments_by_node = {}
+        for host, payment_ids in all_payments_by_node.items():
+            diff_py = all_known_payment_ids - payment_ids
+            if diff_py:
+                missing_payments_by_node[host] = diff_py
+
+        if missing_payments_by_node:
+            needed_payment_ids = set.union(*missing_payments_by_node.values())
+            extra_payments = []
+            for host, item in online_conns.items():
+                cur = item["cur"]
+                id_list = list(needed_payment_ids)
+                for chunk_start in range(0, len(id_list), 500):
+                    chunk = id_list[chunk_start:chunk_start + 500]
+                    ids_str = ",".join(str(i) for i in chunk)
+                    cur.execute(f"SELECT * FROM payments WHERE payment_id IN ({ids_str})")
+                    rows_py = cur.fetchall()
+                    for r in rows_py:
+                        if not any(x["payment_id"] == r["payment_id"] for x in extra_payments):
+                            extra_payments.append(r)
+                if len(extra_payments) == len(needed_payment_ids):
+                    break
+
+            for host, missing_p_ids in missing_payments_by_node.items():
+                item = online_conns[host]
+                cur = item["cur"]
+                try:
+                    cur.execute("SET GLOBAL super_read_only = OFF")
+                    cur.execute("SET GLOBAL read_only = OFF")
+                    for py in extra_payments:
+                        if py["payment_id"] in missing_p_ids:
+                            cur.execute(
+                                "INSERT IGNORE INTO payments (payment_id, order_id, amount, payment_method, transaction_status, created_at) "
+                                "VALUES (%s, %s, %s, %s, %s, %s)",
+                                (py["payment_id"], py["order_id"], py["amount"], py["payment_method"], py["transaction_status"], py["created_at"])
+                            )
+                            total_synced_rows += 1
+                    lbl = get_node_label(host, "mysql")
+                    if f"{lbl} ({host})" not in synced_details:
+                        synced_details.append(f"{lbl} ({host})")
+                finally:
+                    if item["ro"] == 1:
+                        try:
+                            cur.execute("SET GLOBAL read_only = ON")
+                            cur.execute("SET GLOBAL super_read_only = ON")
+                        except Exception:
+                            pass
     finally:
         for item in online_conns.values():
             try:
