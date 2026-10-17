@@ -224,9 +224,9 @@ tools/
 web_demo/tools/
 *.exe
 
-# Cluster config
-cluster_config.json
-web_demo/cluster_config.json
+# Cluster config (uncommented to bundle default template for new machines)
+# cluster_config.json
+# web_demo/cluster_config.json
 
 # Corrupt backups from tests
 *.corrupt.*.json

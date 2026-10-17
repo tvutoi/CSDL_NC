@@ -1,153 +1,17 @@
 [
   {
-    "id": "SYNC-c717ae70",
-    "thoi_diem": "2026-10-16 14:24:05.767",
+    "id": "SYNC-caa51d79",
+    "thoi_diem": "2026-10-16 15:24:28.590",
     "he_csdl": "MYSQL_GR",
-    "loai_su_kien": "CHECKOUT_ORDER",
-    "ma_nhom_giao_dich": "DH-50074",
-    "gtid_hoac_optime": "d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-243",
+    "loai_su_kien": "CATCHUP_SYNC",
+    "ma_nhom_giao_dich": "CATCHUP-SYNC-1e4310bb-Node 4",
+    "gtid_hoac_optime": "d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-252",
     "node_nguon": "Node 2 (127.0.0.1:3306)",
     "node_dich": [
-      {
-        "node": "Node 1",
-        "host": "127.0.0.1:3305",
-        "thoi_diem_ap_dung": "14:24:05.655",
-        "do_tre_ms": 473.9,
-        "trang_thai": "APPLIED"
-      },
-      {
-        "node": "Node 3",
-        "host": "127.0.0.1:3307",
-        "thoi_diem_ap_dung": "14:24:05.693",
-        "do_tre_ms": 512.2,
-        "trang_thai": "APPLIED"
-      },
       {
         "node": "Node 4",
         "host": "127.0.0.1:3308",
-        "thoi_diem_ap_dung": "14:24:05.766",
-        "do_tre_ms": 585.8,
-        "trang_thai": "APPLIED"
-      }
-    ],
-    "trang_thai": "LAGGING",
-    "so_ban_ghi": 4,
-    "chi_tiet": [
-      {
-        "bang": "orders",
-        "so_ban_ghi": 1,
-        "mau_ban_ghi": [
-          {
-            "order_id": 50074,
-            "user_id": 1,
-            "total_amount": 37990000.0,
-            "status": "COMPLETED",
-            "shipping_region": "MIEN_NAM"
-          }
-        ]
-      },
-      {
-        "bang": "order_items",
-        "so_ban_ghi": 1,
-        "mau_ban_ghi": [
-          {
-            "order_id": 50074,
-            "product_id": 2,
-            "quantity": 1,
-            "unit_price": "37990000.00"
-          }
-        ]
-      },
-      {
-        "bang": "payments",
-        "so_ban_ghi": 1,
-        "mau_ban_ghi": [
-          {
-            "order_id": 50074,
-            "amount": 37990000.0,
-            "payment_method": "COD",
-            "transaction_status": "SUCCESS"
-          }
-        ]
-      },
-      {
-        "bang": "products",
-        "so_ban_ghi": 1,
-        "mau_ban_ghi": [
-          {
-            "product_id": 2,
-            "product_name": "Laptop Dell XPS 15 9530 Core i9 OLED",
-            "action": "UPDATE stock",
-            "delta": -1,
-            "ton_kho_moi": 36
-          }
-        ]
-      }
-    ],
-    "log_id": "SYNC-c717ae70",
-    "time": "14:24:05",
-    "date": "16/10/2026",
-    "timestamp": "14:24:05",
-    "start_time": "14:24:05.767",
-    "end_time": "14:24:05.767",
-    "db_type": "MYSQL_GR",
-    "action": "CHECKOUT_ORDER",
-    "title": "Đặt hàng #50074",
-    "summary": "Sản phẩm: Laptop Dell XPS 15 9530 Core i9 OLED (SL: 1) · KH 1 · Tổng: 37.990.000 đ · PT: COD · 4 bảng",
-    "data_payload": "Mã đơn: #50074 · GTID: d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-243 · SP: Laptop Dell XPS 15 9530 Core i9 OLED (ID 2, SL: 1, Đơn giá: 37.990.000 đ) · Khách: 1 · Tổng: 37.990.000 đ · Phương thức: COD",
-    "affected_tables": "orders (1), order_items (1), payments (1), products (1)",
-    "source_label": "Node 2",
-    "source_node": "127.0.0.1:3306",
-    "target_display": "Node 1, 3, 4",
-    "target_nodes": [
-      "Node 1",
-      "Node 3",
-      "Node 4"
-    ],
-    "target_hosts": [
-      "Node 1",
-      "Node 3",
-      "Node 4"
-    ],
-    "target_statuses": [
-      {
-        "label": "Node 1",
-        "host": "127.0.0.1:3305",
-        "state": "ONLINE",
-        "message": "Đã nhận"
-      },
-      {
-        "label": "Node 3",
-        "host": "127.0.0.1:3307",
-        "state": "ONLINE",
-        "message": "Đã nhận"
-      },
-      {
-        "label": "Node 4",
-        "host": "127.0.0.1:3308",
-        "state": "ONLINE",
-        "message": "Đã nhận"
-      }
-    ],
-    "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
-    "detail": "Mở Transaction ACID trên Primary (127.0.0.1:3306): Khóa dòng FOR UPDATE SP 2, trừ tồn kho, INSERT orders, order_items, payments. GTID: d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-243.",
-    "latency_ms": 524.0,
-    "status": "LAGGING",
-    "status_text": "Trễ vượt ngưỡng (>500ms)"
-  },
-  {
-    "id": "SYNC-61b33536",
-    "thoi_diem": "2026-10-16 14:23:39.106",
-    "he_csdl": "MYSQL_GR",
-    "loai_su_kien": "CATCHUP_SYNC",
-    "ma_nhom_giao_dich": "CATCHUP-SYNC-b38c0c36-Node 3",
-    "gtid_hoac_optime": "d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-242",
-    "node_nguon": "Node 2 (127.0.0.1:3306)",
-    "node_dich": [
-      {
-        "node": "Node 3",
-        "host": "127.0.0.1:3307",
-        "thoi_diem_ap_dung": "14:23:39.049",
+        "thoi_diem_ap_dung": "15:24:28.513",
         "do_tre_ms": 15.0,
         "trang_thai": "APPLIED"
       }
@@ -160,9 +24,9 @@
         "so_ban_ghi": 1,
         "mau_ban_ghi": [
           {
-            "order_id": 50073,
-            "user_id": 9999,
-            "total_amount": 6990000.0,
+            "order_id": 50077,
+            "user_id": 5,
+            "total_amount": 64990000.0,
             "status": "COMPLETED",
             "shipping_region": "MIEN_NAM"
           }
@@ -173,10 +37,10 @@
         "so_ban_ghi": 1,
         "mau_ban_ghi": [
           {
-            "order_id": 50073,
-            "product_id": 3,
+            "order_id": 50077,
+            "product_id": 4,
             "quantity": 1,
-            "unit_price": "6990000.00"
+            "unit_price": "64990000.00"
           }
         ]
       },
@@ -185,8 +49,8 @@
         "so_ban_ghi": 1,
         "mau_ban_ghi": [
           {
-            "order_id": 50073,
-            "amount": 6990000.0,
+            "order_id": 50077,
+            "amount": 64990000.0,
             "payment_method": "COD",
             "transaction_status": "SUCCESS"
           }
@@ -197,78 +61,78 @@
         "so_ban_ghi": 1,
         "mau_ban_ghi": [
           {
-            "product_id": 3,
-            "product_name": "Tai nghe chống ồn Sony WH-1000XM5 Bạc",
+            "product_id": 4,
+            "product_name": "MacBook Pro 16 M3 Max 64GB RAM",
             "action": "UPDATE stock",
             "delta": -1,
-            "ton_kho_moi": 69
+            "ton_kho_moi": 29
           }
         ]
       }
     ],
-    "log_id": "SYNC-61b33536",
-    "time": "14:23:39",
+    "log_id": "SYNC-caa51d79",
+    "time": "15:24:28",
     "date": "16/10/2026",
-    "timestamp": "14:23:39",
-    "start_time": "14:23:39.049",
-    "end_time": "14:23:39.049",
+    "timestamp": "15:24:28",
+    "start_time": "15:24:28.513",
+    "end_time": "15:24:28.513",
     "db_type": "MYSQL_GR",
     "action": "CATCHUP_SYNC",
-    "title": "Đồng bộ bù GTID qua Node 3",
-    "summary": "Node 3 trực tuyến trở lại · Nhận bù GTID từ Node 2",
-    "data_payload": "Đồng bộ bù giao dịch #SYNC-b38c0c36 (Đặt hàng #50073) sang Node 3 (127.0.0.1:3307)",
+    "title": "Đồng bộ bù GTID qua Node 4",
+    "summary": "Node 4 trực tuyến trở lại · Nhận bù GTID từ Node 2",
+    "data_payload": "Đồng bộ bù giao dịch #SYNC-1e4310bb (Đặt hàng #50077) sang Node 4 (127.0.0.1:3308)",
     "affected_tables": "orders (1), order_items (1), payments (1), products (1)",
     "source_label": "Node 2",
     "source_node": "127.0.0.1:3306",
-    "target_display": "Node 3",
+    "target_display": "Node 4",
     "target_nodes": [
-      "Node 3"
+      "Node 4"
     ],
     "target_hosts": [
-      "127.0.0.1:3307"
+      "127.0.0.1:3308"
     ],
     "target_statuses": [
       {
-        "label": "Node 3",
-        "host": "127.0.0.1:3307",
+        "label": "Node 4",
+        "host": "127.0.0.1:3308",
         "state": "ONLINE",
         "message": "Đã nhận bù"
       }
     ],
     "mechanism": "MySQL Group Replication Recovery (GTID Catch-up)",
-    "detail": "Node 3 (127.0.0.1:3307) đã trực tuyến trở lại, hoàn tất Group Replication Recovery từ Primary (Node 2 127.0.0.1:3306) qua kênh Binary Log/GTID. Dữ liệu nhất quán 100%.",
+    "detail": "Node 4 (127.0.0.1:3308) đã trực tuyến trở lại, hoàn tất Group Replication Recovery từ Primary (Node 2 127.0.0.1:3306) qua kênh Binary Log/GTID. Dữ liệu nhất quán 100%.",
     "latency_ms": 15.0,
     "status": "SYNCED",
     "status_text": "Đã đồng bộ bù thành công"
   },
   {
-    "id": "SYNC-b38c0c36",
-    "thoi_diem": "2026-10-16 14:23:36.718",
+    "id": "SYNC-1e4310bb",
+    "thoi_diem": "2026-10-16 15:23:58.861",
     "he_csdl": "MYSQL_GR",
     "loai_su_kien": "CHECKOUT_ORDER",
-    "ma_nhom_giao_dich": "DH-50073",
-    "gtid_hoac_optime": "d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-242",
+    "ma_nhom_giao_dich": "DH-50077",
+    "gtid_hoac_optime": "d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-252",
     "node_nguon": "Node 2 (127.0.0.1:3306)",
     "node_dich": [
       {
         "node": "Node 1",
         "host": "127.0.0.1:3305",
-        "thoi_diem_ap_dung": "14:23:36.510",
-        "do_tre_ms": 1643.0,
+        "thoi_diem_ap_dung": "15:23:58.665",
+        "do_tre_ms": 1192.0,
         "trang_thai": "APPLIED"
       },
       {
         "node": "Node 3",
         "host": "127.0.0.1:3307",
-        "thoi_diem_ap_dung": "14:23:39.049",
-        "do_tre_ms": 15.0,
+        "thoi_diem_ap_dung": "15:23:58.703",
+        "do_tre_ms": 1230.4,
         "trang_thai": "APPLIED"
       },
       {
         "node": "Node 4",
         "host": "127.0.0.1:3308",
-        "thoi_diem_ap_dung": "14:23:36.717",
-        "do_tre_ms": 1849.9,
+        "thoi_diem_ap_dung": "15:24:28.513",
+        "do_tre_ms": 15.0,
         "trang_thai": "APPLIED"
       }
     ],
@@ -280,9 +144,9 @@
         "so_ban_ghi": 1,
         "mau_ban_ghi": [
           {
-            "order_id": 50073,
-            "user_id": 9999,
-            "total_amount": 6990000.0,
+            "order_id": 50077,
+            "user_id": 5,
+            "total_amount": 64990000.0,
             "status": "COMPLETED",
             "shipping_region": "MIEN_NAM"
           }
@@ -293,10 +157,10 @@
         "so_ban_ghi": 1,
         "mau_ban_ghi": [
           {
-            "order_id": 50073,
-            "product_id": 3,
+            "order_id": 50077,
+            "product_id": 4,
             "quantity": 1,
-            "unit_price": "6990000.00"
+            "unit_price": "64990000.00"
           }
         ]
       },
@@ -305,8 +169,8 @@
         "so_ban_ghi": 1,
         "mau_ban_ghi": [
           {
-            "order_id": 50073,
-            "amount": 6990000.0,
+            "order_id": 50077,
+            "amount": 64990000.0,
             "payment_method": "COD",
             "transaction_status": "SUCCESS"
           }
@@ -317,26 +181,26 @@
         "so_ban_ghi": 1,
         "mau_ban_ghi": [
           {
-            "product_id": 3,
-            "product_name": "Tai nghe chống ồn Sony WH-1000XM5 Bạc",
+            "product_id": 4,
+            "product_name": "MacBook Pro 16 M3 Max 64GB RAM",
             "action": "UPDATE stock",
             "delta": -1,
-            "ton_kho_moi": 69
+            "ton_kho_moi": 29
           }
         ]
       }
     ],
-    "log_id": "SYNC-b38c0c36",
-    "time": "14:23:36",
+    "log_id": "SYNC-1e4310bb",
+    "time": "15:23:58",
     "date": "16/10/2026",
-    "timestamp": "14:23:36",
-    "start_time": "14:23:36.718",
-    "end_time": "14:23:36.718",
+    "timestamp": "15:23:58",
+    "start_time": "15:23:58.861",
+    "end_time": "15:23:58.861",
     "db_type": "MYSQL_GR",
     "action": "CHECKOUT_ORDER",
-    "title": "Đặt hàng #50073",
-    "summary": "Sản phẩm: Tai nghe chống ồn Sony WH-1000XM5 Bạc (SL: 1) · KH 9999 · Tổng: 6.990.000 đ · PT: COD · 4 bảng",
-    "data_payload": "Mã đơn: #50073 · GTID: d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-242 · SP: Tai nghe chống ồn Sony WH-1000XM5 Bạc (ID 3, SL: 1, Đơn giá: 6.990.000 đ) · Khách: 9999 · Tổng: 6.990.000 đ · Phương thức: COD",
+    "title": "Đặt hàng #50077",
+    "summary": "Sản phẩm: MacBook Pro 16 M3 Max 64GB RAM (SL: 1) · KH 5 · Tổng: 64.990.000 đ · PT: COD · 4 bảng",
+    "data_payload": "Mã đơn: #50077 · GTID: d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-252 · SP: MacBook Pro 16 M3 Max 64GB RAM (ID 4, SL: 1, Đơn giá: 64.990.000 đ) · Khách: 5 · Tổng: 64.990.000 đ · Phương thức: COD",
     "affected_tables": "orders (1), order_items (1), payments (1), products (1)",
     "source_label": "Node 2",
     "source_node": "127.0.0.1:3306",
@@ -362,18 +226,18 @@
         "label": "Node 3",
         "host": "127.0.0.1:3307",
         "state": "ONLINE",
-        "message": "Đã nhận bù"
+        "message": "Đã nhận"
       },
       {
         "label": "Node 4",
         "host": "127.0.0.1:3308",
         "state": "ONLINE",
-        "message": "Đã nhận"
+        "message": "Đã nhận bù"
       }
     ],
     "mechanism": "Paxos Consensus (XCom 33061) + Binary Log GTID",
-    "detail": "Mở Transaction ACID trên Primary (127.0.0.1:3306): Khóa dòng FOR UPDATE SP 3, trừ tồn kho, INSERT orders, order_items, payments. GTID: d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-242.",
-    "latency_ms": 1746.5,
+    "detail": "Mở Transaction ACID trên Primary (127.0.0.1:3306): Khóa dòng FOR UPDATE SP 4, trừ tồn kho, INSERT orders, order_items, payments. GTID: d7f20315-aaa4-11ec-a190-d85ed35bd90a:1-252.",
+    "latency_ms": 1211.2,
     "status": "SYNCED",
     "status_text": "Đã đồng bộ 3/3 node phụ (Node 1 đã nhận bù)"
   }

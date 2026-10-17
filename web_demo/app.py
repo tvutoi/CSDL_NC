@@ -49,9 +49,19 @@ templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
 CONFIG_FILE = os.path.join(current_dir, "cluster_config.json")
 
 CLUSTER_CONFIG = {
-    "mysql_nodes": [],
-    "mongo_nodes": [],
-    "client_node": "",
+    "mysql_nodes": [
+        "127.0.0.1:3305",
+        "127.0.0.1:3306",
+        "127.0.0.1:3307",
+        "127.0.0.1:3308"
+    ],
+    "mongo_nodes": [
+        "127.0.0.1:27016",
+        "127.0.0.1:27017",
+        "127.0.0.1:27018",
+        "127.0.0.1:27019"
+    ],
+    "client_node": "127.0.0.1",
     "mysql_user": "root",
     "mysql_password": os.environ.get("MYSQL_ROOT_PASSWORD", "root"),
     "mysql_db": "ecommerce_db",
@@ -59,12 +69,46 @@ CLUSTER_CONFIG = {
     "replica_set": "rsEcomNhom2",
     "round_robin_idx": 0,
     "sync_interval_sec": 2,
-    "active_mysql_primary": None,
-    "active_mongo_primary": None
+    "active_mysql_primary": "127.0.0.1:3306",
+    "active_mongo_primary": "127.0.0.1:27017"
 }
 
 _PRIMARY_TRACKING_LOCK = threading.Lock()
 _CONFIG_LAST_MTIME = 0.0
+
+
+def save_cluster_config_to_file():
+    global _CONFIG_LAST_MTIME
+    try:
+        data = {
+            "mysql_nodes": CLUSTER_CONFIG.get("mysql_nodes", []),
+            "mongo_nodes": CLUSTER_CONFIG.get("mongo_nodes", []),
+            "client_node": CLUSTER_CONFIG.get("client_node", ""),
+            "mysql_password": CLUSTER_CONFIG.get("mysql_password", "root"),
+            "sync_interval_sec": int(CLUSTER_CONFIG.get("sync_interval_sec", 2)),
+            "active_mysql_primary": CLUSTER_CONFIG.get("active_mysql_primary"),
+            "active_mongo_primary": CLUSTER_CONFIG.get("active_mongo_primary")
+        }
+        target_files = [CONFIG_FILE]
+        parent_dir = os.path.dirname(current_dir)
+        if os.path.basename(current_dir) == "web_demo":
+            if os.path.basename(parent_dir) == "CSDL_NC":
+                alt = os.path.join(os.path.dirname(parent_dir), "web_demo", "cluster_config.json")
+                if os.path.exists(os.path.dirname(alt)):
+                    target_files.append(alt)
+            else:
+                alt = os.path.join(parent_dir, "CSDL_NC", "web_demo", "cluster_config.json")
+                if os.path.exists(os.path.dirname(alt)):
+                    target_files.append(alt)
+
+        for tf in target_files:
+            with open(tf, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        if os.path.exists(CONFIG_FILE):
+            _CONFIG_LAST_MTIME = os.path.getmtime(CONFIG_FILE)
+        print(f"[CONFIG] Đã lưu cấu hình cụm vào {CONFIG_FILE}")
+    except Exception as e:
+        print(f"[CONFIG] Lỗi lưu {CONFIG_FILE}: {e}")
 
 
 def load_cluster_config(force: bool = False) -> Dict[str, Any]:
@@ -121,40 +165,6 @@ def set_active_mongo_primary(host: Optional[str]):
 
 
 load_cluster_config(force=True)
-
-
-def save_cluster_config_to_file():
-    global _CONFIG_LAST_MTIME
-    try:
-        data = {
-            "mysql_nodes": CLUSTER_CONFIG.get("mysql_nodes", []),
-            "mongo_nodes": CLUSTER_CONFIG.get("mongo_nodes", []),
-            "client_node": CLUSTER_CONFIG.get("client_node", ""),
-            "mysql_password": CLUSTER_CONFIG.get("mysql_password", "root"),
-            "sync_interval_sec": int(CLUSTER_CONFIG.get("sync_interval_sec", 2)),
-            "active_mysql_primary": CLUSTER_CONFIG.get("active_mysql_primary"),
-            "active_mongo_primary": CLUSTER_CONFIG.get("active_mongo_primary")
-        }
-        target_files = [CONFIG_FILE]
-        parent_dir = os.path.dirname(current_dir)
-        if os.path.basename(current_dir) == "web_demo":
-            if os.path.basename(parent_dir) == "CSDL_NC":
-                alt = os.path.join(os.path.dirname(parent_dir), "web_demo", "cluster_config.json")
-                if os.path.exists(os.path.dirname(alt)):
-                    target_files.append(alt)
-            else:
-                alt = os.path.join(parent_dir, "CSDL_NC", "web_demo", "cluster_config.json")
-                if os.path.exists(os.path.dirname(alt)):
-                    target_files.append(alt)
-
-        for tf in target_files:
-            with open(tf, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-        if os.path.exists(CONFIG_FILE):
-            _CONFIG_LAST_MTIME = os.path.getmtime(CONFIG_FILE)
-        print(f"[CONFIG] Đã lưu cấu hình cụm vào {CONFIG_FILE}")
-    except Exception as e:
-        print(f"[CONFIG] Lỗi lưu {CONFIG_FILE}: {e}")
 
 
 # QUẢN LÝ NHẬT KÝ ĐỒNG BỘ CỤM THỜI GIAN THỰC (LƯU VĨNH VIỄN VÀO FILE JSON DUY NHẤT)
