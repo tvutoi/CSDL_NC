@@ -4928,7 +4928,7 @@
       }
 
       // load sp cho combobox
-      async function loadProductOptions() {
+      async function loadProductOptions(force = false) {
         initSearchableCombo("review-product-id", {
           placeholder: "Gõ ID, SKU, tên sản phẩm để lọc...",
           unitLabel: "sản phẩm",
@@ -4938,6 +4938,10 @@
           unitLabel: "sản phẩm",
           onSelect: (val) => onChangeReviewProductSelect(val),
         });
+
+        if (!force && allProductsCatalog && allProductsCatalog.length > 0) {
+          return;
+        }
 
         try {
           const res = await fetch("/api/products/options?limit=2000");
@@ -5296,7 +5300,10 @@
       }
 
       // load users cho combobox
-      async function loadUsersList() {
+      async function loadUsersList(force = false) {
+        if (!force && catalogUsers && catalogUsers.length > 0) {
+          return;
+        }
         try {
           const res = await fetch("/api/users/list?limit=10000");
           const data = await res.json();
@@ -5399,7 +5406,7 @@
             }
 
             loadProducts();
-            loadProductOptions();
+            loadProductOptions(true);
             loadRecentOrders(1);
             fetchClusterStatus();
             loadSyncLogs();
@@ -6488,8 +6495,8 @@
             loadRecentOrders(isManual ? 1 : currentOrdersPage),
             loadProductReviews(currentReviewProductId, currentReviewPage),
             loadProducts(currentCatalogPage),
-            loadProductOptions(),
-            loadUsersList(),
+            loadProductOptions(false),
+            loadUsersList(false),
           ]);
           if (strip) strip.style.opacity = "1";
           if (isManual && btn) {
