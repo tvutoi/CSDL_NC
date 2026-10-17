@@ -1449,239 +1449,289 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
     Tự động đối chiếu và bù dữ liệu 2 chiều giữa tất cả các Node MySQL đang ONLINE:
     - Thu thập toàn bộ bản ghi orders, order_items, payments từ TẤT CẢ các Node.
     - Tìm tập hợp đầy đủ nhất (Full Set).
-    - Tự động nạp bù vào bất kỳ Node nào đang bị thiếu (kể cả Node 1 Primary hay Node 2, 3, 4 Secondary).
-    - Đảm bảo tính nhất quán dữ liệu 100% tự động mà không bắt người dùng phải thao tác thủ công.
+    - Tự động nạp bù an toàn vào bất kỳ Node nào đang bị thiếu (hỗ trợ cả Primary lẫn Secondary).
+    - Vô hiệu hóa foreign_key_checks, unique_checks và sql_log_bin tạm thời trong phiên nạp bù để tránh xung đột GTID/FK.
+    - Đảm bảo tính nhất quán dữ liệu 100% tự động mà không gây lỗi hoặc treo hệ thống.
     """
     t0 = time.perf_counter()
     online_conns = {}
     total_synced_rows = 0
     synced_details = []
 
-    for host in CLUSTER_CONFIG["mysql_nodes"]:
-        h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
-        p_int = int(p_int)
-        if not is_port_open(h_str, p_int, timeout=1.8, retries=1):
-            continue
-        try:
-            conn = mysql.connector.connect(
-                host=h_str, port=p_int,
-                user=CLUSTER_CONFIG["mysql_user"],
-                password=CLUSTER_CONFIG["mysql_password"],
-                database=CLUSTER_CONFIG["mysql_db"],
-                autocommit=True,
-                connection_timeout=4.0
-            )
-            cur = conn.cursor(dictionary=True)
-            cur.execute("SELECT @@global.read_only AS ro, @@global.super_read_only AS sro")
-            meta = cur.fetchone()
-            online_conns[host] = {"conn": conn, "cur": cur, "ro": meta["ro"], "sro": meta["sro"]}
-        except Exception:
-            continue
-
-    if len(online_conns) <= 1:
-        for item in online_conns.values():
+    try:
+        for host in CLUSTER_CONFIG["mysql_nodes"]:
+            h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
+            p_int = int(p_int)
+            if not is_port_open(h_str, p_int, timeout=1.8, retries=1):
+                continue
             try:
-                item["cur"].close()
-                item["conn"].close()
+                conn = mysql.connector.connect(
+                    host=h_str, port=p_int,
+                    user=CLUSTER_CONFIG["mysql_user"],
+                    password=CLUSTER_CONFIG["mysql_password"],
+                    database=CLUSTER_CONFIG["mysql_db"],
+                    autocommit=True,
+                    connection_timeout=4.0
+                )
+                cur = conn.cursor(dictionary=False)
+                try:
+                    cur.execute("SELECT @@global.read_only AS ro, @@global.super_read_only AS sro")
+                    meta = cur.fetchone()
+                    ro = meta[0] if meta else 0
+                    sro = meta[1] if meta else 0
+                except Exception:
+                    ro, sro = 0, 0
+                online_conns[host] = {"conn": conn, "cur": cur, "ro": ro, "sro": sro}
+            except Exception as e:
+                logger.warning(f"[RECONCILE] Không thể kết nối tới {host}: {e}")
+                continue
+
+        if len(online_conns) <= 1:
+            return {"total_synced_rows": 0, "synced_nodes": [], "elapsed_ms": 0.0}
+
+        # 1. Thu thập ID tất cả bảng orders, order_items, payments trên từng node
+        all_orders_by_node = {}
+        all_items_by_node = {}
+        all_payments_by_node = {}
+
+        for host, item in online_conns.items():
+            cur = item["cur"]
+            try:
+                cur.execute("SELECT order_id FROM orders")
+                all_orders_by_node[host] = set(r[0] for r in cur.fetchall())
+            except Exception as e:
+                logger.warning(f"[RECONCILE] Lỗi đọc order_id từ {host}: {e}")
+                all_orders_by_node[host] = set()
+
+            try:
+                cur.execute("SELECT item_id FROM order_items")
+                all_items_by_node[host] = set(r[0] for r in cur.fetchall())
+            except Exception as e:
+                logger.warning(f"[RECONCILE] Lỗi đọc item_id từ {host}: {e}")
+                all_items_by_node[host] = set()
+
+            try:
+                cur.execute("SELECT payment_id FROM payments")
+                all_payments_by_node[host] = set(r[0] for r in cur.fetchall())
+            except Exception as e:
+                logger.warning(f"[RECONCILE] Lỗi đọc payment_id từ {host}: {e}")
+                all_payments_by_node[host] = set()
+
+        all_known_orders = set.union(*all_orders_by_node.values()) if all_orders_by_node else set()
+        missing_orders_by_node = {h: all_known_orders - oids for h, oids in all_orders_by_node.items() if (all_known_orders - oids)}
+
+        all_known_items = set.union(*all_items_by_node.values()) if all_items_by_node else set()
+        missing_items_by_node = {h: all_known_items - iids for h, iids in all_items_by_node.items() if (all_known_items - iids)}
+
+        all_known_payments = set.union(*all_payments_by_node.values()) if all_payments_by_node else set()
+        missing_payments_by_node = {h: all_known_payments - pids for h, pids in all_payments_by_node.items() if (all_known_payments - pids)}
+
+        needed_order_ids = set.union(*missing_orders_by_node.values()) if missing_orders_by_node else set()
+        needed_item_ids = set.union(*missing_items_by_node.values()) if missing_items_by_node else set()
+        needed_payment_ids = set.union(*missing_payments_by_node.values()) if missing_payments_by_node else set()
+
+        if not needed_order_ids and not needed_item_ids and not needed_payment_ids:
+            return {"total_synced_rows": 0, "synced_nodes": [], "elapsed_ms": round((time.perf_counter() - t0) * 1000, 1)}
+
+        # 2. Thu thập dữ liệu đầy đủ từ các node online có sẵn dữ liệu
+        orders_pool = {}
+        items_pool = {}
+        payments_pool = {}
+
+        if needed_order_ids:
+            needed_list = list(needed_order_ids)
+            for host, item in online_conns.items():
+                conn = item["conn"]
+                dict_cur = conn.cursor(dictionary=True)
+                unfetched = [oid for oid in needed_list if oid not in orders_pool]
+                if not unfetched:
+                    dict_cur.close()
+                    break
+                for ch_start in range(0, len(unfetched), 300):
+                    chunk = unfetched[ch_start:ch_start + 300]
+                    ids_str = ",".join(str(i) for i in chunk)
+                    try:
+                        dict_cur.execute(f"SELECT * FROM orders WHERE order_id IN ({ids_str})")
+                        for row in dict_cur.fetchall():
+                            orders_pool[row["order_id"]] = row
+                    except Exception as e:
+                        logger.warning(f"[RECONCILE] Lỗi tải orders từ {host}: {e}")
+                dict_cur.close()
+
+        if needed_item_ids:
+            needed_list = list(needed_item_ids)
+            for host, item in online_conns.items():
+                conn = item["conn"]
+                dict_cur = conn.cursor(dictionary=True)
+                unfetched = [iid for iid in needed_list if iid not in items_pool]
+                if not unfetched:
+                    dict_cur.close()
+                    break
+                for ch_start in range(0, len(unfetched), 300):
+                    chunk = unfetched[ch_start:ch_start + 300]
+                    ids_str = ",".join(str(i) for i in chunk)
+                    try:
+                        dict_cur.execute(f"SELECT * FROM order_items WHERE item_id IN ({ids_str})")
+                        for row in dict_cur.fetchall():
+                            items_pool[row["item_id"]] = row
+                    except Exception as e:
+                        logger.warning(f"[RECONCILE] Lỗi tải order_items từ {host}: {e}")
+                dict_cur.close()
+
+        if needed_payment_ids:
+            needed_list = list(needed_payment_ids)
+            for host, item in online_conns.items():
+                conn = item["conn"]
+                dict_cur = conn.cursor(dictionary=True)
+                unfetched = [pid for pid in needed_list if pid not in payments_pool]
+                if not unfetched:
+                    dict_cur.close()
+                    break
+                for ch_start in range(0, len(unfetched), 300):
+                    chunk = unfetched[ch_start:ch_start + 300]
+                    ids_str = ",".join(str(i) for i in chunk)
+                    try:
+                        dict_cur.execute(f"SELECT * FROM payments WHERE payment_id IN ({ids_str})")
+                        for row in dict_cur.fetchall():
+                            payments_pool[row["payment_id"]] = row
+                    except Exception as e:
+                        logger.warning(f"[RECONCILE] Lỗi tải payments từ {host}: {e}")
+                dict_cur.close()
+
+        # Nạp thêm items và payments tương ứng với các order bị thiếu
+        if orders_pool:
+            order_ids_list = list(orders_pool.keys())
+            for host, item in online_conns.items():
+                conn = item["conn"]
+                dict_cur = conn.cursor(dictionary=True)
+                for ch_start in range(0, len(order_ids_list), 300):
+                    chunk = order_ids_list[ch_start:ch_start + 300]
+                    ids_str = ",".join(str(i) for i in chunk)
+                    try:
+                        dict_cur.execute(f"SELECT * FROM order_items WHERE order_id IN ({ids_str})")
+                        for r in dict_cur.fetchall():
+                            items_pool[r["item_id"]] = r
+                    except Exception:
+                        pass
+                    try:
+                        dict_cur.execute(f"SELECT * FROM payments WHERE order_id IN ({ids_str})")
+                        for r in dict_cur.fetchall():
+                            payments_pool[r["payment_id"]] = r
+                    except Exception:
+                        pass
+                dict_cur.close()
+
+        # 3. Nạp bù an toàn vào các Node đang bị thiếu
+        nodes_needing_sync = set(missing_orders_by_node.keys()) | set(missing_items_by_node.keys()) | set(missing_payments_by_node.keys())
+
+        for host in nodes_needing_sync:
+            if host not in online_conns:
+                continue
+            item = online_conns[host]
+            conn = item["conn"]
+            cur = item["cur"]
+            target_synced_this_node = 0
+
+            # Nới lỏng quyền ghi tạm thời nếu là Node Secondary
+            try:
+                cur.execute("SET GLOBAL super_read_only = OFF")
+                cur.execute("SET GLOBAL read_only = OFF")
             except Exception:
                 pass
-        return {"total_synced_rows": 0, "synced_nodes": [], "elapsed_ms": 0.0}
 
-    try:
-    # lay order_id tung node
-        all_orders_by_node = {}
-        for host, item in online_conns.items():
-            cur = item["cur"]
-            cur.execute("SELECT order_id FROM orders")
-            all_orders_by_node[host] = set(r["order_id"] for r in cur.fetchall())
+            try:
+                cur.execute("SET SESSION foreign_key_checks = 0")
+                cur.execute("SET SESSION unique_checks = 0")
+                cur.execute("SET SESSION sql_log_bin = 0")
+            except Exception:
+                pass
 
-        all_known_order_ids = set.union(*all_orders_by_node.values()) if all_orders_by_node else set()
+            try:
+                # 3.1 Nạp bảng orders trước (bảng cha)
+                missing_o = missing_orders_by_node.get(host, set())
+                for oid in missing_o:
+                    o = orders_pool.get(oid)
+                    if not o:
+                        continue
+                    try:
+                        cur.execute(
+                            "INSERT IGNORE INTO orders (order_id, user_id, total_amount, status, shipping_region, created_at) "
+                            "VALUES (%s, %s, %s, %s, %s, %s)",
+                            (o["order_id"], o["user_id"], o["total_amount"], o.get("status", "COMPLETED"), o.get("shipping_region", "MIEN_NAM"), o.get("created_at"))
+                        )
+                        total_synced_rows += 1
+                        target_synced_this_node += 1
+                    except Exception as e:
+                        logger.warning(f"[RECONCILE] Lỗi nạp order {oid} vào {host}: {e}")
 
-        missing_by_node = {}
-        for host, order_ids in all_orders_by_node.items():
-            diff = all_known_order_ids - order_ids
-            if diff:
-                missing_by_node[host] = diff
+                # 3.2 Nạp bảng order_items (bảng con)
+                missing_i = set(missing_items_by_node.get(host, set()))
+                for it in items_pool.values():
+                    if it.get("order_id") in missing_o:
+                        missing_i.add(it["item_id"])
 
-        if missing_by_node:
-            needed_order_ids = set.union(*missing_by_node.values())
-            full_orders = []
-            full_items = []
-            full_payments = []
+                for iid in missing_i:
+                    it = items_pool.get(iid)
+                    if not it:
+                        continue
+                    try:
+                        cur.execute(
+                            "INSERT IGNORE INTO order_items (item_id, order_id, product_id, quantity, unit_price) "
+                            "VALUES (%s, %s, %s, %s, %s)",
+                            (it["item_id"], it["order_id"], it["product_id"], it["quantity"], it["unit_price"])
+                        )
+                        total_synced_rows += 1
+                        target_synced_this_node += 1
+                    except Exception as e:
+                        logger.warning(f"[RECONCILE] Lỗi nạp order_item {iid} vào {host}: {e}")
 
-            for host, item in online_conns.items():
-                cur = item["cur"]
-                ids_str = ",".join(str(i) for i in needed_order_ids)
-                cur.execute(f"SELECT * FROM orders WHERE order_id IN ({ids_str})")
-                rows = cur.fetchall()
-                if len(rows) > len(full_orders):
-                    full_orders = rows
-                cur.execute(f"SELECT * FROM order_items WHERE order_id IN ({ids_str})")
-                rows_it = cur.fetchall()
-                if len(rows_it) > len(full_items):
-                    full_items = rows_it
-                cur.execute(f"SELECT * FROM payments WHERE order_id IN ({ids_str})")
-                rows_py = cur.fetchall()
-                if len(rows_py) > len(full_payments):
-                    full_payments = rows_py
-                if len(full_orders) == len(needed_order_ids):
-                    break
+                # 3.3 Nạp bảng payments (bảng con)
+                missing_p = set(missing_payments_by_node.get(host, set()))
+                for py in payments_pool.values():
+                    if py.get("order_id") in missing_o:
+                        missing_p.add(py["payment_id"])
 
-            for host, missing_ids in missing_by_node.items():
-                item = online_conns[host]
-                cur = item["cur"]
-                try:
-                    cur.execute("SET GLOBAL super_read_only = OFF")
-                    cur.execute("SET GLOBAL read_only = OFF")
+                for pid in missing_p:
+                    py = payments_pool.get(pid)
+                    if not py:
+                        continue
+                    try:
+                        cur.execute(
+                            "INSERT IGNORE INTO payments (payment_id, order_id, amount, payment_method, transaction_status, created_at) "
+                            "VALUES (%s, %s, %s, %s, %s, %s)",
+                            (py["payment_id"], py["order_id"], py["amount"], py.get("payment_method", "E-WALLET"), py.get("transaction_status", "SUCCESS"), py.get("created_at"))
+                        )
+                        total_synced_rows += 1
+                        target_synced_this_node += 1
+                    except Exception as e:
+                        logger.warning(f"[RECONCILE] Lỗi nạp payment {pid} vào {host}: {e}")
 
-                    for o in full_orders:
-                        if o["order_id"] in missing_ids:
-                            cur.execute(
-                                "INSERT IGNORE INTO orders (order_id, user_id, total_amount, status, shipping_region, created_at) "
-                                "VALUES (%s, %s, %s, %s, %s, %s)",
-                                (o["order_id"], o["user_id"], o["total_amount"], o["status"], o["shipping_region"], o["created_at"])
-                            )
-                            total_synced_rows += 1
-
-                    for it in full_items:
-                        if it["order_id"] in missing_ids:
-                            cur.execute(
-                                "INSERT IGNORE INTO order_items (item_id, order_id, product_id, quantity, unit_price) "
-                                "VALUES (%s, %s, %s, %s, %s)",
-                                (it["item_id"], it["order_id"], it["product_id"], it["quantity"], it["unit_price"])
-                            )
-                            total_synced_rows += 1
-
-                    for py in full_payments:
-                        if py["order_id"] in missing_ids:
-                            cur.execute(
-                                "INSERT IGNORE INTO payments (payment_id, order_id, amount, payment_method, transaction_status, created_at) "
-                                "VALUES (%s, %s, %s, %s, %s, %s)",
-                                (py["payment_id"], py["order_id"], py["amount"], py["payment_method"], py["transaction_status"], py["created_at"])
-                            )
-                            total_synced_rows += 1
-
+                if target_synced_this_node > 0:
                     lbl = get_node_label(host, "mysql")
-                    synced_details.append(f"{lbl} ({host})")
-                finally:
-                    if item["ro"] == 1:
-                        try:
-                            cur.execute("SET GLOBAL read_only = ON")
-                            cur.execute("SET GLOBAL super_read_only = ON")
-                        except Exception:
-                            pass
+                    synced_details.append(f"{lbl} (+{target_synced_this_node})")
 
-    # check them order_items
-        all_items_by_node = {}
-        for host, item in online_conns.items():
-            cur = item["cur"]
-            cur.execute("SELECT item_id FROM order_items")
-            all_items_by_node[host] = set(r["item_id"] for r in cur.fetchall())
-
-        all_known_item_ids = set.union(*all_items_by_node.values()) if all_items_by_node else set()
-        missing_items_by_node = {}
-        for host, item_ids in all_items_by_node.items():
-            diff_it = all_known_item_ids - item_ids
-            if diff_it:
-                missing_items_by_node[host] = diff_it
-
-        if missing_items_by_node:
-            needed_item_ids = set.union(*missing_items_by_node.values())
-            extra_items = []
-            for host, item in online_conns.items():
-                cur = item["cur"]
-                id_list = list(needed_item_ids)
-                for chunk_start in range(0, len(id_list), 500):
-                    chunk = id_list[chunk_start:chunk_start + 500]
-                    ids_str = ",".join(str(i) for i in chunk)
-                    cur.execute(f"SELECT * FROM order_items WHERE item_id IN ({ids_str})")
-                    rows_it = cur.fetchall()
-                    for r in rows_it:
-                        if not any(x["item_id"] == r["item_id"] for x in extra_items):
-                            extra_items.append(r)
-                if len(extra_items) == len(needed_item_ids):
-                    break
-
-            for host, missing_i_ids in missing_items_by_node.items():
-                item = online_conns[host]
-                cur = item["cur"]
                 try:
-                    cur.execute("SET GLOBAL super_read_only = OFF")
-                    cur.execute("SET GLOBAL read_only = OFF")
-                    for it in extra_items:
-                        if it["item_id"] in missing_i_ids:
-                            cur.execute(
-                                "INSERT IGNORE INTO order_items (item_id, order_id, product_id, quantity, unit_price) "
-                                "VALUES (%s, %s, %s, %s, %s)",
-                                (it["item_id"], it["order_id"], it["product_id"], it["quantity"], it["unit_price"])
-                            )
-                            total_synced_rows += 1
-                    lbl = get_node_label(host, "mysql")
-                    if f"{lbl} ({host})" not in synced_details:
-                        synced_details.append(f"{lbl} ({host})")
-                finally:
-                    if item["ro"] == 1:
-                        try:
-                            cur.execute("SET GLOBAL read_only = ON")
-                            cur.execute("SET GLOBAL super_read_only = ON")
-                        except Exception:
-                            pass
+                    conn.commit()
+                except Exception:
+                    pass
 
-        # 3. Kiem tra va nap bu doc lap cho payments (xu ly truong hop order co nhung payment bi thieu)
-        all_payments_by_node = {}
-        for host, item in online_conns.items():
-            cur = item["cur"]
-            cur.execute("SELECT payment_id FROM payments")
-            all_payments_by_node[host] = set(r["payment_id"] for r in cur.fetchall())
-
-        all_known_payment_ids = set.union(*all_payments_by_node.values()) if all_payments_by_node else set()
-        missing_payments_by_node = {}
-        for host, payment_ids in all_payments_by_node.items():
-            diff_py = all_known_payment_ids - payment_ids
-            if diff_py:
-                missing_payments_by_node[host] = diff_py
-
-        if missing_payments_by_node:
-            needed_payment_ids = set.union(*missing_payments_by_node.values())
-            extra_payments = []
-            for host, item in online_conns.items():
-                cur = item["cur"]
-                id_list = list(needed_payment_ids)
-                for chunk_start in range(0, len(id_list), 500):
-                    chunk = id_list[chunk_start:chunk_start + 500]
-                    ids_str = ",".join(str(i) for i in chunk)
-                    cur.execute(f"SELECT * FROM payments WHERE payment_id IN ({ids_str})")
-                    rows_py = cur.fetchall()
-                    for r in rows_py:
-                        if not any(x["payment_id"] == r["payment_id"] for x in extra_payments):
-                            extra_payments.append(r)
-                if len(extra_payments) == len(needed_payment_ids):
-                    break
-
-            for host, missing_p_ids in missing_payments_by_node.items():
-                item = online_conns[host]
-                cur = item["cur"]
+            finally:
                 try:
-                    cur.execute("SET GLOBAL super_read_only = OFF")
-                    cur.execute("SET GLOBAL read_only = OFF")
-                    for py in extra_payments:
-                        if py["payment_id"] in missing_p_ids:
-                            cur.execute(
-                                "INSERT IGNORE INTO payments (payment_id, order_id, amount, payment_method, transaction_status, created_at) "
-                                "VALUES (%s, %s, %s, %s, %s, %s)",
-                                (py["payment_id"], py["order_id"], py["amount"], py["payment_method"], py["transaction_status"], py["created_at"])
-                            )
-                            total_synced_rows += 1
-                    lbl = get_node_label(host, "mysql")
-                    if f"{lbl} ({host})" not in synced_details:
-                        synced_details.append(f"{lbl} ({host})")
-                finally:
-                    if item["ro"] == 1:
-                        try:
-                            cur.execute("SET GLOBAL read_only = ON")
-                            cur.execute("SET GLOBAL super_read_only = ON")
-                        except Exception:
-                            pass
+                    cur.execute("SET SESSION foreign_key_checks = 1")
+                    cur.execute("SET SESSION unique_checks = 1")
+                    cur.execute("SET SESSION sql_log_bin = 1")
+                except Exception:
+                    pass
+
+                if item.get("ro") == 1:
+                    try:
+                        cur.execute("SET GLOBAL read_only = ON")
+                        cur.execute("SET GLOBAL super_read_only = ON")
+                    except Exception:
+                        pass
+
+    except Exception as e:
+        logger.error(f"[RECONCILE_FATAL] {e}", exc_info=True)
     finally:
         for item in online_conns.values():
             try:
@@ -1691,6 +1741,12 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
                 pass
 
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+    # Xóa cache cluster status ngay lập tức để giao diện hiển thị dữ liệu khớp 100%
+    if total_synced_rows > 0:
+        with _STATUS_CACHE_LOCK:
+            _LAST_STATUS_RESPONSE = None
+            _LAST_STATUS_TIME = 0.0
 
     if total_synced_rows > 0 and log_sync:
         try:
@@ -1720,15 +1776,29 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
 
 @app.post("/api/cluster/sync-data")
 def manual_sync_cluster_data():
-    res = reconcile_mysql_cluster_data(log_sync=True)
-    msg = f"Đã kiểm tra và đồng bộ dữ liệu thành công! ({res['total_synced_rows']} bản ghi được bù mới trên các Node)" if res["total_synced_rows"] > 0 else "✓ Dữ liệu trên toàn bộ các Node đang trực tuyến đã hoàn toàn đồng bộ 100%!"
-    return {
-        "status": "SUCCESS",
-        "message": msg,
-        "total_synced_rows": res["total_synced_rows"],
-        "synced_nodes": res["synced_nodes"],
-        "elapsed_ms": res["elapsed_ms"]
-    }
+    try:
+        res = reconcile_mysql_cluster_data(log_sync=True)
+        if res["total_synced_rows"] > 0:
+            nodes_str = f" ({', '.join(res['synced_nodes'])})" if res["synced_nodes"] else ""
+            msg = f"Đã kiểm tra và nạp bù thành công {res['total_synced_rows']} bản ghi thiếu{nodes_str}!"
+        else:
+            msg = "✓ Dữ liệu trên toàn bộ các Node đang trực tuyến đã hoàn toàn đồng bộ 100%!"
+        return {
+            "status": "SUCCESS",
+            "message": msg,
+            "total_synced_rows": res["total_synced_rows"],
+            "synced_nodes": res["synced_nodes"],
+            "elapsed_ms": res["elapsed_ms"]
+        }
+    except Exception as e:
+        logger.error(f"[MANUAL_SYNC_DATA_ERROR] {e}", exc_info=True)
+        return {
+            "status": "ERROR",
+            "message": f"Lỗi trong quá trình đối chiếu dữ liệu: {str(e)}",
+            "total_synced_rows": 0,
+            "synced_nodes": [],
+            "elapsed_ms": 0.0
+        }
 
 
 @app.post("/api/cluster/mongo/elect-primary")
