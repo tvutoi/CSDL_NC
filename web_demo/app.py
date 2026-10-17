@@ -22,16 +22,23 @@ _IDEMPOTENCY_CACHE: Dict[str, Dict[str, Any]] = {}
 _IDEMPOTENCY_LOCK = threading.Lock()
 
 
-def is_port_open(host_or_addr: str, default_port: int = 3306, timeout: float = 0.65) -> bool:
-    # check socket nhanh va tin cay tren ca Localhost va mang LAN (0.65s)
+def is_port_open(host_or_addr: str, default_port: int = 3306, timeout: float = 0.8, retries: int = 2) -> bool:
+    # check socket tin cay tren ca Localhost va mang LAN (ho tro thu lai tranh packet loss Wi-Fi)
     try:
         if ":" in host_or_addr:
             h, p_str = host_or_addr.rsplit(":", 1)
             port = int(p_str)
         else:
             h, port = host_or_addr, default_port
-        with socket.create_connection((h, port), timeout=timeout):
-            return True
+        
+        for attempt in range(retries):
+            try:
+                with socket.create_connection((h, port), timeout=timeout):
+                    return True
+            except Exception:
+                if attempt < retries - 1:
+                    time.sleep(0.04)
+        return False
     except Exception:
         return False
 
@@ -829,15 +836,15 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
 
     for h in lan_hosts:
         h_mg, p_mg = (h.split(":") if ":" in h else (h, 27017))
-        if not is_port_open(h_mg, int(p_mg), timeout=0.6):
+        if not is_port_open(h_mg, int(p_mg), timeout=0.8, retries=2):
             continue
         try:
             c = MongoClient(
                 f"mongodb://{h}/?directConnection=true&w=1",
                 read_preference=rp,
-                serverSelectionTimeoutMS=1000,
-                connectTimeoutMS=1000,
-                socketTimeoutMS=2500
+                serverSelectionTimeoutMS=2000,
+                connectTimeoutMS=2000,
+                socketTimeoutMS=3000
             )
             hello = c.admin.command("hello")
             is_prim = bool(hello.get("isWritablePrimary") or hello.get("ismaster"))
@@ -966,7 +973,7 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
     for host in candidates:
         h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
         p_int = int(p_int)
-        if not is_port_open(h_str, p_int, timeout=0.6):
+        if not is_port_open(h_str, p_int, timeout=0.8, retries=2):
             continue
         try:
             conn = mysql.connector.connect(
@@ -978,7 +985,7 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
                 charset="utf8mb4",
                 use_unicode=True,
                 collation="utf8mb4_unicode_ci",
-                connection_timeout=1.5
+                connection_timeout=2.5
             )
             cur = conn.cursor(dictionary=True)
             cur.execute("SELECT @@server_id AS server_id, @@hostname AS hostname, @@global.read_only AS read_only")
@@ -1529,7 +1536,7 @@ def get_cluster_status(request: Request):
         t0 = time.perf_counter()
         h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
         p_int = int(p_int)
-        if not is_port_open(h_str, p_int, timeout=0.6):
+        if not is_port_open(h_str, p_int, timeout=0.8, retries=2):
             return {
                 "node_name": f"Node {idx}", "host": host, "server_id": "-", "hostname": "-",
                 "state": "OFFLINE", "role": "UNREACHABLE", "ping_ms": None, "gtid": "-",
@@ -1541,7 +1548,7 @@ def get_cluster_status(request: Request):
                 host=h_str, port=p_int,
                 user=CLUSTER_CONFIG["mysql_user"],
                 password=CLUSTER_CONFIG["mysql_password"],
-                connection_timeout=1.5
+                connection_timeout=2.5
             )
             ping_ms = round((time.perf_counter() - t0) * 1000, 2)
             cur = conn.cursor(dictionary=True)
@@ -1558,9 +1565,18 @@ def get_cluster_status(request: Request):
             node_counts = {"users": 0, "products": 0, "orders": 0, "order_items": 0, "payments": 0}
             try:
                 cur.execute(f"USE {CLUSTER_CONFIG['mysql_db']}")
-                for tbl in ["users", "products", "orders", "order_items", "payments"]:
-                    cur.execute(f"SELECT COUNT(*) AS c FROM {tbl}")
-                    node_counts[tbl] = cur.fetchone()["c"]
+                cur.execute("""
+                    SELECT 
+                        (SELECT COUNT(*) FROM users) AS users,
+                        (SELECT COUNT(*) FROM products) AS products,
+                        (SELECT COUNT(*) FROM orders) AS orders,
+                        (SELECT COUNT(*) FROM order_items) AS order_items,
+                        (SELECT COUNT(*) FROM payments) AS payments
+                """)
+                row_counts = cur.fetchone()
+                if row_counts:
+                    for tbl in node_counts:
+                        node_counts[tbl] = int(row_counts.get(tbl) or 0)
             except Exception:
                 pass
 
@@ -1589,14 +1605,14 @@ def get_cluster_status(request: Request):
         idx, cfg_host = idx_host
         h_mg, p_mg = (cfg_host.split(":") if ":" in cfg_host else (cfg_host, 27017))
         p_mg = int(p_mg)
-        if not is_port_open(h_mg, p_mg, timeout=0.6):
+        if not is_port_open(h_mg, p_mg, timeout=0.8, retries=2):
             return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": "OFFLINE", "health": 0,
                 "ping_ms": None, "reviews_count": 0, "logs_count": 0, "_is_prim": False
             }
         try:
             t_start = time.perf_counter()
-            m_single = MongoClient(f"mongodb://{h_mg}:{p_mg}/?directConnection=true", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=1200, connectTimeoutMS=1200)
+            m_single = MongoClient(f"mongodb://{h_mg}:{p_mg}/?directConnection=true", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=2000, connectTimeoutMS=2000)
             hello_res = m_single.admin.command("hello")
             ping_ms = round((time.perf_counter() - t_start) * 1000, 2)
             is_prim = bool(hello_res.get("isWritablePrimary") or hello_res.get("ismaster"))
@@ -2528,30 +2544,60 @@ def get_recent_orders(
         page = total_pages
     offset = (page - 1) * limit
 
-    query_sql = f"""
-        SELECT 
-            o.order_id, o.user_id,
-            MAX(u.full_name) AS full_name,
-            MAX(u.city) AS city,
-            COALESCE(NULLIF(SUM(oi.quantity * oi.unit_price), 0), o.total_amount) AS total_amount,
-            o.status, o.shipping_region, o.created_at,
-            COUNT(DISTINCT oi.item_id) AS total_items_count,
-            COALESCE(SUM(oi.quantity), 1) AS total_quantity,
-            SUBSTRING_INDEX(GROUP_CONCAT(p.product_name ORDER BY oi.item_id SEPARATOR '|||'), '|||', 1) AS first_product_name,
-            GROUP_CONCAT(CONCAT(p.product_name, ' (x', oi.quantity, ')') ORDER BY oi.item_id SEPARATOR '; ') AS items_detail,
-            MAX(pay.payment_method) AS payment_method,
-            MAX(pay.transaction_status) AS transaction_status
-        FROM orders o
-        LEFT JOIN users u ON o.user_id = u.user_id
-        LEFT JOIN order_items oi ON o.order_id = oi.order_id
-        LEFT JOIN products p ON oi.product_id = p.product_id
-        LEFT JOIN payments pay ON o.order_id = pay.order_id
-        WHERE {where_sql}
-        GROUP BY o.order_id, o.user_id, o.total_amount, o.status, o.shipping_region, o.created_at
-        ORDER BY o.order_id DESC
-        LIMIT %s OFFSET %s
-    """
-    query_params = list(params) + [limit, offset]
+    has_joined_filter = bool(keyword or payment_method or (filter_group and filter_group.startswith("PAY:")))
+    if not has_joined_filter:
+        query_sql = f"""
+            SELECT 
+                o.order_id, o.user_id,
+                MAX(u.full_name) AS full_name,
+                MAX(u.city) AS city,
+                COALESCE(NULLIF(SUM(oi.quantity * oi.unit_price), 0), o.total_amount) AS total_amount,
+                o.status, o.shipping_region, o.created_at,
+                COUNT(DISTINCT oi.item_id) AS total_items_count,
+                COALESCE(SUM(oi.quantity), 1) AS total_quantity,
+                SUBSTRING_INDEX(GROUP_CONCAT(p.product_name ORDER BY oi.item_id SEPARATOR '|||'), '|||', 1) AS first_product_name,
+                GROUP_CONCAT(CONCAT(p.product_name, ' (x', oi.quantity, ')') ORDER BY oi.item_id SEPARATOR '; ') AS items_detail,
+                MAX(pay.payment_method) AS payment_method,
+                MAX(pay.transaction_status) AS transaction_status
+            FROM (
+                SELECT * FROM orders o
+                WHERE {where_sql}
+                ORDER BY o.order_id DESC
+                LIMIT %s OFFSET %s
+            ) o
+            LEFT JOIN users u ON o.user_id = u.user_id
+            LEFT JOIN order_items oi ON o.order_id = oi.order_id
+            LEFT JOIN products p ON oi.product_id = p.product_id
+            LEFT JOIN payments pay ON o.order_id = pay.order_id
+            GROUP BY o.order_id, o.user_id, o.total_amount, o.status, o.shipping_region, o.created_at
+            ORDER BY o.order_id DESC
+        """
+        query_params = list(params) + [limit, offset]
+    else:
+        query_sql = f"""
+            SELECT 
+                o.order_id, o.user_id,
+                MAX(u.full_name) AS full_name,
+                MAX(u.city) AS city,
+                COALESCE(NULLIF(SUM(oi.quantity * oi.unit_price), 0), o.total_amount) AS total_amount,
+                o.status, o.shipping_region, o.created_at,
+                COUNT(DISTINCT oi.item_id) AS total_items_count,
+                COALESCE(SUM(oi.quantity), 1) AS total_quantity,
+                SUBSTRING_INDEX(GROUP_CONCAT(p.product_name ORDER BY oi.item_id SEPARATOR '|||'), '|||', 1) AS first_product_name,
+                GROUP_CONCAT(CONCAT(p.product_name, ' (x', oi.quantity, ')') ORDER BY oi.item_id SEPARATOR '; ') AS items_detail,
+                MAX(pay.payment_method) AS payment_method,
+                MAX(pay.transaction_status) AS transaction_status
+            FROM orders o
+            LEFT JOIN users u ON o.user_id = u.user_id
+            LEFT JOIN order_items oi ON o.order_id = oi.order_id
+            LEFT JOIN products p ON oi.product_id = p.product_id
+            LEFT JOIN payments pay ON o.order_id = pay.order_id
+            WHERE {where_sql}
+            GROUP BY o.order_id, o.user_id, o.total_amount, o.status, o.shipping_region, o.created_at
+            ORDER BY o.order_id DESC
+            LIMIT %s OFFSET %s
+        """
+        query_params = list(params) + [limit, offset]
     cur.execute(query_sql, tuple(query_params))
     rows = cur.fetchall()
     cur.close()
