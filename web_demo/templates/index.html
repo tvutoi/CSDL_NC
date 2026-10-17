@@ -3598,7 +3598,7 @@
             if (clusterStatusAbortController) {
               try { clusterStatusAbortController.abort(); } catch (_) {}
             }
-          }, 3500);
+          }, 5000);
 
           const res = await fetch("/api/cluster/status?_t=" + Date.now(), {
             cache: "no-store",
