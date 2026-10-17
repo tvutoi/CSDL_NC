@@ -757,6 +757,61 @@ def is_same_mongo_host(h1: Optional[str], h2: Optional[str]) -> bool:
     return normalize_mongo_host(h1) == normalize_mongo_host(h2)
 
 
+def normalize_mysql_host(host_str: str) -> str:
+    """Đảm bảo chuỗi host mysql luôn có định dạng ip:port (mặc định port 3306)"""
+    if not host_str:
+        return "127.0.0.1:3306"
+    h = str(host_str).strip()
+    if ":" in h:
+        return h
+    return f"{h}:3306"
+
+
+def is_same_mysql_host(h1: Optional[str], h2: Optional[str]) -> bool:
+    """So sánh 2 host mysql bất kể có port hay không"""
+    if not h1 or not h2:
+        return False
+    return normalize_mysql_host(h1) == normalize_mysql_host(h2)
+
+
+def _ensure_mysql_writable(host: str):
+    """Mở quyền ghi cho Node Primary: read_only = OFF, super_read_only = OFF"""
+    try:
+        h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
+        conn = mysql.connector.connect(
+            host=h_str, port=int(p_int),
+            user=CLUSTER_CONFIG["mysql_user"],
+            password=CLUSTER_CONFIG["mysql_password"],
+            connection_timeout=2.0
+        )
+        cur = conn.cursor()
+        cur.execute("SET GLOBAL super_read_only = OFF")
+        cur.execute("SET GLOBAL read_only = OFF")
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.debug(f"[HA_MYSQL] Không thể mở quyền ghi cho {host}: {e}")
+
+
+def _ensure_mysql_read_only(host: str):
+    """Khóa quyền ghi cho Node Secondary: read_only = ON, super_read_only = ON"""
+    try:
+        h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
+        conn = mysql.connector.connect(
+            host=h_str, port=int(p_int),
+            user=CLUSTER_CONFIG["mysql_user"],
+            password=CLUSTER_CONFIG["mysql_password"],
+            connection_timeout=2.0
+        )
+        cur = conn.cursor()
+        cur.execute("SET GLOBAL read_only = ON")
+        cur.execute("SET GLOBAL super_read_only = ON")
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.debug(f"[HA_MYSQL] Không thể khóa quyền ghi cho {host}: {e}")
+
+
 _LAST_MONGO_PRIORITY_CHECK = 0.0
 _MONGO_ELECTION_LOCK = threading.Lock()
 
@@ -1123,11 +1178,12 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
             idx = CLUSTER_CONFIG["round_robin_idx"]
         candidates = nodes[idx:] + nodes[:idx]
     elif mode == "secondary_preferred":
-        secondaries = [h for h in nodes if h != active_pri]
+        secondaries = [h for h in nodes if not is_same_mysql_host(h, active_pri)]
         candidates = secondaries + ([active_pri] if active_pri else [])
     elif mode == "primary":
-        if active_pri and active_pri in nodes:
-            candidates = [active_pri] + [h for h in nodes if h != active_pri]
+        matching_pri = next((h for h in nodes if is_same_mysql_host(h, active_pri)), None)
+        if matching_pri:
+            candidates = [matching_pri] + [h for h in nodes if not is_same_mysql_host(h, matching_pri)]
         else:
             candidates = nodes
     else:
@@ -1175,8 +1231,6 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
 
             role_str = "SECONDARY" if is_ro else "PRIMARY"
             role_vn = "Node phụ" if is_ro else "Node chính"
-            if not is_ro:
-                set_active_mysql_primary(host)
             return conn, {
                 "host": host,
                 "server_id": meta["server_id"],
@@ -1984,31 +2038,53 @@ def get_cluster_status(request: Request):
         mysql_results = [f.result() for f in f_mysql]
         mongo_results = [f.result() for f in f_mongo]
 
+    # BẦU CHỌN VÀ GIỮ VỮNG NODE CHÍNH (PRIMARY) THEO CHUẨN NON-PREEMPTIVE HA:
+    # 1. Nếu cụm MySQL Group Replication thực sự đang chạy và báo group_primary_uuid qua Paxos Quorum
     group_primary_uuid = next((n["_primary_uuid"] for n in mysql_results if n.get("_primary_uuid")), None)
-    primary_assigned = False
+    primary_node = None
+    if group_primary_uuid:
+        primary_node = next((n for n in mysql_results if n["state"] == "ONLINE" and n.get("_uuid") == group_primary_uuid), None)
 
-    for n in mysql_results:
-        if n["state"] == "ONLINE":
-            is_pri = (group_primary_uuid and n.get("_uuid") == group_primary_uuid) or (n.get("_ro") == 0)
-            if is_pri and not primary_assigned:
-                n["role"] = "PRIMARY"
-                primary_assigned = True
-                set_active_mysql_primary(n["host"])
-            else:
-                n["role"] = "SECONDARY"
-
-    if not primary_assigned:
+    # 2. Nếu không có group_primary_uuid (Group Replication chưa kết nối / chạy mô phỏng / local lab):
+    if not primary_node:
         curr_active = get_active_mysql_primary()
-        active_node = next((n for n in mysql_results if n["host"] == curr_active and n["state"] == "ONLINE"), None)
-        if active_node:
-            active_node["role"] = "PRIMARY"
-            primary_assigned = True
+        # NGUYÊN TẮC HA (NON-PREEMPTIVE FAILOVER):
+        # Nếu Node Primary hiện tại (ví dụ: Node 2) VẪN ĐANG ONLINE và hoạt động bình thường,
+        # thì Node đó BẮT BUỘC TIẾP TỤC GIỮ QUYỀN PRIMARY!
+        # Node cũ vừa khởi động lại (Node 1) TUYỆT ĐỐI KHÔNG ĐƯỢC CƯỚP QUYỀN PRIMARY!
+        if curr_active:
+            primary_node = next((n for n in mysql_results if n["state"] == "ONLINE" and is_same_mysql_host(n["host"], curr_active)), None)
+
+    # 3. Chỉ khi Node Primary hiện tại bị chết (OFFLINE) hoặc cụm mới khởi động chưa có Primary:
+    # Mới tiến hành Failover bầu Node mới!
+    if not primary_node:
+        pri_cand = [n for n in mysql_results if n["state"] == "ONLINE" and n.get("_ro") == 0]
+        if pri_cand:
+            primary_node = pri_cand[0]
         else:
             online_cand = [n for n in mysql_results if n["state"] == "ONLINE"]
             if online_cand:
-                online_cand[0]["role"] = "PRIMARY"
-                primary_assigned = True
-                set_active_mysql_primary(online_cand[0]["host"])
+                primary_node = online_cand[0]
+
+    # 4. Áp dụng vai trò và chuẩn hóa quyền ghi read_only cho toàn bộ cụm:
+    if primary_node:
+        set_active_mysql_primary(primary_node["host"])
+        for n in mysql_results:
+            if is_same_mysql_host(n["host"], primary_node["host"]):
+                n["role"] = "PRIMARY"
+                if n.get("_ro") == 1:
+                    _ensure_mysql_writable(n["host"])
+                    n["_ro"] = 0
+            else:
+                n["role"] = "SECONDARY" if n["state"] == "ONLINE" else "UNREACHABLE"
+                # NGUYÊN TẮC BẢO VỆ CỤM: Nếu là Node phụ mà đang mang read_only = 0 (do vừa khởi động lại),
+                # lập tức khóa ghi read_only = 1 để bảo vệ tính nhất quán dữ liệu và ngăn cướp quyền!
+                if n["state"] == "ONLINE" and n.get("_ro") == 0:
+                    _ensure_mysql_read_only(n["host"])
+                    n["_ro"] = 1
+    else:
+        for n in mysql_results:
+            n["role"] = "SECONDARY" if n["state"] == "ONLINE" else "UNREACHABLE"
 
     for n in mysql_results:
         for k in ["_uuid", "_primary_uuid", "_ro"]:
