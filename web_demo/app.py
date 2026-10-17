@@ -22,8 +22,8 @@ _IDEMPOTENCY_CACHE: Dict[str, Dict[str, Any]] = {}
 _IDEMPOTENCY_LOCK = threading.Lock()
 
 
-def is_port_open(host_or_addr: str, default_port: int = 3306, timeout: float = 0.25) -> bool:
-    # check socket nhanh 0.25s
+def is_port_open(host_or_addr: str, default_port: int = 3306, timeout: float = 0.2) -> bool:
+    # check socket nhanh 0.2s
     try:
         if ":" in host_or_addr:
             h, p_str = host_or_addr.rsplit(":", 1)
@@ -49,6 +49,7 @@ templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
 CONFIG_FILE = os.path.join(current_dir, "cluster_config.json")
 
 CLUSTER_CONFIG = {
+    "preset": "docker",
     "mysql_nodes": [
         "127.0.0.1:3305",
         "127.0.0.1:3306",
@@ -81,6 +82,7 @@ def save_cluster_config_to_file():
     global _CONFIG_LAST_MTIME
     try:
         data = {
+            "preset": CLUSTER_CONFIG.get("preset", "docker"),
             "mysql_nodes": CLUSTER_CONFIG.get("mysql_nodes", []),
             "mongo_nodes": CLUSTER_CONFIG.get("mongo_nodes", []),
             "client_node": CLUSTER_CONFIG.get("client_node", ""),
@@ -719,7 +721,10 @@ def record_sync_log(
 
 
 
-def ensure_mongo_primary_priority():
+_LAST_MONGO_PRIORITY_CHECK = 0.0
+
+
+def ensure_mongo_primary_priority(force: bool = False):
     """
     Quản lý tính sẵn sàng của Primary trong cụm MongoDB Replica Set:
     - KHI ĐÃ CÓ NODE CHÍNH (PRIMARY): Tuyệt đối KHÔNG bầu lại, KHÔNG replSetReconfig, KHÔNG step down!
@@ -727,6 +732,12 @@ def ensure_mongo_primary_priority():
     - KHI CHƯA CÓ NODE CHÍNH (mất Quorum / toàn bộ node rớt về SECONDARY):
       Mới thực hiện cứu Quorum / bầu chọn Node chính dựa trên cấu hình cluster_config.json.
     """
+    global _LAST_MONGO_PRIORITY_CHECK
+    now_ts = time.time()
+    if not force and (now_ts - _LAST_MONGO_PRIORITY_CHECK) < 8.0:
+        return
+    _LAST_MONGO_PRIORITY_CHECK = now_ts
+
     cfg = load_cluster_config()
     mongo_nodes = cfg.get("mongo_nodes", [])
     if not mongo_nodes:
@@ -737,9 +748,9 @@ def ensure_mongo_primary_priority():
     online_hosts = []
     for host in mongo_nodes:
         h, p = host.split(":") if ":" in host else (host, 27017)
-        if is_port_open(h, int(p), timeout=0.2):
+        if is_port_open(h, int(p), timeout=0.15):
             try:
-                c = MongoClient(f"mongodb://{host}/?directConnection=true&w=1", serverSelectionTimeoutMS=400)
+                c = MongoClient(f"mongodb://{host}/?directConnection=true&w=1", serverSelectionTimeoutMS=250)
                 hello = c.admin.command("hello")
                 c.close()
                 online_hosts.append(host)
@@ -1166,6 +1177,7 @@ def index(request: Request):
 
 
 class ClusterConfigUpdate(BaseModel):
+    preset: Optional[str] = None
     mysql_nodes: List[str]
     mongo_nodes: List[str]
     client_node: str
@@ -1177,6 +1189,7 @@ class ClusterConfigUpdate(BaseModel):
 def get_config():
     load_cluster_config()
     return {
+        "preset": CLUSTER_CONFIG.get("preset", "docker"),
         "mysql_nodes": CLUSTER_CONFIG["mysql_nodes"],
         "mongo_nodes": CLUSTER_CONFIG["mongo_nodes"],
         "client_node": CLUSTER_CONFIG["client_node"],
@@ -1188,6 +1201,16 @@ def get_config():
 
 @app.post("/api/cluster/config")
 def update_config(cfg: ClusterConfigUpdate):
+    if cfg.preset:
+        CLUSTER_CONFIG["preset"] = cfg.preset.strip()
+    else:
+        first_my = cfg.mysql_nodes[0] if cfg.mysql_nodes else ""
+        if "127.0.0.1" in first_my:
+            CLUSTER_CONFIG["preset"] = "docker"
+        elif "192.168.1.22" in first_my:
+            CLUSTER_CONFIG["preset"] = "lan_lab"
+        else:
+            CLUSTER_CONFIG["preset"] = "custom"
     CLUSTER_CONFIG["mysql_nodes"] = [ip.strip() for ip in cfg.mysql_nodes if ip.strip()]
     CLUSTER_CONFIG["mongo_nodes"] = [ip.strip() for ip in cfg.mongo_nodes if ip.strip()]
     CLUSTER_CONFIG["client_node"] = cfg.client_node.strip()
@@ -1519,7 +1542,7 @@ def get_cluster_status(request: Request):
         t0 = time.perf_counter()
         h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
         p_int = int(p_int)
-        if not is_port_open(h_str, p_int, timeout=0.25):
+        if not is_port_open(h_str, p_int, timeout=0.15):
             return {
                 "node_name": f"Node {idx}", "host": host, "server_id": "-", "hostname": "-",
                 "state": "OFFLINE", "role": "UNREACHABLE", "ping_ms": None, "gtid": "-",
@@ -1531,7 +1554,7 @@ def get_cluster_status(request: Request):
                 host=h_str, port=p_int,
                 user=CLUSTER_CONFIG["mysql_user"],
                 password=CLUSTER_CONFIG["mysql_password"],
-                connection_timeout=1.2
+                connection_timeout=0.8
             )
             ping_ms = round((time.perf_counter() - t0) * 1000, 2)
             cur = conn.cursor(dictionary=True)
@@ -1651,95 +1674,61 @@ def get_cluster_status(request: Request):
             for k, v in n["counts"].items():
                 status["data_counts"][k] = v
 
-    # check lech du lieu
-    online_order_counts = [n["counts"]["orders"] for n in mysql_results if n["counts"]["orders"] > 0]
-    if len(online_order_counts) >= 2 and len(set(online_order_counts)) > 1:
-        try:
-            res_rec = reconcile_mysql_cluster_data(log_sync=False)
-            if res_rec.get("total_synced_rows", 0) > 0:
-                max_c = max(online_order_counts)
-                for n in mysql_results:
-                    if n["counts"]["orders"] > 0:
-                        n["counts"]["orders"] = max_c
-                        n["counts"]["order_items"] = max_c * 2
-                        n["counts"]["payments"] = max_c
-                status["data_counts"]["orders"] = max_c
-                status["data_counts"]["order_items"] = max_c * 2
-                status["data_counts"]["payments"] = max_c
-        except Exception:
-            pass
+    # check lech du lieu (co cooldown de tranh goi don dap)
+    _last_rec_ts = getattr(reconcile_mysql_cluster_data, "_last_status_time", 0.0)
+    now_ts_rec = time.time()
+    if (now_ts_rec - _last_rec_ts) >= 4.0:
+        online_order_counts = [n["counts"]["orders"] for n in mysql_results if n["counts"]["orders"] > 0]
+        if len(online_order_counts) >= 2 and len(set(online_order_counts)) > 1:
+            try:
+                reconcile_mysql_cluster_data._last_status_time = now_ts_rec
+                res_rec = reconcile_mysql_cluster_data(log_sync=False)
+                if res_rec.get("total_synced_rows", 0) > 0:
+                    max_c = max(online_order_counts)
+                    for n in mysql_results:
+                        if n["counts"]["orders"] > 0:
+                            n["counts"]["orders"] = max_c
+                            n["counts"]["order_items"] = max_c * 2
+                            n["counts"]["payments"] = max_c
+                    status["data_counts"]["orders"] = max_c
+                    status["data_counts"]["order_items"] = max_c * 2
+                    status["data_counts"]["payments"] = max_c
+            except Exception:
+                pass
 
     status["mysql"] = mysql_results
 
-    # ping cac node mongo
+    # ping cac node mongo nhanh song song
     try:
         ensure_mongo_primary_priority()
     except Exception:
         pass
 
-    mongo_reviews_cnt = 0
-    mongo_logs_cnt = 0
-    rs_map = {}
-
-    for probe_host in CLUSTER_CONFIG["mongo_nodes"]:
-        h_mg, p_mg = (probe_host.split(":") if ":" in probe_host else (probe_host, 27017))
-        if is_port_open(h_mg, int(p_mg), timeout=0.2):
-            try:
-                probe_c = MongoClient(f"mongodb://{probe_host}/?directConnection=true", read_preference=ReadPreference.PRIMARY_PREFERRED, serverSelectionTimeoutMS=400)
-                probe_db = probe_c[CLUSTER_CONFIG["mongo_db"]]
-                r_c = probe_db["product_reviews"].estimated_document_count()
-                l_c = probe_db["user_activity_logs"].estimated_document_count()
-                if r_c > 0 or l_c > 0:
-                    mongo_reviews_cnt = r_c
-                    mongo_logs_cnt = l_c
-                    status["data_counts"]["reviews"] = r_c
-                    status["data_counts"]["logs"] = l_c
-                try:
-                    rs_stat = probe_c.admin.command("replSetGetStatus")
-                    for m in rs_stat.get("members", []):
-                        m_name = m.get("name")
-                        if m_name:
-                            rs_map[m_name] = m
-                except Exception:
-                    pass
-                probe_c.close()
-                if mongo_reviews_cnt > 0:
-                    break
-            except Exception:
-                pass
-
     def _scan_mongo(idx_host):
         idx, cfg_host = idx_host
         h_mg, p_mg = (cfg_host.split(":") if ":" in cfg_host else (cfg_host, 27017))
-        if not is_port_open(h_mg, int(p_mg), timeout=0.2):
+        p_mg = int(p_mg)
+        if not is_port_open(h_mg, p_mg, timeout=0.15):
             return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": "OFFLINE", "health": 0,
-                "ping_ms": None,
-                "reviews_count": 0, "logs_count": 0
+                "ping_ms": None, "reviews_count": 0, "logs_count": 0, "_is_prim": False
             }
         try:
             t_start = time.perf_counter()
-            m_single = MongoClient(f"mongodb://{h_mg}:{p_mg}/?directConnection=true", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=400)
+            m_single = MongoClient(f"mongodb://{h_mg}:{p_mg}/?directConnection=true", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=250)
             hello_res = m_single.admin.command("hello")
             ping_ms = round((time.perf_counter() - t_start) * 1000, 2)
-            is_prim = hello_res.get("isWritablePrimary") or hello_res.get("ismaster")
+            is_prim = bool(hello_res.get("isWritablePrimary") or hello_res.get("ismaster"))
             state_str = "PRIMARY" if is_prim else ("SECONDARY" if hello_res.get("secondary") else "ONLINE")
-            rs_entry = rs_map.get(cfg_host) or rs_map.get(f"{h_mg}:{p_mg}") or next((m for k, m in rs_map.items() if k.split(":")[0] == h_mg), None)
-            if rs_entry:
-                raw_st = rs_entry.get("stateStr", "")
-                if raw_st and raw_st not in ("(not reachable/healthy)", "DOWN", "UNKNOWN"):
-                    state_str = raw_st
             m_single.close()
             return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": state_str, "health": 1,
-                "ping_ms": ping_ms,
-                "reviews_count": mongo_reviews_cnt, "logs_count": mongo_logs_cnt
+                "ping_ms": ping_ms, "reviews_count": 0, "logs_count": 0, "_is_prim": is_prim
             }
         except Exception:
             return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": "OFFLINE", "health": 0,
-                "ping_ms": None,
-                "reviews_count": 0, "logs_count": 0
+                "ping_ms": None, "reviews_count": 0, "logs_count": 0, "_is_prim": False
             }
 
     with ThreadPoolExecutor(max_workers=4) as ex:
@@ -1747,15 +1736,12 @@ def get_cluster_status(request: Request):
 
     online_m = [m for m in mongo_results if m["health"] == 1]
     if online_m:
-        primaries = [m for m in online_m if m["state"] == "PRIMARY"]
-        if len(primaries) == 0:
+        primaries = [m for m in online_m if m.get("_is_prim")]
+        if not primaries:
             curr_mg_active = get_active_mongo_primary()
-            act_m = next((m for m in online_m if m["host"] == curr_mg_active), None)
-            if act_m:
-                act_m["state"] = "PRIMARY"
-            else:
-                online_m[0]["state"] = "PRIMARY"
-                set_active_mongo_primary(online_m[0]["host"])
+            act_m = next((m for m in online_m if m["host"] == curr_mg_active), online_m[0])
+            act_m["state"] = "PRIMARY"
+            set_active_mongo_primary(act_m["host"])
         elif len(primaries) > 1:
             curr_mg_active = get_active_mongo_primary()
             act_m = next((m for m in primaries if m["host"] == curr_mg_active), primaries[0])
@@ -1764,6 +1750,29 @@ def get_cluster_status(request: Request):
             set_active_mongo_primary(act_m["host"])
         else:
             set_active_mongo_primary(primaries[0]["host"])
+
+        # Lấy số lượng tài liệu từ node online đầu tiên (hoặc primary)
+        probe_target = next((m for m in online_m if m["state"] == "PRIMARY"), online_m[0])
+        try:
+            t_h = probe_target["host"]
+            h_mg, p_mg = (t_h.split(":") if ":" in t_h else (t_h, 27017))
+            probe_c = MongoClient(f"mongodb://{h_mg}:{p_mg}/?directConnection=true", read_preference=ReadPreference.PRIMARY_PREFERRED, serverSelectionTimeoutMS=250)
+            probe_db = probe_c[CLUSTER_CONFIG["mongo_db"]]
+            r_c = probe_db["product_reviews"].estimated_document_count()
+            l_c = probe_db["user_activity_logs"].estimated_document_count()
+            status["data_counts"]["reviews"] = r_c
+            status["data_counts"]["logs"] = l_c
+            for m in online_m:
+                m["reviews_count"] = r_c
+                m["logs_count"] = l_c
+            probe_c.close()
+        except Exception:
+            pass
+
+    for m in mongo_results:
+        m.pop("_is_prim", None)
+
+    status["mongodb"] = mongo_results
 
     try:
         reconcile_offline_nodes_in_file()
@@ -3078,7 +3087,7 @@ def reconcile_offline_nodes_in_file(force: bool = False):
     """
     global _LAST_RECONCILE_TIME, SYNC_AUDIT_LOGS
     now_ts = time.time()
-    if not force and (now_ts - _LAST_RECONCILE_TIME) < 2.0:
+    if not force and (now_ts - _LAST_RECONCILE_TIME) < 3.0:
         return
     _LAST_RECONCILE_TIME = now_ts
 
@@ -3089,6 +3098,13 @@ def reconcile_offline_nodes_in_file(force: bool = False):
     updated_any = False
     now_str = datetime.now().strftime("%H:%M:%S.%f")[:-3]
     new_catchup_logs = []
+    checked_ports: Dict[str, bool] = {}
+
+    def is_cached_open(h: str, p: int) -> bool:
+        k = f"{h}:{p}"
+        if k not in checked_ports:
+            checked_ports[k] = is_port_open(h, p, timeout=0.15)
+        return checked_ports[k]
 
     for log in logs:
         node_dich = log.get("node_dich") or []
@@ -3107,7 +3123,7 @@ def reconcile_offline_nodes_in_file(force: bool = False):
                 if nd.get("trang_thai") == "OFFLINE_WAITING":
                     h_sec, p_sec = (nd["host"].split(":") if ":" in nd["host"] else (nd["host"], 3306))
                     p_sec = int(p_sec)
-                    if is_port_open(h_sec, p_sec, timeout=0.2):
+                    if is_cached_open(h_sec, p_sec):
                         try:
                             s_conn = mysql.connector.connect(
                                 host=h_sec, port=p_sec, user="root", password=pwd, database="ecommerce_db", connection_timeout=0.5
@@ -3199,9 +3215,9 @@ def reconcile_offline_nodes_in_file(force: bool = False):
                 if nd.get("trang_thai") == "OFFLINE_WAITING":
                     h_sec, p_sec = (nd["host"].split(":") if ":" in nd["host"] else (nd["host"], 27017))
                     p_sec = int(p_sec)
-                    if is_port_open(h_sec, p_sec, timeout=0.2):
+                    if is_cached_open(h_sec, p_sec):
                         try:
-                            m_client = MongoClient(f"mongodb://{nd['host']}/?directConnection=true", serverSelectionTimeoutMS=500)
+                            m_client = MongoClient(f"mongodb://{nd['host']}/?directConnection=true", serverSelectionTimeoutMS=300)
                             hello_res = m_client.admin.command("hello")
                             m_client.close()
                             is_ready = hello_res.get("secondary") or hello_res.get("isWritablePrimary")

@@ -3582,11 +3582,30 @@
       }
 
       // 1. load cluster status
+      let isFetchingClusterStatus = false;
+      let clusterStatusAbortController = null;
+
       async function fetchClusterStatus() {
+        if (isFetchingClusterStatus) return;
+        isFetchingClusterStatus = true;
+        let fetchTimeoutId = null;
         try {
+          if (clusterStatusAbortController) {
+            try { clusterStatusAbortController.abort(); } catch (_) {}
+          }
+          clusterStatusAbortController = new AbortController();
+          fetchTimeoutId = setTimeout(() => {
+            if (clusterStatusAbortController) {
+              try { clusterStatusAbortController.abort(); } catch (_) {}
+            }
+          }, 3500);
+
           const res = await fetch("/api/cluster/status?_t=" + Date.now(), {
             cache: "no-store",
+            signal: clusterStatusAbortController.signal,
           });
+          if (fetchTimeoutId) clearTimeout(fetchTimeoutId);
+          if (!res.ok) throw new Error("HTTP " + res.status);
           const data = await res.json();
           const timestampStr = data.timestamp || new Date().toLocaleTimeString("vi-VN");
           const headerUpd = document.getElementById("header-last-updated");
@@ -3876,7 +3895,12 @@
           // Cập nhật lại trạng thái hiển thị của khung cụm theo trạng thái hiệu lực
           applyClusterPanelState();
         } catch (e) {
-          console.error("Cluster status error:", e);
+          if (e.name !== "AbortError") {
+            console.warn("Cluster status check:", e.message || e);
+          }
+        } finally {
+          if (fetchTimeoutId) clearTimeout(fetchTimeoutId);
+          isFetchingClusterStatus = false;
         }
       }
 
@@ -6065,8 +6089,11 @@
         }
       }
 
+      window._currentSelectedPreset = "docker";
+
       function getClusterConfigFormValues() {
         return {
+          preset: window._currentSelectedPreset || detectCurrentPreset() || "docker",
           mysql: document.getElementById("cfg-mysql-nodes")?.value.trim() || "",
           mongo: document.getElementById("cfg-mongo-nodes")?.value.trim() || "",
           client: document.getElementById("cfg-client-node")?.value.trim() || "",
@@ -6079,6 +6106,7 @@
         if (!initialClusterConfigSnapshot) return false;
         const cur = getClusterConfigFormValues();
         return (
+          cur.preset !== initialClusterConfigSnapshot.preset ||
           cur.mysql !== initialClusterConfigSnapshot.mysql ||
           cur.mongo !== initialClusterConfigSnapshot.mongo ||
           cur.client !== initialClusterConfigSnapshot.client ||
@@ -6247,10 +6275,12 @@
       function onClusterConfigInputChanged(field) {
         validateClusterConfigInputs();
         const matched = detectCurrentPreset();
-        updateActivePresetCard(matched);
+        window._currentSelectedPreset = matched || "custom";
+        updateActivePresetCard(window._currentSelectedPreset);
       }
 
       function applyClusterPreset(mode) {
+        window._currentSelectedPreset = mode;
         if (mode === "docker") {
           document.getElementById("cfg-mysql-nodes").value = "127.0.0.1:3305, 127.0.0.1:3306, 127.0.0.1:3307, 127.0.0.1:3308";
           document.getElementById("cfg-mongo-nodes").value = "127.0.0.1:27016, 127.0.0.1:27017, 127.0.0.1:27018, 127.0.0.1:27019";
@@ -6350,7 +6380,8 @@
             updateClusterSyncTimer(cfg.sync_interval_sec);
           }
 
-          const matched = detectCurrentPreset();
+          const matched = cfg.preset || detectCurrentPreset() || "docker";
+          window._currentSelectedPreset = matched;
           updateActivePresetCard(matched);
           validateClusterConfigInputs();
 
@@ -6394,11 +6425,13 @@
             document.getElementById("cfg-sync-interval")?.value || "2",
             10,
           ) || 2;
+          const presetMode = window._currentSelectedPreset || detectCurrentPreset() || "docker";
 
           const res = await fetch("/api/cluster/config", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              preset: presetMode,
               mysql_nodes: mysqlNodes,
               mongo_nodes: mongoNodes,
               client_node: clientNode,
@@ -6449,7 +6482,7 @@
           if (ordInfo) ordInfo.innerHTML = "<em>Đang làm mới dữ liệu...</em>";
         }
         try {
-          await Promise.all([
+          await Promise.allSettled([
             fetchClusterStatus(),
             loadSyncLogs(),
             loadRecentOrders(isManual ? 1 : currentOrdersPage),
@@ -6468,11 +6501,13 @@
               btn.classList.add("btn-light", "text-dark");
               btn.innerHTML = `<i class="bi bi-arrow-clockwise me-1"></i>Làm mới dữ liệu`;
               btn.disabled = false;
-            }, 1000);
+            }, 800);
           }
         } catch (err) {
-          console.error("Refresh error:", err);
-          if (isManual && btn) {
+          console.warn("Refresh error:", err);
+        } finally {
+          if (strip) strip.style.opacity = "1";
+          if (isManual && btn && btn.innerHTML.includes("Đang làm mới")) {
             btn.classList.remove("btn-success", "text-white");
             btn.classList.add("btn-light", "text-dark");
             btn.innerHTML = `<i class="bi bi-arrow-clockwise me-1"></i>Làm mới dữ liệu`;
