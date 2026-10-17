@@ -1271,12 +1271,7 @@
             <div id="summary-mysql-nodes">Đang kiểm tra...</div>
           </div>
           <div class="col-lg-6 cluster-col ps-lg-3 border-start-lg">
-            <div class="cluster-col-title d-flex justify-content-between align-items-center">
-              <span>Cụm MongoDB Replica Set</span>
-              <button class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 11.5px; height: 23px;" id="btn-elect-mongo" onclick="electMongoPrimary(this)" title="Cứu Quorum và bầu chọn lại Node chính cho MongoDB">
-                <i class="bi bi-arrow-repeat me-1"></i>Bầu Node chính
-              </button>
-            </div>
+            <div class="cluster-col-title">Cụm MongoDB Replica Set</div>
             <div class="cluster-node-header" id="header-mongo-nodes">
               <span class="text-start">Node</span>
               <span class="text-start tech-detail">Địa chỉ</span>
@@ -4467,34 +4462,6 @@
         }
       }
 
-      // BẦU CHỌN LẠI / CỨU QUORUM NODE CHÍNH MONGODB
-      async function electMongoPrimary(btn) {
-        if (btn) {
-          btn.disabled = true;
-          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang bầu...';
-        }
-        try {
-          const res = await fetch("/api/cluster/mongo/elect-primary", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({})
-          });
-          const data = await res.json();
-          if (data.status === "SUCCESS" || data.status === "ALREADY_PRIMARY" || data.status === "WAITING_ELECTION") {
-            showToastNotification(data.message || `Đã kích hoạt bầu Node chính: ${data.primary}`, "success");
-            await fetchClusterStatus();
-          } else {
-            showToastNotification("Bầu Node chính thất bại: " + (data.message || "Lỗi không xác định"), "danger");
-          }
-        } catch (err) {
-          showToastNotification("Lỗi kết nối khi bầu Node chính: " + err.message, "danger");
-        } finally {
-          if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Bầu Node chính';
-          }
-        }
-      }
 
       // KÍCH HOẠT ĐỐI CHIẾU SỐ LƯỢNG BẢN GHI GIỮA CÁC NODE
       async function triggerReconciliation() {

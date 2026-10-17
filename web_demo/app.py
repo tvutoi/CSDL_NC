@@ -1896,20 +1896,44 @@ def get_cluster_status(request: Request):
     online_m = [m for m in mongo_results if m["health"] == 1]
     if online_m:
         primaries = [m for m in online_m if m.get("_is_prim")]
-        if not primaries:
-            # Mất Quorum / Không có Node nào làm PRIMARY: Tự động kích hoạt Quorum Rescue trong nền
-            try:
-                threading.Thread(target=ensure_mongo_primary_priority, kwargs={"force": False}, daemon=True).start()
-            except Exception as e:
-                print(f"[AUTO_MONGO_RECOVERY_THREAD] {e}")
-        elif len(primaries) > 1:
+        primary_assigned_mongo = False
+
+        if primaries:
             curr_mg_active = get_active_mongo_primary()
             act_m = next((m for m in primaries if is_same_mongo_host(m["host"], curr_mg_active)), primaries[0])
             for m in online_m:
-                m["state"] = "PRIMARY" if is_same_mongo_host(m["host"], act_m["host"]) else "SECONDARY"
+                if is_same_mongo_host(m["host"], act_m["host"]):
+                    m["state"] = "PRIMARY"
+                    m["_is_prim"] = True
+                    primary_assigned_mongo = True
+                else:
+                    m["state"] = "SECONDARY"
+                    m["_is_prim"] = False
             set_active_mongo_primary(act_m["host"])
-        else:
-            set_active_mongo_primary(primaries[0]["host"])
+
+        # TỰ ĐỘNG BẦU NODE CHÍNH MONGODB TƯƠNG TỰ MYSQL KHI CHƯA CÓ PRIMARY:
+        if not primary_assigned_mongo:
+            curr_mg_active = get_active_mongo_primary()
+            active_m_node = next((m for m in online_m if is_same_mongo_host(m["host"], curr_mg_active)), None)
+            if not active_m_node:
+                active_m_node = online_m[0]
+
+            for m in online_m:
+                if is_same_mongo_host(m["host"], active_m_node["host"]):
+                    m["state"] = "PRIMARY"
+                    m["_is_prim"] = True
+                else:
+                    m["state"] = "SECONDARY"
+                    m["_is_prim"] = False
+
+            set_active_mongo_primary(active_m_node["host"])
+
+            # Tự động kích hoạt Quorum Rescue trong nền để đưa node này lên làm Primary thực tế
+            try:
+                target_cand = active_m_node["host"]
+                threading.Thread(target=ensure_mongo_primary_priority, kwargs={"force": True, "target_primary": target_cand}, daemon=True).start()
+            except Exception as e:
+                print(f"[AUTO_MONGO_RECOVERY_THREAD] {e}")
 
         # Lấy số lượng tài liệu từ node online đầu tiên (hoặc primary)
         probe_target = next((m for m in online_m if m["state"] == "PRIMARY"), online_m[0])
