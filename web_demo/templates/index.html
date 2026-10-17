@@ -927,6 +927,60 @@
         font-size: 12px;
         line-height: 1.55;
       }
+      /* Styling riêng biệt: Dòng sự kiện đồng bộ (Live Activity Stream) */
+      .stream-panel-header {
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .stream-table thead th {
+        background-color: #f1f5f9 !important;
+        color: #334155 !important;
+        font-weight: 600;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        border-bottom: 2px solid #cbd5e1;
+      }
+      .stream-table tbody tr {
+        transition: background-color 0.12s ease-in-out;
+      }
+      .stream-table tbody tr:hover {
+        background-color: #f8fafc !important;
+      }
+      /* Styling riêng biệt: Nhật ký kiểm toán cụm (Forensic Audit Modal) */
+      .audit-table thead th {
+        background-color: #0f172a !important;
+        color: #f8fafc !important;
+        font-weight: 600;
+        font-size: 12px;
+        letter-spacing: 0.3px;
+        border-color: #334155 !important;
+      }
+      .audit-table tbody tr {
+        font-size: 13px;
+        transition: background-color 0.12s ease;
+      }
+      .audit-table tbody tr:hover {
+        background-color: #f1f5f9 !important;
+      }
+      .audit-inspector-card {
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      }
+      .audit-payload-codebox {
+        background-color: #0b1120;
+        color: #38bdf8;
+        border-radius: 5px;
+        padding: 10px 12px;
+        font-family: var(--bs-font-monospace);
+        font-size: 12px;
+        line-height: 1.5;
+        max-height: 190px;
+        overflow-y: auto;
+        border: 1px solid #1e293b;
+      }
       .status-pill {
         display: inline-flex;
         align-items: center;
@@ -1982,32 +2036,38 @@
             </div>
           </div>
 
-          <!-- MỤC: DÒNG SỰ KIỆN ĐỒNG BỘ DỮ LIỆU -->
-          <div class="panel-box">
+          <!-- MỤC: DÒNG SỰ KIỆN ĐỒNG BỘ DỮ LIỆU (REAL-TIME STREAM FEED) -->
+          <div class="panel-box shadow-sm border">
             <div
-              class="panel-header d-flex flex-wrap justify-content-between align-items-center gap-2" style="min-height: 48px;">
-              <div class="fw-bold">Dòng sự kiện đồng bộ</div>
+              class="panel-header stream-panel-header d-flex flex-wrap justify-content-between align-items-center gap-2" style="min-height: 48px;">
+              <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-broadcast text-primary fs-5"></i>
+                <span class="fw-bold fs-6 text-dark">Dòng sự kiện đồng bộ</span>
+                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-0.5 small d-inline-flex align-items-center" style="font-size: 11px;">
+                  <span class="status-dot dot-online me-1"></span>Trực tiếp
+                </span>
+              </div>
               <div class="sync-toolbar flex-wrap align-items-center">
                 <div class="seg-filter" role="tablist">
                   <button
                     type="button"
                     class="seg-filter__tab active"
                     id="btn-sync-all"
-                    onclick="filterSyncLogs('ALL')">
+                    onclick="filterStreamLogs('ALL')">
                     Tất cả<span class="seg-filter__count" id="tab-cnt-all">0</span>
                   </button>
                   <button
                     type="button"
                     class="seg-filter__tab"
                     id="btn-sync-mysql"
-                    onclick="filterSyncLogs('MYSQL_GR')">
+                    onclick="filterStreamLogs('MYSQL_GR')">
                     MySQL<span class="seg-filter__count" id="tab-cnt-mysql">0</span>
                   </button>
                   <button
                     type="button"
                     class="seg-filter__tab"
                     id="btn-sync-mongo"
-                    onclick="filterSyncLogs('MONGO_RS')">
+                    onclick="filterStreamLogs('MONGO_RS')">
                     MongoDB<span class="seg-filter__count" id="tab-cnt-mongo">0</span>
                   </button>
                 </div>
@@ -2015,9 +2075,9 @@
                   type="text"
                   id="tab-sync-search-input"
                   class="form-control form-control-sm"
-                  placeholder="Tìm kiếm nhanh..."
+                  placeholder="Lọc nhanh sự kiện..."
                   style="width: 170px"
-                  oninput="currentSyncPage = 1; renderSyncLogsUI()" />
+                  oninput="currentStreamPage = 1; renderSyncLogsUI()" />
                 <button
                   class="btn btn-sm btn-outline-secondary"
                   id="btn-refresh-sync-logs"
@@ -2035,23 +2095,21 @@
             <div class="panel-body p-0">
               <div class="table-responsive">
                 <table
-                  class="table table-bordered table-sm table-custom mb-0 align-middle">
+                  class="table table-bordered table-sm stream-table mb-0 align-middle">
                   <thead class="table-light sticky-top">
                     <tr>
-                      <th style="width: 36px;" class="text-center"></th>
+                      <th style="width: 38px;" class="text-center"></th>
                       <th style="width: 125px; min-width: 125px;" class="text-start">Thời gian</th>
-                      <th style="width: 95px;" class="text-start">CSDL</th>
-                      <th class="text-start">Sự kiện và tóm tắt</th>
-                      <th style="width: 85px;" class="text-start">Nguồn</th>
-                      <th style="width: 140px;" class="text-start">Đích</th>
-                      <th style="width: 90px;" class="text-end">Độ trễ</th>
-                      <th style="width: 140px;" class="text-start">Trạng thái</th>
+                      <th style="width: 115px;" class="text-start">Hệ CSDL</th>
+                      <th class="text-start">Luồng truyền & Nghiệp vụ phát sinh</th>
+                      <th style="width: 100px;" class="text-end">Độ trễ</th>
+                      <th style="width: 155px;" class="text-start">Trạng thái đồng bộ</th>
                     </tr>
                   </thead>
                   <tbody id="sync-audit-stream-table">
                     <tr>
-                      <td colspan="8" class="text-center py-4 text-muted">
-                        Đang tải nhật ký đồng bộ...
+                      <td colspan="6" class="text-center py-4 text-muted">
+                        Đang tải dòng sự kiện đồng bộ...
                       </td>
                     </tr>
                   </tbody>
@@ -2064,11 +2122,11 @@
                 Hiển thị <strong>0</strong> sự kiện đồng bộ
               </div>
               <div class="d-flex align-items-center gap-2" id="sync-pagination-controls">
-                <select id="sync-page-size" class="form-select form-select-sm" style="width: 120px;" onchange="changeSyncPageSize(this.value)">
-                  <option value="5">5 / trang</option>
-                  <option value="10" selected>10 / trang</option>
-                  <option value="20">20 / trang</option>
-                  <option value="50">50 / trang</option>
+                <select id="sync-page-size" class="form-select form-select-sm" style="width: 135px;" onchange="changeStreamPageSize(this.value)">
+                  <option value="5" selected>5 sự kiện / trang</option>
+                  <option value="10">10 sự kiện / trang</option>
+                  <option value="20">20 sự kiện / trang</option>
+                  <option value="50">50 sự kiện / trang</option>
                 </select>
                 <nav aria-label="Phân trang sự kiện đồng bộ">
                   <ul class="pagination pagination-sm mb-0" id="sync-pagination"></ul>
@@ -2388,7 +2446,7 @@
       </div>
     </div>
 
-    <!-- MODAL NHẬT KÝ ĐỒNG BỘ CỤM -->
+    <!-- MODAL NHẬT KÝ ĐỒNG BỘ CỤM (ENTERPRISE FORENSIC AUDIT MODAL) -->
     <div
       class="modal fade"
       id="syncLogsModal"
@@ -2396,108 +2454,144 @@
       aria-labelledby="syncLogsModalLabel"
       aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
-          <div class="modal-header py-2 bg-light">
-            <div>
-              <h6 class="modal-title fw-bold mb-0" id="syncLogsModalLabel">
-                Nhật ký đồng bộ cụm
-              </h6>
-              <div class="small text-muted" style="font-size: 0.8rem">
-                MySQL Group Replication &middot; MongoDB Replica Set
+        <div class="modal-content shadow-lg border-0">
+          <div class="modal-header py-2.5 px-3" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-bottom: 2px solid #0284c7;">
+            <div class="d-flex align-items-center gap-2.5">
+              <div class="p-2 rounded bg-info-subtle text-info d-inline-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+                <i class="bi bi-shield-check fs-5"></i>
+              </div>
+              <div>
+                <h6 class="modal-title fw-bold mb-0 text-white letter-spacing-1" id="syncLogsModalLabel" style="font-size: 0.95rem;">
+                  NHẬT KÝ KIỂM TOÁN ĐỒNG BỘ CỤM (CLUSTER AUDIT LOGS)
+                </h6>
+                <div class="small text-light opacity-75" style="font-size: 0.78rem">
+                  Đối soát giao dịch phân tán · MySQL Paxos Consensus (XCom:33061) · MongoDB Replica Set Oplog Streaming
+                </div>
               </div>
             </div>
             <button
               type="button"
-              class="btn-close"
+              class="btn-close btn-close-white"
               data-bs-dismiss="modal"></button>
           </div>
-          <div class="modal-body p-3">
-            <div
-              class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
-              <div class="d-flex align-items-center gap-2">
+          <div class="modal-body p-3 bg-light">
+            <!-- THANH ĐIỀU KHIỂN & BỘ LỌC KIỂM TOÁN CHUYÊN SÂU -->
+            <div class="p-2.5 mb-2.5 bg-white border rounded-2 shadow-sm d-flex flex-wrap justify-content-between align-items-center gap-2">
+              <div class="d-flex flex-wrap align-items-center gap-2">
                 <div class="seg-filter" role="tablist">
                   <button
                     type="button"
                     class="seg-filter__tab active"
                     id="modal-btn-sync-all"
-                    onclick="filterSyncLogs('ALL')">
+                    onclick="filterModalLogs('ALL')">
                     Tất cả<span class="seg-filter__count" id="modal-cnt-all">0</span>
                   </button>
                   <button
                     type="button"
                     class="seg-filter__tab"
                     id="modal-btn-sync-mysql"
-                    onclick="filterSyncLogs('MYSQL_GR')">
+                    onclick="filterModalLogs('MYSQL_GR')">
                     MySQL<span class="seg-filter__count" id="modal-cnt-mysql">0</span>
                   </button>
                   <button
                     type="button"
                     class="seg-filter__tab"
                     id="modal-btn-sync-mongo"
-                    onclick="filterSyncLogs('MONGO_RS')">
+                    onclick="filterModalLogs('MONGO_RS')">
                     MongoDB<span class="seg-filter__count" id="modal-cnt-mongo">0</span>
                   </button>
                 </div>
-                <input
-                  type="text"
-                  id="sync-search-input"
-                  class="form-control form-control-sm"
-                  placeholder="Tìm kiếm theo mã, sự kiện..."
-                  style="width: 210px"
-                  oninput="renderSyncLogsUI()" />
+                <select id="modal-sync-status-filter" class="form-select form-select-sm" style="width: 155px;" onchange="filterModalStatus(this.value)">
+                  <option value="ALL">Tất cả kết quả</option>
+                  <option value="SUCCESS">✓ Thành công</option>
+                  <option value="RECONCILE">⚡ Đồng bộ bù</option>
+                  <option value="PARTIAL">⚠ Một phần / Trễ</option>
+                  <option value="ERROR">✗ Lỗi ghi nhận</option>
+                </select>
+                <div class="input-group input-group-sm" style="width: 220px;">
+                  <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-search"></i></span>
+                  <input
+                    type="text"
+                    id="sync-search-input"
+                    class="form-control border-start-0 ps-0"
+                    placeholder="Mã UUID, bảng, sự kiện..."
+                    oninput="currentModalPage = 1; renderSyncLogsUI()" />
+                </div>
               </div>
-              <div class="d-flex align-items-center gap-2">
+              <div class="d-flex align-items-center gap-2 ms-auto">
                 <span
-                  class="badge bg-light text-secondary border px-2 py-1 fs-7 d-inline-flex align-items-center gap-1 shadow-sm">
-                  <i class="bi bi-collection-fill text-primary"></i>Tổng:
-                  <strong class="text-primary fs-6" id="sync-log-total-info"
-                    >0</strong
-                  >
+                  class="badge bg-light text-secondary border px-2 py-1.5 fs-7 d-inline-flex align-items-center gap-1 shadow-sm">
+                  <i class="bi bi-file-earmark-check-fill text-primary"></i>Tổng:
+                  <strong class="text-primary font-monospace fs-6" id="sync-log-total-info">0</strong>
                   mẫu tin
                 </span>
                 <button
-                  class="btn btn-sm btn-outline-secondary"
+                  class="btn btn-sm btn-outline-primary d-inline-flex align-items-center"
+                  onclick="exportAuditLogsJSON()"
+                  title="Tải xuống tệp JSON nhật ký kiểm toán cụm">
+                  <i class="bi bi-download me-1"></i>Xuất JSON
+                </button>
+                <button
+                  class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center"
                   onclick="loadSyncLogs(true)">
                   <i class="bi bi-arrow-clockwise me-1"></i>Làm mới
                 </button>
                 <button
-                  class="btn btn-sm btn-link text-secondary text-decoration-none py-0 px-2 ms-2"
+                  class="btn btn-sm btn-outline-danger d-inline-flex align-items-center"
                   onclick="confirmClearSyncLogs()">
                   <i class="bi bi-trash3 me-1"></i>Xóa nhật ký
                 </button>
               </div>
             </div>
 
+            <!-- BẢNG KIỂM TOÁN CHUYÊN SÂU FORENSIC AUDIT TABLE -->
             <div
-              class="table-responsive border"
-              style="max-height: 480px; overflow-y: auto">
+              class="table-responsive border rounded-2 bg-white"
+              style="max-height: 470px; overflow-y: auto">
               <table
-                class="table table-bordered table-sm table-custom mb-0 align-middle">
-                <thead class="table-light sticky-top">
+                class="table table-bordered table-sm audit-table mb-0 align-middle">
+                <thead class="sticky-top">
                   <tr>
-                    <th style="width: 36px;" class="text-center"></th>
-                    <th style="width: 125px; min-width: 125px;" class="text-start">Thời gian</th>
-                    <th style="width: 95px;" class="text-start">CSDL</th>
-                    <th class="text-start">Sự kiện và tóm tắt</th>
-                    <th style="width: 85px;" class="text-start">Nguồn</th>
-                    <th style="width: 140px;" class="text-start">Đích</th>
+                    <th style="width: 38px;" class="text-center">#</th>
+                    <th style="width: 140px;" class="text-start">Mã UUID & Giờ</th>
+                    <th style="width: 130px;" class="text-start">Hệ CSDL & Giao thức</th>
+                    <th class="text-start">Nghiệp vụ & Bảng tác động</th>
+                    <th style="width: 170px;" class="text-start">Khởi tạo ➔ Tiếp nhận</th>
                     <th style="width: 90px;" class="text-end">Độ trễ</th>
-                    <th style="width: 140px;" class="text-start">Trạng thái</th>
+                    <th style="width: 145px;" class="text-start">Kiểm toán</th>
                   </tr>
                 </thead>
                 <tbody id="modal-sync-audit-table">
                   <tr>
-                    <td colspan="8" class="text-center py-4 text-muted">
-                      Đang tải nhật ký đồng bộ...
+                    <td colspan="7" class="text-center py-4 text-muted">
+                      Đang tải nhật ký kiểm toán...
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
+            <!-- PHÂN TRANG CHO NHẬT KÝ KIỂM TOÁN CỤM -->
+            <div id="modal-pagination-footer" class="py-2 px-3 bg-white border rounded-2 mt-2.5 d-flex justify-content-between align-items-center flex-wrap gap-2 shadow-sm">
+              <div class="small text-muted" id="modal-page-info">
+                Hiển thị <strong>0</strong> mẫu tin kiểm toán
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <select id="modal-page-size" class="form-select form-select-sm" style="width: 130px;" onchange="changeModalPageSize(this.value)">
+                  <option value="5">5 mẫu / trang</option>
+                  <option value="10" selected>10 mẫu / trang</option>
+                  <option value="25">25 mẫu / trang</option>
+                  <option value="50">50 mẫu / trang</option>
+                </select>
+                <nav aria-label="Phân trang kiểm toán cụm">
+                  <ul class="pagination pagination-sm mb-0" id="modal-pagination"></ul>
+                </nav>
+              </div>
+            </div>
+
             <!-- Giải thích cơ chế dạng collapse thu gọn (mặc định đóng, không chiếm diện tích) -->
             <div
-              class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center">
+              class="mt-2.5 pt-2 border-top d-flex justify-content-between align-items-center">
               <button
                 class="btn btn-sm btn-link text-secondary text-decoration-none p-0"
                 type="button"
@@ -2505,8 +2599,7 @@
                 data-bs-target="#collapseSyncMechanism"
                 aria-expanded="false">
                 <span style="font-size: 0.82rem"
-                  >&#9656; Giải thích cơ chế đồng bộ cụm</span
-                >
+                  >&#9656; Giải thích cơ chế đồng thuận Paxos & Oplog</span>
               </button>
               <button
                 type="button"
@@ -3903,53 +3996,143 @@
         }
       }
 
-      let currentSyncFilter = "ALL";
-      let cachedSyncLogs = [];
-      let currentSyncPage = 1;
-      let currentSyncPageSize = 10;
+      // ========================================================
+      // 1. STATE CHO DÒNG SỰ KIỆN ĐỒNG BỘ (LIVE STREAM TRÊN DASHBOARD)
+      // ========================================================
+      let currentStreamFilter = "ALL";
+      let currentStreamPage = 1;
+      let currentStreamPageSize = 5;
 
-      function filterSyncLogs(type) {
-        currentSyncFilter = type;
-        currentSyncPage = 1;
+      // ========================================================
+      // 2. STATE CHO NHẬT KÝ KIỂM TOÁN CỤM (MODAL AUDIT CONSOLE)
+      // ========================================================
+      let currentModalFilter = "ALL";
+      let currentModalStatusFilter = "ALL";
+      let currentModalPage = 1;
+      let currentModalPageSize = 10;
+
+      let cachedSyncLogs = [];
+
+      // Bộ lọc cho Dòng sự kiện đồng bộ trên Dashboard
+      function filterStreamLogs(type) {
+        currentStreamFilter = type;
+        currentStreamPage = 1;
         ["btn-sync-all", "btn-sync-mysql", "btn-sync-mongo"].forEach((id) => {
           const el = document.getElementById(id);
           if (el) el.classList.remove("active");
         });
-        [
-          "modal-btn-sync-all",
-          "modal-btn-sync-mysql",
-          "modal-btn-sync-mongo",
-        ].forEach((id) => {
+        if (type === "MYSQL_GR") {
+          document.getElementById("btn-sync-mysql")?.classList.add("active");
+        } else if (type === "MONGO_RS") {
+          document.getElementById("btn-sync-mongo")?.classList.add("active");
+        } else {
+          document.getElementById("btn-sync-all")?.classList.add("active");
+        }
+        renderSyncLogsUI();
+      }
+
+      // Bộ lọc cho Modal Nhật ký kiểm toán cụm
+      function filterModalLogs(type) {
+        currentModalFilter = type;
+        currentModalPage = 1;
+        ["modal-btn-sync-all", "modal-btn-sync-mysql", "modal-btn-sync-mongo"].forEach((id) => {
           const el = document.getElementById(id);
           if (el) el.classList.remove("active");
         });
-
         if (type === "MYSQL_GR") {
-          const b1 = document.getElementById("btn-sync-mysql");
-          if (b1) b1.classList.add("active");
-          const mb1 = document.getElementById("modal-btn-sync-mysql");
-          if (mb1) mb1.classList.add("active");
+          document.getElementById("modal-btn-sync-mysql")?.classList.add("active");
         } else if (type === "MONGO_RS") {
-          const b2 = document.getElementById("btn-sync-mongo");
-          if (b2) b2.classList.add("active");
-          const mb2 = document.getElementById("modal-btn-sync-mongo");
-          if (mb2) mb2.classList.add("active");
+          document.getElementById("modal-btn-sync-mongo")?.classList.add("active");
         } else {
-          const b0 = document.getElementById("btn-sync-all");
-          if (b0) b0.classList.add("active");
-          const mb0 = document.getElementById("modal-btn-sync-all");
-          if (mb0) mb0.classList.add("active");
+          document.getElementById("modal-btn-sync-all")?.classList.add("active");
         }
-
         renderSyncLogsUI();
+      }
+
+      // Lọc theo trạng thái kiểm toán trên Modal
+      function filterModalStatus(statusVal) {
+        currentModalStatusFilter = statusVal;
+        currentModalPage = 1;
+        renderSyncLogsUI();
+      }
+
+      // Chuyển trang cho Stream trên Dashboard
+      function changeStreamPage(p) {
+        currentStreamPage = p;
+        renderSyncLogsUI();
+      }
+
+      function changeStreamPageSize(sz) {
+        currentStreamPageSize = parseInt(sz, 10) || 5;
+        currentStreamPage = 1;
+        renderSyncLogsUI();
+      }
+
+      // Chuyển trang cho Modal Kiểm toán
+      function changeModalPage(p) {
+        currentModalPage = p;
+        renderSyncLogsUI();
+      }
+
+      function changeModalPageSize(sz) {
+        currentModalPageSize = parseInt(sz, 10) || 10;
+        currentModalPage = 1;
+        renderSyncLogsUI();
+      }
+
+      // Xuất file JSON nhật ký kiểm toán cho DBA/Quản trị viên
+      function exportAuditLogsJSON() {
+        const qModal = (document.getElementById("sync-search-input")?.value || "").toLowerCase().trim();
+        let list = cachedSyncLogs;
+        if (currentModalFilter && currentModalFilter !== "ALL") {
+          list = list.filter((l) => l.db_type === currentModalFilter);
+        }
+        if (currentModalStatusFilter && currentModalStatusFilter !== "ALL") {
+          if (currentModalStatusFilter === "SUCCESS") {
+            list = list.filter((l) => l.status === "SUCCESS" || l.status === "COMPLETED");
+          } else if (currentModalStatusFilter === "RECONCILE") {
+            list = list.filter((l) => l.action === "RECONCILE_SYNC" || (l.title && l.title.includes("bù")));
+          } else if (currentModalStatusFilter === "PARTIAL") {
+            list = list.filter((l) => l.status === "PARTIAL" || l.status === "LAGGING");
+          } else if (currentModalStatusFilter === "ERROR") {
+            list = list.filter((l) => l.status === "FAILED" || l.status === "ERROR");
+          }
+        }
+        if (qModal) {
+          list = list.filter(
+            (l) =>
+              (l.title && l.title.toLowerCase().includes(qModal)) ||
+              (l.summary && l.summary.toLowerCase().includes(qModal)) ||
+              (l.log_id && l.log_id.toLowerCase().includes(qModal)) ||
+              (l.data_payload && l.data_payload.toLowerCase().includes(qModal)) ||
+              (l.affected_tables && l.affected_tables.toLowerCase().includes(qModal))
+          );
+        }
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(list, null, 2));
+        const dlAnchor = document.createElement("a");
+        dlAnchor.setAttribute("href", dataStr);
+        dlAnchor.setAttribute("download", `cluster_audit_logs_${new Date().toISOString().slice(0, 10)}.json`);
+        document.body.appendChild(dlAnchor);
+        dlAnchor.click();
+        dlAnchor.remove();
+        showToastNotification(`✓ Đã xuất ${list.length} bản ghi kiểm toán ra tệp JSON!`, "success");
+      }
+
+      // Sao chép nội dung payload trong Modal Kiểm toán
+      function copyAuditPayload(detailId) {
+        const el = document.getElementById(`payload-code-${detailId}`);
+        if (el) {
+          navigator.clipboard.writeText(el.innerText).then(() => {
+            showToastNotification("✓ Đã sao chép dữ liệu Payload vào Clipboard!", "success");
+          });
+        }
       }
 
       function toggleSyncRow(detailId, prefix) {
         const el = document.getElementById(detailId);
         if (!el) return;
         const mainRow = document.getElementById(`main-${detailId}`);
-        const isCurrentlyHidden =
-          el.style.display === "none" || !el.style.display;
+        const isCurrentlyHidden = el.style.display === "none" || !el.style.display;
 
         document.querySelectorAll(`.sync-detail-row-${prefix}`).forEach((row) => {
           row.style.display = "none";
@@ -3972,12 +4155,14 @@
         }
       }
 
-      function renderSyncRowsHTML(logs, prefix, offset = 0) {
+      // Render các dòng cho DÒNG SỰ KIỆN ĐỒNG BỘ (Stream Feed - 6 cột trực quan)
+      function renderStreamRowsHTML(logs, offset = 0) {
         if (!logs || logs.length === 0) {
           return `
             <tr>
-              <td colspan="8" class="text-center py-4 text-muted">
-                Chưa có sự kiện đồng bộ
+              <td colspan="6" class="text-center py-4 text-muted">
+                <i class="bi bi-inbox text-secondary fs-4 d-block mb-1"></i>
+                Chưa có sự kiện đồng bộ nào được ghi nhận
               </td>
             </tr>
           `;
@@ -3986,76 +4171,191 @@
           .map((l, idx) => {
             const itemNum = (offset || 0) + idx + 1;
             const isMySQL = l.db_type === "MYSQL_GR";
-            const dbText = isMySQL ? "MySQL" : "MongoDB";
+            const dbBadge = isMySQL
+              ? `<span class="badge px-2 py-1 font-monospace" style="background-color: #0b4a8f; color: #fff;"><i class="bi bi-database me-1"></i>MySQL GR</span>`
+              : `<span class="badge px-2 py-1 font-monospace" style="background-color: #15803d; color: #fff;"><i class="bi bi-hdd-network me-1"></i>MongoDB RS</span>`;
 
             const srcText = l.source_label || "Node 2";
+            const detailId = `detail-stream-${itemNum}-${l.log_id || l.id}`;
 
-            const tgtTitle =
-              l.target_hosts && l.target_hosts.length
-                ? l.target_hosts.join(", ")
-                : "";
-            let tgtHtml = "";
-            if (l.status === "PENDING") {
-              tgtHtml = `<span class="small text-warning d-inline-flex align-items-center" title="${tgtTitle}"><span class="status-dot dot-warning me-1"></span>${l.target_display || "Chờ Node phụ"}</span>`;
-            } else if (l.status === "PARTIAL" || (l.target_display && l.target_display.includes("ngoại tuyến"))) {
-              tgtHtml = `<span class="small text-secondary d-inline-flex align-items-center" title="${tgtTitle}">${l.target_display || "Node 3, Node 4"}</span>`;
-            } else {
-              tgtHtml = `<span class="small text-secondary" title="${tgtTitle}">${l.target_display || "Tất cả node"}</span>`;
+            let cleanSummary = (l.summary || "")
+              .replace(/->/g, "➔")
+              .replace(/\|/g, " · ")
+              .trim();
+
+            let cleanPayload = (l.data_payload || l.summary || "")
+              .replace(/->/g, "➔")
+              .replace(/\|/g, " · ")
+              .trim();
+
+            const latVal = (l.latency_ms !== null && l.latency_ms !== undefined && l.latency_ms !== "") ? `${l.latency_ms} ms` : "-";
+            const latNum = parseFloat(l.latency_ms) || 0;
+            let latBadgeClass = "bg-light text-secondary border";
+            if (latNum > 500) {
+              latBadgeClass = "bg-danger-subtle text-danger border border-danger-subtle fw-semibold";
+            } else if (latNum > 100) {
+              latBadgeClass = "bg-warning-subtle text-dark border border-warning-subtle fw-semibold";
+            } else if (latNum > 0) {
+              latBadgeClass = "bg-success-subtle text-success border border-success-subtle";
             }
 
             let statusHtml = "";
             const isLagging = l.status === "LAGGING" || (l.status_text && l.status_text.includes("Trễ"));
             if (isLagging) {
-              statusHtml = `<span class="small text-danger d-inline-flex align-items-center"><span class="status-dot dot-offline me-1"></span>${l.status_text || "Trễ (>500ms)"}</span>`;
+              statusHtml = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"><span class="status-dot dot-offline me-1"></span>Trễ (>500ms)</span>`;
             } else if (l.status === "PENDING" || (l.status_text && l.status_text.includes("Chờ"))) {
-              statusHtml = `<span class="small text-warning d-inline-flex align-items-center"><span class="status-dot dot-warning me-1"></span>${l.status_text || "Đang chờ"}</span>`;
+              statusHtml = `<span class="badge bg-warning-subtle text-dark border border-warning-subtle px-2 py-1"><span class="status-dot dot-warning me-1"></span>Đang chờ</span>`;
             } else if (l.status === "PARTIAL") {
-              statusHtml = `<span class="small text-secondary d-inline-flex align-items-center"><span class="status-dot dot-warning me-1"></span>${l.status_text || "Đồng bộ một phần"}</span>`;
+              statusHtml = `<span class="badge bg-warning-subtle text-dark border border-warning-subtle px-2 py-1"><span class="status-dot dot-warning me-1"></span>Đồng bộ một phần</span>`;
             } else {
               const cleanSt = l.status_text === "REPLICATED_OK" ? "Đã đồng bộ" : (l.status_text || "Đã đồng bộ");
-              statusHtml = `<span class="small text-secondary d-inline-flex align-items-center"><i class="bi bi-check2 text-success me-1"></i>${cleanSt}</span>`;
+              statusHtml = `<span class="badge bg-light text-success border border-success-subtle px-2 py-1"><i class="bi bi-check-circle-fill text-success me-1"></i>${cleanSt}</span>`;
             }
 
-            const detailId = `detail-${prefix}-${itemNum}-${l.log_id}`;
+            let targetBadges = "";
+            if (l.target_statuses && l.target_statuses.length) {
+              targetBadges = l.target_statuses.map(st => {
+                const isOnline = st.state === "ONLINE";
+                const bgClass = isOnline ? "bg-light text-dark border" : "bg-danger-subtle text-danger border border-danger-subtle";
+                return `<span class="badge ${bgClass} font-monospace me-1 mb-0.5" style="font-size: 11px;">${st.label}</span>`;
+              }).join("");
+            } else if (l.target_nodes && l.target_nodes.length) {
+              targetBadges = l.target_nodes.map(n => `<span class="badge bg-light text-dark border font-monospace me-1 mb-0.5" style="font-size: 11px;">${n}</span>`).join("");
+            } else {
+              targetBadges = `<span class="badge bg-light text-secondary border font-monospace" style="font-size: 11px;">${l.target_display || "Replicas"}</span>`;
+            }
+
+            const isRowExpanded = window.activeExpandedSyncLogId && (window.activeExpandedSyncLogId === l.log_id || window.activeExpandedSyncLogId === l.id);
+            const mainExpandedClass = isRowExpanded ? " is-expanded" : "";
+            const detailDisplay = isRowExpanded ? "table-row" : "none";
+
+            return `
+            <tr id="main-${detailId}" class="sync-row-clickable sync-main-row-stream${mainExpandedClass}" onclick="toggleSyncRow('${detailId}', 'stream')" title="Bấm để xem chi tiết luồng đồng bộ">
+              <td class="text-center py-2" style="width: 38px;">
+                <i class="bi bi-chevron-right sync-chevron-icon" id="chevron-${detailId}"></i>
+              </td>
+              <td class="text-start" style="width: 125px;">
+                <div class="fw-semibold font-monospace text-dark" style="font-size: 13px;">${l.time || l.timestamp}</div>
+                <div class="badge bg-light text-secondary border font-monospace mt-1" style="font-size: 10px;">${l.log_id || l.id}</div>
+              </td>
+              <td class="text-start" style="width: 115px;">
+                ${dbBadge}
+              </td>
+              <td class="text-start">
+                <div class="d-flex align-items-center gap-1.5 flex-wrap mb-1" style="font-size: 11.5px;">
+                  <span class="badge bg-secondary-subtle text-dark border font-monospace px-1.5 py-0.5">
+                    <i class="bi bi-hdd-fill me-1 text-primary"></i>${srcText}
+                  </span>
+                  <i class="bi bi-arrow-right text-primary mx-0.5" style="font-size: 12px;"></i>
+                  ${targetBadges}
+                </div>
+                <div class="fw-semibold text-dark" style="font-size: 13px;">${l.title || "Sự kiện"}</div>
+                <div class="text-secondary small mt-0.5" style="font-size: 12px; line-height: 1.4;">${cleanSummary}</div>
+              </td>
+              <td class="text-end font-monospace" style="width: 100px;">
+                <span class="badge ${latBadgeClass} font-monospace px-2 py-1">${latVal}</span>
+              </td>
+              <td class="text-start text-nowrap" style="width: 155px;">
+                ${statusHtml}
+              </td>
+            </tr>
+            <tr id="${detailId}" class="sync-detail-row sync-detail-row-stream bg-light" style="display: ${detailDisplay};">
+              <td colspan="6" class="p-3 bg-light border-bottom">
+                <div class="sync-detail-box p-3 rounded bg-white border shadow-sm">
+                  <div class="d-flex align-items-center justify-content-between mb-2 pb-1 border-bottom">
+                    <div class="fw-bold text-dark small d-flex align-items-center">
+                      <i class="bi bi-broadcast text-primary me-1.5"></i>Chi tiết luồng sự kiện phân tán
+                    </div>
+                    <span class="badge bg-light text-secondary border font-monospace">${l.log_id}</span>
+                  </div>
+                  <div class="row g-2 mb-2">
+                    <div class="col-md-6">
+                      <div class="small"><strong>Cơ chế truyền:</strong> <span class="font-monospace text-primary">${l.mechanism}</span></div>
+                      <div class="small text-muted mt-1"><strong>Bảng tác động:</strong> <code class="text-dark bg-light px-1 border rounded">${l.affected_tables || "orders, order_items, payments"}</code></div>
+                    </div>
+                    <div class="col-md-6 border-start ps-3">
+                      <div class="small"><strong>Node nguồn:</strong> <span class="badge bg-light text-dark border">${l.source_label}</span> <span class="text-muted">(${l.source_node})</span></div>
+                      <div class="small text-muted mt-1"><strong>Node tiếp nhận:</strong> ${l.target_display || "Tất cả các node phụ"}</div>
+                    </div>
+                  </div>
+                  <div class="p-2 bg-light rounded border">
+                    <div class="text-secondary small fw-bold mb-1"><i class="bi bi-file-earmark-diff text-primary me-1"></i>Dữ liệu cập nhật:</div>
+                    <div class="small text-dark font-monospace" style="white-space: pre-wrap; word-break: break-word;">${cleanPayload}</div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            `;
+          })
+          .join("");
+      }
+
+      // Render các dòng cho NHẬT KÝ KIỂM TOÁN CỤM (Forensic Audit Table - 7 cột chuyên sâu)
+      function renderModalAuditRowsHTML(logs, offset = 0) {
+        if (!logs || logs.length === 0) {
+          return `
+            <tr>
+              <td colspan="7" class="text-center py-4 text-muted">
+                <i class="bi bi-journal-x text-secondary fs-3 d-block mb-1"></i>
+                Không tìm thấy bản ghi kiểm toán phù hợp với bộ lọc
+              </td>
+            </tr>
+          `;
+        }
+        return logs
+          .map((l, idx) => {
+            const itemNum = (offset || 0) + idx + 1;
+            const isMySQL = l.db_type === "MYSQL_GR";
+            const dbBadge = isMySQL
+              ? `<span class="badge px-2 py-0.5 font-monospace" style="background-color: #0b4a8f; color: #fff;"><i class="bi bi-database me-1"></i>MySQL 8.0</span>`
+              : `<span class="badge px-2 py-0.5 font-monospace" style="background-color: #15803d; color: #fff;"><i class="bi bi-hdd-network me-1"></i>MongoDB 6.0</span>`;
+
+            const protocolShort = isMySQL ? "Paxos Quorum (XCom:33061)" : "Oplog Stream (local.oplog.rs)";
+            const detailId = `detail-modal-${itemNum}-${l.log_id || l.id}`;
 
             let cleanSummary = (l.summary || "")
-              .replace(/->/g, "xuống")
+              .replace(/->/g, "➔")
               .replace(/\|/g, " · ")
-              .replace(/\s+·\s+/g, " · ")
               .trim();
 
             let cleanPayload = (l.data_payload || l.summary || "")
-              .replace(/->/g, "xuống")
+              .replace(/->/g, "➔")
               .replace(/\|/g, " · ")
-              .replace(/\s+·\s+/g, " · ")
               .trim();
 
             const affectedTablesHtml = l.affected_tables
-              ? `<div class="mt-1 small text-secondary"><strong>Bảng / Bộ sưu tập:</strong> <code class="text-dark bg-white px-1 border rounded">${l.affected_tables}</code></div>`
+              ? `<div class="mt-1 small text-secondary"><strong>Bảng kiểm toán:</strong> <code class="text-primary bg-white px-1.5 py-0.5 border rounded">${l.affected_tables}</code></div>`
               : "";
 
-            const titleHtml = `<span class="fw-semibold text-dark">${l.title || "Sự kiện"}</span>`;
-
             const latVal = (l.latency_ms !== null && l.latency_ms !== undefined && l.latency_ms !== "") ? `${l.latency_ms} ms` : "-";
-            const isHighLatency = (l.latency_ms || 0) > 150;
-            const latencyHtml = isHighLatency
-              ? `<span class="font-monospace text-warning fw-semibold">${latVal}</span>`
-              : `<span class="font-monospace text-secondary">${latVal}</span>`;
+            const latNum = parseFloat(l.latency_ms) || 0;
+            const latColor = latNum > 500 ? "text-danger" : (latNum > 100 ? "text-warning" : "text-success");
+
+            let auditStatusBadge = "";
+            if (l.action === "RECONCILE_SYNC" || (l.title && l.title.includes("bù"))) {
+              auditStatusBadge = `<span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1"><i class="bi bi-lightning-charge-fill me-1"></i>Đã bù Quorum</span>`;
+            } else if (l.status === "FAILED" || l.status === "ERROR") {
+              auditStatusBadge = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"><i class="bi bi-x-circle-fill me-1"></i>Lỗi kiểm toán</span>`;
+            } else if (l.status === "PARTIAL") {
+              auditStatusBadge = `<span class="badge bg-warning-subtle text-dark border border-warning-subtle px-2 py-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>Một phần</span>`;
+            } else {
+              auditStatusBadge = `<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-shield-check me-1"></i>Hợp lệ (Verified)</span>`;
+            }
 
             let replicaBadges = "";
             if (l.target_statuses && l.target_statuses.length) {
-              replicaBadges = l.target_statuses.map((st) => {
-                const dotClass = st.state === "ONLINE" ? "dot-online" : "dot-offline";
-                const textClass = st.state === "ONLINE" ? "text-dark" : "text-muted";
-                const msgText = st.message || (st.state === "ONLINE" ? "Đã nhận" : "Ngoại tuyến");
-                return `<span class="d-inline-flex align-items-center me-3 mb-1 font-monospace small ${textClass}" style="font-size: 12px;">
-                  <span class="status-dot ${dotClass} me-1"></span><strong>${st.label}</strong>&nbsp;(${st.host}):&nbsp;${msgText}
-                </span>`;
+              replicaBadges = l.target_statuses.map(st => {
+                const isOnline = st.state === "ONLINE";
+                const dotClass = isOnline ? "dot-online" : "dot-offline";
+                const msgText = st.message || (isOnline ? "ACK Đã nhận" : "Ngoại tuyến");
+                return `<div class="d-inline-flex align-items-center me-3 mb-1 font-monospace small" style="font-size: 11.5px;">
+                  <span class="status-dot ${dotClass} me-1"></span><strong>${st.label}</strong>&nbsp;(${st.host}):&nbsp;<span class="text-muted">${msgText}</span>
+                </div>`;
               }).join("");
             } else if (l.target_nodes && l.target_nodes.length) {
               replicaBadges = l.target_nodes.map((nodeLbl, i) => {
                 const hostStr = (l.target_hosts && l.target_hosts[i]) ? l.target_hosts[i] : "";
-                return `<span class="d-inline-flex align-items-center me-3 mb-1 font-monospace small text-dark" style="font-size: 12px;"><span class="status-dot dot-online me-1"></span><strong>${nodeLbl}</strong>&nbsp;(${hostStr})</span>`;
+                return `<div class="d-inline-flex align-items-center me-3 mb-1 font-monospace small" style="font-size: 11.5px;"><span class="status-dot dot-online me-1"></span><strong>${nodeLbl}</strong>&nbsp;(${hostStr}):&nbsp;<span class="text-muted">ACK</span></div>`;
               }).join("");
             } else {
               replicaBadges = `<span class="text-muted small">${l.target_display || "Replicas"}</span>`;
@@ -4084,89 +4384,167 @@
             const detailDisplay = isRowExpanded ? "table-row" : "none";
 
             return `
-            <tr id="main-${detailId}" class="sync-row-clickable sync-main-row-${prefix}${mainExpandedClass}" onclick="toggleSyncRow('${detailId}', '${prefix}')" title="Bấm để xem chi tiết dữ liệu cập nhật và cơ chế đồng bộ">
-              <td class="text-center py-2" style="width: 36px;">
+            <tr id="main-${detailId}" class="sync-row-clickable sync-main-row-modal${mainExpandedClass}" onclick="toggleSyncRow('${detailId}', 'modal')" title="Bấm để mở bảng điều tra kỹ thuật chuyên sâu (Deep Inspector)">
+              <td class="text-center py-2" style="width: 38px;">
                 <i class="bi bi-chevron-right sync-chevron-icon" id="chevron-${detailId}"></i>
               </td>
-              <td class="text-start" style="min-width: 125px; line-height: 1.35; padding-top: 8px !important; padding-bottom: 8px !important;">
-                <div class="fw-medium text-dark" style="font-size: 13.5px; line-height: 1.25;">${l.time || l.timestamp}</div>
-                <div class="text-secondary font-monospace" style="font-size: 11px; line-height: 1.25; margin-top: 3px; white-space: nowrap;">${l.log_id || l.id}</div>
+              <td class="text-start" style="width: 140px;">
+                <div class="fw-bold font-monospace text-primary" style="font-size: 12.5px;">${l.log_id || l.id}</div>
+                <div class="text-secondary small font-monospace mt-0.5"><i class="bi bi-clock me-1"></i>${l.time || l.timestamp}</div>
+                <div class="text-muted" style="font-size: 11px;">${l.date || ""}</div>
+              </td>
+              <td class="text-start" style="width: 130px;">
+                ${dbBadge}
+                <div class="text-muted small mt-1 font-monospace" style="font-size: 11px;">${protocolShort}</div>
               </td>
               <td class="text-start">
-                <span class="small text-secondary">${dbText}</span>
+                <div class="d-flex align-items-center gap-1.5 flex-wrap mb-1">
+                  <span class="badge bg-dark text-white font-monospace" style="font-size: 10px;">[${l.action || "TRANSACTION"}]</span>
+                  <strong class="text-dark">${l.title || "Sự kiện kiểm toán"}</strong>
+                </div>
+                ${affectedTablesHtml}
+                <div class="text-secondary small mt-1" style="font-size: 11.5px; line-height: 1.45;">${cleanSummary}</div>
               </td>
-              <td class="text-start">
-                <div>${titleHtml}</div>
-                <div class="text-secondary small mt-0.5" style="font-size: 12px; line-height: 1.4;">${cleanSummary}</div>
+              <td class="text-start" style="width: 170px;">
+                <div class="small mb-1">
+                  <span class="badge bg-light text-dark border font-monospace px-1.5 py-0.5">${l.source_label || "Node 2"}</span>
+                  <span class="text-muted small">(${l.source_node || ""})</span>
+                </div>
+                <div class="text-secondary small">
+                  <i class="bi bi-arrow-return-right text-primary me-1"></i>${l.target_display || "Các Node phụ"}
+                </div>
               </td>
-              <td class="text-start">
-                <span class="small text-secondary">${srcText}</span>
+              <td class="text-end font-monospace" style="width: 90px;">
+                <span class="fw-semibold ${latColor}">${latVal}</span>
               </td>
-              <td class="text-start">${tgtHtml}</td>
-              <td class="text-end font-monospace" style="font-size: 13.5px;">${latencyHtml}</td>
-              <td class="text-start text-nowrap">${statusHtml}</td>
+              <td class="text-start text-nowrap" style="width: 145px;">
+                ${auditStatusBadge}
+              </td>
             </tr>
-            <tr id="${detailId}" class="sync-detail-row sync-detail-row-${prefix} bg-light" style="display: ${detailDisplay};">
-              <td colspan="8" class="p-3 bg-light border-bottom">
-                <div class="sync-detail-box p-3 rounded">
-                  <div class="p-2 mb-2 bg-white rounded border">
-                    <div class="d-flex align-items-center justify-content-between mb-1 pb-1 border-bottom">
-                      <div class="fw-bold text-dark small">
-                        <i class="bi bi-file-earmark-diff text-primary me-1"></i>Dữ liệu cập nhật:
-                      </div>
-                      <div>
-                        <span class="badge bg-light text-secondary border font-monospace px-2 py-0.5">${l.log_id}</span>
-                      </div>
+            <tr id="${detailId}" class="sync-detail-row sync-detail-row-modal bg-light" style="display: ${detailDisplay};">
+              <td colspan="7" class="p-3 bg-light border-bottom">
+                <div class="audit-inspector-card p-3">
+                  <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom">
+                    <div class="fw-bold text-dark small d-flex align-items-center">
+                      <i class="bi bi-cpu-fill text-primary me-2 fs-6"></i>BẢNG ĐIỀU TRA KỸ THUẬT PHÂN TÁN (DEEP FORENSIC INSPECTOR)
                     </div>
-                    <div class="small text-dark font-monospace ps-1" style="white-space: pre-wrap; word-break: break-word;">${cleanPayload}</div>
-                    ${affectedTablesHtml}
+                    <div>
+                      <span class="badge bg-dark text-white font-monospace px-2 py-1 me-1">UUID: ${l.log_id}</span>
+                      <button class="btn btn-xs btn-outline-secondary py-0.5 px-2" onclick="copyAuditPayload('${detailId}')">
+                        <i class="bi bi-clipboard me-1"></i>Sao chép Payload
+                      </button>
+                    </div>
                   </div>
-                  <div class="row g-2">
-                    <div class="col-md-6">
-                      <div><strong>Giao thức & Cơ chế:</strong> <span class="font-monospace text-dark small">${l.mechanism}</span></div>
-                      <div class="mt-2 text-secondary small" style="font-size: 11.5px;">
-                        <div class="mb-1">
-                          <strong>Bắt đầu:</strong> 
-                          <span class="font-monospace text-dark bg-white px-1.5 py-0.5 border rounded">${startTimeStr}</span>
-                          <span class="text-muted ms-1">${l.date || ""}</span>
-                        </div>
-                        <div>
-                          <strong>Kết thúc:</strong> 
-                          <span class="font-monospace text-dark bg-white px-1.5 py-0.5 border rounded">${endTimeStr}</span>
-                          <span class="text-muted ms-1">${l.date || ""}</span>
-                          <span class="badge bg-light text-dark border ms-1 font-monospace">(Độ trễ: ${l.latency_ms !== null && l.latency_ms !== undefined ? l.latency_ms + ' ms' : '-'})</span>
-                        </div>
+                  <div class="row g-3">
+                    <div class="col-md-4">
+                      <div class="p-2.5 bg-light rounded border h-100">
+                        <div class="fw-bold text-secondary small mb-1.5"><i class="bi bi-stopwatch text-primary me-1"></i>Thông số truyền thông:</div>
+                        <div class="small mb-1"><strong>Giao thức:</strong> <span class="font-monospace text-primary">${l.mechanism}</span></div>
+                        <div class="small mb-1"><strong>Bắt đầu:</strong> <span class="font-monospace text-dark">${startTimeStr}</span></div>
+                        <div class="small mb-1"><strong>Kết thúc:</strong> <span class="font-monospace text-dark">${endTimeStr}</span></div>
+                        <div class="small mb-1"><strong>Độ trễ:</strong> <span class="badge bg-light text-dark border font-monospace">${l.latency_ms} ms</span></div>
+                        <div class="small text-muted mt-1"><strong>Khởi tạo bởi:</strong> ${l.source_label} (${l.source_node})</div>
                       </div>
                     </div>
-                    <div class="col-md-6 border-start ps-3">
-                      <div>
-                        <strong>Node chính (Khởi tạo):</strong> 
-                        <span class="badge bg-light text-secondary border fw-bold px-2 py-0.5 me-1 font-monospace" style="font-size: 11px;">${l.source_label || "Node 2"}</span>
-                        <code class="text-dark bg-white px-1.5 py-0.5 border rounded">${l.source_node}</code>
+                    <div class="col-md-4">
+                      <div class="p-2.5 bg-light rounded border h-100">
+                        <div class="fw-bold text-secondary small mb-1.5"><i class="bi bi-diagram-3-fill text-success me-1"></i>Ma trận xác nhận Quorum:</div>
+                        <div class="small mb-1 text-muted">Trạng thái đồng thuận của từng Node:</div>
+                        <div class="mt-1">${replicaBadges}</div>
                       </div>
-                      <div class="mt-2">
-                        <div class="mb-1"><strong>Node phụ (Nhận bản ghi):</strong></div>
-                        <div class="d-flex flex-wrap align-items-center">${replicaBadges}</div>
+                    </div>
+                    <div class="col-md-4">
+                      <div class="p-2.5 bg-light rounded border h-100">
+                        <div class="fw-bold text-secondary small mb-1.5"><i class="bi bi-code-square text-info me-1"></i>Payload & Bản ghi thay đổi:</div>
+                        <div class="audit-payload-codebox" id="payload-code-${detailId}">${cleanPayload}</div>
                       </div>
                     </div>
                   </div>
                 </div>
               </td>
             </tr>
-          `;
+            `;
           })
           .join("");
       }
 
+      // Phân trang cho Dòng sự kiện đồng bộ (Stream) - Luôn hiển thị thanh điều hướng
+      function renderStreamPagination(page, totalPages, totalItems, limit) {
+        const infoEl = document.getElementById("sync-page-info");
+        const navEl = document.getElementById("sync-pagination");
+        if (!infoEl || !navEl) return;
+
+        const startIdx = totalItems === 0 ? 0 : (page - 1) * limit + 1;
+        const endIdx = Math.min(page * limit, totalItems);
+        infoEl.innerHTML = totalItems === 0
+          ? `Chưa có sự kiện nào`
+          : `Hiển thị <strong>${startIdx} &ndash; ${endIdx}</strong> trên tổng số <strong>${totalItems}</strong> sự kiện (Trang ${page}/${totalPages})`;
+
+        let html = "";
+        const prevDisabled = page <= 1 ? "disabled" : "";
+        const nextDisabled = page >= totalPages ? "disabled" : "";
+
+        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="changeStreamPage(1)" ${page <= 1 ? "disabled" : ""}>&laquo;</button></li>`;
+        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="changeStreamPage(${page - 1})" ${page <= 1 ? "disabled" : ""}>&lsaquo;</button></li>`;
+
+        const startPage = Math.max(1, page - 2);
+        const endPage = Math.min(totalPages, page + 2);
+        for (let p = startPage; p <= endPage; p++) {
+          const activeCls = p === page ? "active" : "";
+          html += `<li class="page-item ${activeCls}"><button class="page-link" onclick="changeStreamPage(${p})">${p}</button></li>`;
+        }
+
+        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="changeStreamPage(${page + 1})" ${page >= totalPages ? "disabled" : ""}>&rsaquo;</button></li>`;
+        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="changeStreamPage(${totalPages})" ${page >= totalPages ? "disabled" : ""}>&raquo;</button></li>`;
+        navEl.innerHTML = html;
+      }
+
+      // Phân trang cho Modal Nhật ký kiểm toán cụm - Luôn hiển thị thanh điều hướng
+      function renderModalPagination(page, totalPages, totalItems, limit) {
+        const infoEl = document.getElementById("modal-page-info");
+        const navEl = document.getElementById("modal-pagination");
+        if (!infoEl || !navEl) return;
+
+        const startIdx = totalItems === 0 ? 0 : (page - 1) * limit + 1;
+        const endIdx = Math.min(page * limit, totalItems);
+        infoEl.innerHTML = totalItems === 0
+          ? `Không tìm thấy bản ghi kiểm toán phù hợp`
+          : `Hiển thị <strong>${startIdx} &ndash; ${endIdx}</strong> trong tổng số <strong>${totalItems}</strong> bản ghi kiểm toán (Trang ${page}/${totalPages})`;
+
+        let html = "";
+        const prevDisabled = page <= 1 ? "disabled" : "";
+        const nextDisabled = page >= totalPages ? "disabled" : "";
+
+        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="changeModalPage(1)" ${page <= 1 ? "disabled" : ""}>&laquo; Đầu</button></li>`;
+        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="changeModalPage(${page - 1})" ${page <= 1 ? "disabled" : ""}>&lsaquo; Trước</button></li>`;
+
+        const startPage = Math.max(1, page - 2);
+        const endPage = Math.min(totalPages, page + 2);
+        if (startPage > 1) {
+          html += `<li class="page-item"><button class="page-link" onclick="changeModalPage(1)">1</button></li>`;
+          if (startPage > 2) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+        for (let p = startPage; p <= endPage; p++) {
+          const activeCls = p === page ? "active" : "";
+          html += `<li class="page-item ${activeCls}"><button class="page-link" onclick="changeModalPage(${p})">${p}</button></li>`;
+        }
+        if (endPage < totalPages) {
+          if (endPage < totalPages - 1) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+          html += `<li class="page-item"><button class="page-link" onclick="changeModalPage(${totalPages})">${totalPages}</button></li>`;
+        }
+
+        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="changeModalPage(${page + 1})" ${page >= totalPages ? "disabled" : ""}>Sau &rsaquo;</button></li>`;
+        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="changeModalPage(${totalPages})" ${page >= totalPages ? "disabled" : ""}>Cuối &raquo;</button></li>`;
+        navEl.innerHTML = html;
+      }
+
+      // Hàm điều phối hiển thị đồng thời cả Stream lẫn Modal
       function renderSyncLogsUI() {
         const cntAll = cachedSyncLogs.length;
-        const cntMySQL = cachedSyncLogs.filter(
-          (l) => l.db_type === "MYSQL_GR",
-        ).length;
-        const cntMongo = cachedSyncLogs.filter(
-          (l) => l.db_type === "MONGO_RS",
-        ).length;
+        const cntMySQL = cachedSyncLogs.filter((l) => l.db_type === "MYSQL_GR").length;
+        const cntMongo = cachedSyncLogs.filter((l) => l.db_type === "MONGO_RS").length;
 
+        // Cập nhật số lượng trên các tab Stream và Modal
         ["modal-cnt-all", "tab-cnt-all"].forEach((id) => {
           const el = document.getElementById(id);
           if (el) {
@@ -4189,137 +4567,75 @@
           }
         });
 
-        let filtered = cachedSyncLogs;
-        if (currentSyncFilter && currentSyncFilter !== "ALL") {
-          filtered = cachedSyncLogs.filter(
-            (l) => l.db_type === currentSyncFilter,
-          );
+        // 1. Lọc và render cho DÒNG SỰ KIỆN ĐỒNG BỘ (Stream Feed trên Dashboard)
+        let streamList = cachedSyncLogs;
+        if (currentStreamFilter && currentStreamFilter !== "ALL") {
+          streamList = streamList.filter((l) => l.db_type === currentStreamFilter);
         }
-
-        const qModal = (
-          document.getElementById("sync-search-input")?.value || ""
-        )
-          .toLowerCase()
-          .trim();
-        const qTab = (
-          document.getElementById("tab-sync-search-input")?.value || ""
-        )
-          .toLowerCase()
-          .trim();
-
-        let filteredModal = filtered;
-        if (qModal) {
-          filteredModal = filtered.filter(
-            (l) =>
-              (l.title && l.title.toLowerCase().includes(qModal)) ||
-              (l.summary && l.summary.toLowerCase().includes(qModal)) ||
-              (l.data_payload &&
-                l.data_payload.toLowerCase().includes(qModal)) ||
-              (l.log_id && l.log_id.toLowerCase().includes(qModal)) ||
-              (l.detail && l.detail.toLowerCase().includes(qModal)),
-          );
-        }
-
-        let filteredTab = filtered;
+        const qTab = (document.getElementById("tab-sync-search-input")?.value || "").toLowerCase().trim();
         if (qTab) {
-          filteredTab = filtered.filter(
+          streamList = streamList.filter(
             (l) =>
               (l.title && l.title.toLowerCase().includes(qTab)) ||
               (l.summary && l.summary.toLowerCase().includes(qTab)) ||
               (l.data_payload && l.data_payload.toLowerCase().includes(qTab)) ||
               (l.log_id && l.log_id.toLowerCase().includes(qTab)) ||
-              (l.detail && l.detail.toLowerCase().includes(qTab)),
+              (l.affected_tables && l.affected_tables.toLowerCase().includes(qTab))
           );
         }
+        const totalStreamItems = streamList.length;
+        const totalStreamPages = Math.max(1, Math.ceil(totalStreamItems / currentStreamPageSize));
+        if (currentStreamPage > totalStreamPages) currentStreamPage = totalStreamPages;
+        if (currentStreamPage < 1) currentStreamPage = 1;
 
-        const totalSyncItems = filteredTab.length;
-        const totalSyncPages = Math.max(1, Math.ceil(totalSyncItems / currentSyncPageSize));
-        if (currentSyncPage > totalSyncPages) currentSyncPage = totalSyncPages;
-        if (currentSyncPage < 1) currentSyncPage = 1;
+        const streamStartIdx = (currentStreamPage - 1) * currentStreamPageSize;
+        const pageStream = streamList.slice(streamStartIdx, streamStartIdx + currentStreamPageSize);
 
-        const startIdx = (currentSyncPage - 1) * currentSyncPageSize;
-        const pageTab = filteredTab.slice(startIdx, startIdx + currentSyncPageSize);
+        const tStream = document.getElementById("sync-audit-stream-table");
+        if (tStream) tStream.innerHTML = renderStreamRowsHTML(pageStream, streamStartIdx);
+        renderStreamPagination(currentStreamPage, totalStreamPages, totalStreamItems, currentStreamPageSize);
 
-        const t1 = document.getElementById("sync-audit-stream-table");
-        if (t1) t1.innerHTML = renderSyncRowsHTML(pageTab, "tab", startIdx);
+        // 2. Lọc và render cho NHẬT KÝ KIỂM TOÁN CỤM (Modal Audit Console)
+        let modalList = cachedSyncLogs;
+        if (currentModalFilter && currentModalFilter !== "ALL") {
+          modalList = modalList.filter((l) => l.db_type === currentModalFilter);
+        }
+        if (currentModalStatusFilter && currentModalStatusFilter !== "ALL") {
+          if (currentModalStatusFilter === "SUCCESS") {
+            modalList = modalList.filter((l) => l.status === "SUCCESS" || l.status === "COMPLETED");
+          } else if (currentModalStatusFilter === "RECONCILE") {
+            modalList = modalList.filter((l) => l.action === "RECONCILE_SYNC" || (l.title && l.title.includes("bù")));
+          } else if (currentModalStatusFilter === "PARTIAL") {
+            modalList = modalList.filter((l) => l.status === "PARTIAL" || l.status === "LAGGING");
+          } else if (currentModalStatusFilter === "ERROR") {
+            modalList = modalList.filter((l) => l.status === "FAILED" || l.status === "ERROR");
+          }
+        }
+        const qModal = (document.getElementById("sync-search-input")?.value || "").toLowerCase().trim();
+        if (qModal) {
+          modalList = modalList.filter(
+            (l) =>
+              (l.title && l.title.toLowerCase().includes(qModal)) ||
+              (l.summary && l.summary.toLowerCase().includes(qModal)) ||
+              (l.data_payload && l.data_payload.toLowerCase().includes(qModal)) ||
+              (l.log_id && l.log_id.toLowerCase().includes(qModal)) ||
+              (l.affected_tables && l.affected_tables.toLowerCase().includes(qModal))
+          );
+        }
+        const totalModalItems = modalList.length;
+        const totalModalPages = Math.max(1, Math.ceil(totalModalItems / currentModalPageSize));
+        if (currentModalPage > totalModalPages) currentModalPage = totalModalPages;
+        if (currentModalPage < 1) currentModalPage = 1;
 
-        renderSyncPagination(currentSyncPage, totalSyncPages, totalSyncItems, currentSyncPageSize);
+        const modalStartIdx = (currentModalPage - 1) * currentModalPageSize;
+        const pageModal = modalList.slice(modalStartIdx, modalStartIdx + currentModalPageSize);
 
-        const t2 = document.getElementById("modal-sync-audit-table");
-        if (t2) t2.innerHTML = renderSyncRowsHTML(filteredModal, "modal", 0);
+        const tModal = document.getElementById("modal-sync-audit-table");
+        if (tModal) tModal.innerHTML = renderModalAuditRowsHTML(pageModal, modalStartIdx);
+        renderModalPagination(currentModalPage, totalModalPages, totalModalItems, currentModalPageSize);
 
         const info = document.getElementById("sync-log-total-info");
-        if (info) {
-          info.innerText = `${filteredModal.length}`;
-        }
-      }
-
-      function changeSyncPage(p) {
-        currentSyncPage = p;
-        renderSyncLogsUI();
-      }
-
-      function changeSyncPageSize(sz) {
-        currentSyncPageSize = parseInt(sz, 10) || 10;
-        currentSyncPage = 1;
-        renderSyncLogsUI();
-      }
-
-      function renderSyncPagination(page, totalPages, totalItems, limit) {
-        const controlsEl = document.getElementById("sync-pagination-controls");
-        const infoEl = document.getElementById("sync-page-info");
-        const navEl = document.getElementById("sync-pagination");
-        if (!infoEl) return;
-
-        if (totalItems <= limit) {
-          if (controlsEl) {
-            controlsEl.classList.add("d-none");
-            controlsEl.classList.remove("d-flex");
-            controlsEl.style.setProperty("display", "none", "important");
-          }
-          infoEl.innerHTML = `Hiển thị <strong>${totalItems.toLocaleString("vi-VN")}</strong> sự kiện đồng bộ`;
-          return;
-        }
-
-        if (controlsEl) {
-          controlsEl.classList.remove("d-none");
-          controlsEl.classList.add("d-flex");
-          controlsEl.style.removeProperty("display");
-        }
-        const startIdx = (page - 1) * limit + 1;
-        const endIdx = Math.min(page * limit, totalItems);
-        infoEl.innerHTML =
-          `Hiển thị <strong>${startIdx.toLocaleString("vi-VN")} &ndash; ${endIdx.toLocaleString("vi-VN")}</strong> ` +
-          `trên tổng số <strong>${totalItems.toLocaleString("vi-VN")}</strong> sự kiện (Trang ${page.toLocaleString("vi-VN")}/${totalPages.toLocaleString("vi-VN")})`;
-
-        let html = "";
-        const prevDisabled = page <= 1 ? "disabled" : "";
-        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="changeSyncPage(1)">&laquo; Đầu</button></li>`;
-        html += `<li class="page-item ${prevDisabled}"><button class="page-link" onclick="changeSyncPage(${page - 1})">&lsaquo; Trước</button></li>`;
-
-        const startPage = Math.max(1, page - 2);
-        const endPage = Math.min(totalPages, page + 2);
-        if (startPage > 1) {
-          html += `<li class="page-item"><button class="page-link" onclick="changeSyncPage(1)">1</button></li>`;
-          if (startPage > 2) {
-            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-          }
-        }
-        for (let p = startPage; p <= endPage; p++) {
-          const activeCls = p === page ? "active" : "";
-          html += `<li class="page-item ${activeCls}"><button class="page-link" onclick="changeSyncPage(${p})">${p}</button></li>`;
-        }
-        if (endPage < totalPages) {
-          if (endPage < totalPages - 1) {
-            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-          }
-          html += `<li class="page-item"><button class="page-link" onclick="changeSyncPage(${totalPages})">${totalPages}</button></li>`;
-        }
-
-        const nextDisabled = page >= totalPages ? "disabled" : "";
-        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="changeSyncPage(${page + 1})">Sau &rsaquo;</button></li>`;
-        html += `<li class="page-item ${nextDisabled}"><button class="page-link" onclick="changeSyncPage(${totalPages})">Cuối &raquo;</button></li>`;
-        if (navEl) navEl.innerHTML = html;
+        if (info) info.innerText = `${totalModalItems}`;
       }
 
       async function loadSyncLogs(manual = false) {
