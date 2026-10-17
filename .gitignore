@@ -231,3 +231,6 @@ web_demo/tools/
 # Corrupt backups from tests
 *.corrupt.*.json
 web_demo/*.corrupt.*.json
+
+# Local diagnostic logs
+web_demo/log/

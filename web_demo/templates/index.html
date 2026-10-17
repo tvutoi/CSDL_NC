@@ -1526,56 +1526,56 @@
                   <div
                     class="mb-2 pb-1 border-bottom small text-secondary"
                     id="selected-review-product-label">
-                    <strong class="text-dark">Sản phẩm #1</strong>
+                    <span class="text-muted fst-italic">Đang chờ tải sản phẩm...</span>
                   </div>
 
                   <div class="rating-overview-card bg-light border rounded-2 p-3 mb-3 d-flex flex-wrap align-items-center gap-4">
                     <div class="text-center pe-md-4 border-md-end" style="min-width: 130px;">
-                      <div class="display-5 fw-bold text-dark mb-0" id="rating-big-number">4.4</div>
+                      <div class="display-5 fw-bold text-dark mb-0" id="rating-big-number">-</div>
                       <div class="fs-5 d-flex justify-content-center align-items-center gap-0.5" id="rating-big-stars">
-                        <span style="color: #f59e0b;">★</span>
-                        <span style="color: #f59e0b;">★</span>
-                        <span style="color: #f59e0b;">★</span>
-                        <span style="color: #f59e0b;">★</span>
+                        <span style="color: #cbd5e1;">★</span>
+                        <span style="color: #cbd5e1;">★</span>
+                        <span style="color: #cbd5e1;">★</span>
+                        <span style="color: #cbd5e1;">★</span>
                         <span style="color: #cbd5e1;">★</span>
                       </div>
-                      <div class="text-secondary small mt-1" id="rating-total-reviews">28 đánh giá</div>
+                      <div class="text-secondary small mt-1" id="rating-total-reviews">0 đánh giá</div>
                     </div>
                     <div class="flex-grow-1" style="min-width: 220px;" id="rating-distribution-container">
                       <div class="d-flex align-items-center gap-2 mb-1" style="font-size: 13px;">
                         <span style="width: 44px; text-align: right; color: #475569;" class="text-nowrap">5 sao</span>
                         <div class="progress flex-grow-1" style="height: 8px;">
-                          <div class="progress-bar" id="bar-5-star" style="width: 61%; background-color: #f59e0b;"></div>
+                          <div class="progress-bar" id="bar-5-star" style="width: 0%; background-color: #f59e0b;"></div>
                         </div>
-                        <span class="text-secondary small text-end font-monospace" style="width: 72px;" id="pct-5-star">17 (61%)</span>
+                        <span class="text-secondary small text-end font-monospace" style="width: 72px;" id="pct-5-star">0 (0%)</span>
                       </div>
                       <div class="d-flex align-items-center gap-2 mb-1" style="font-size: 13px;">
                         <span style="width: 44px; text-align: right; color: #475569;" class="text-nowrap">4 sao</span>
                         <div class="progress flex-grow-1" style="height: 8px;">
-                          <div class="progress-bar" id="bar-4-star" style="width: 25%; background-color: #f59e0b;"></div>
+                          <div class="progress-bar" id="bar-4-star" style="width: 0%; background-color: #f59e0b;"></div>
                         </div>
-                        <span class="text-secondary small text-end font-monospace" style="width: 72px;" id="pct-4-star">7 (25%)</span>
+                        <span class="text-secondary small text-end font-monospace" style="width: 72px;" id="pct-4-star">0 (0%)</span>
                       </div>
                       <div class="d-flex align-items-center gap-2 mb-1" style="font-size: 13px;">
                         <span style="width: 44px; text-align: right; color: #475569;" class="text-nowrap">3 sao</span>
                         <div class="progress flex-grow-1" style="height: 8px;">
-                          <div class="progress-bar" id="bar-3-star" style="width: 7%; background-color: #f59e0b;"></div>
+                          <div class="progress-bar" id="bar-3-star" style="width: 0%; background-color: #f59e0b;"></div>
                         </div>
-                        <span class="text-secondary small text-end font-monospace" style="width: 72px;" id="pct-3-star">2 (7%)</span>
+                        <span class="text-secondary small text-end font-monospace" style="width: 72px;" id="pct-3-star">0 (0%)</span>
                       </div>
                       <div class="d-flex align-items-center gap-2 mb-1" style="font-size: 13px;">
                         <span style="width: 44px; text-align: right; color: #475569;" class="text-nowrap">2 sao</span>
                         <div class="progress flex-grow-1" style="height: 8px;">
-                          <div class="progress-bar" id="bar-2-star" style="width: 4%; background-color: #f59e0b;"></div>
+                          <div class="progress-bar" id="bar-2-star" style="width: 0%; background-color: #f59e0b;"></div>
                         </div>
-                        <span class="text-secondary small text-end font-monospace" style="width: 72px;" id="pct-2-star">1 (4%)</span>
+                        <span class="text-secondary small text-end font-monospace" style="width: 72px;" id="pct-2-star">0 (0%)</span>
                       </div>
                       <div class="d-flex align-items-center gap-2" style="font-size: 13px;">
                         <span style="width: 44px; text-align: right; color: #475569;" class="text-nowrap">1 sao</span>
                         <div class="progress flex-grow-1" style="height: 8px;">
-                          <div class="progress-bar" id="bar-1-star" style="width: 4%; background-color: #f59e0b;"></div>
+                          <div class="progress-bar" id="bar-1-star" style="width: 0%; background-color: #f59e0b;"></div>
                         </div>
-                        <span class="text-secondary small text-end font-monospace" style="width: 72px;" id="pct-1-star">1 (4%)</span>
+                        <span class="text-secondary small text-end font-monospace" style="width: 72px;" id="pct-1-star">0 (0%)</span>
                       </div>
                     </div>
                   </div>
@@ -5224,10 +5224,22 @@
 
         try {
           const res = await fetch("/api/products/options?limit=2000");
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+          }
           const data = await res.json();
           const products = data.products || [];
           allProductsCatalog = products;
           catalogProducts = products;
+
+          if (products.length === 0) {
+            allProductsCatalog = [];
+            catalogProducts = [];
+            setComboData("review-product-id", [{ value: "", label: "Không có dữ liệu" }]);
+            setComboData("view-review-product-select", [{ value: "", label: "Không có dữ liệu" }]);
+            renderEmptyReviewsState("Không có sản phẩm nào trong cơ sở dữ liệu");
+            return;
+          }
 
           const searchInput = document.getElementById("order-product-search");
           if (!searchInput || !searchInput.value) {
@@ -5265,20 +5277,65 @@
           });
 
           setComboData("review-product-id", comboItems);
+          const initialReviewPid = (currentReviewProductId && allProductsCatalog.some(x => x.product_id === currentReviewProductId))
+            ? currentReviewProductId
+            : products[0].product_id;
+          currentReviewProductId = initialReviewPid;
           setComboData(
             "view-review-product-select",
             comboItems,
-            currentReviewProductId,
+            initialReviewPid,
           );
 
           updateOrderTotalPreview();
-          loadProductReviews(
-            currentReviewProductId || 1,
-            currentReviewPage || 1,
-          );
+          loadProductReviews(initialReviewPid, currentReviewPage || 1);
         } catch (e) {
           console.error("Load product options error:", e);
+          allProductsCatalog = [];
+          catalogProducts = [];
+          setComboData("review-product-id", [{ value: "", label: "Không có dữ liệu (Cấu hình lỗi)" }]);
+          setComboData("view-review-product-select", [{ value: "", label: "Không có dữ liệu (Cấu hình lỗi)" }]);
+          const revCountLbl = document.getElementById("review-view-prod-count");
+          if (revCountLbl) revCountLbl.textContent = `(0 SP)`;
+          renderEmptyReviewsState("Không thể kết nối tới cơ sở dữ liệu MySQL (Cấu hình địa chỉ node chưa chính xác hoặc cụm đang offline).");
         }
+      }
+
+      function resetRatingSummaryBlock() {
+        const bigNumEl = document.getElementById("rating-big-number");
+        if (bigNumEl) bigNumEl.innerText = "-";
+        const bigStarsEl = document.getElementById("rating-big-stars");
+        if (bigStarsEl) {
+          bigStarsEl.innerHTML = `<span style="color: #cbd5e1;">★</span><span style="color: #cbd5e1;">★</span><span style="color: #cbd5e1;">★</span><span style="color: #cbd5e1;">★</span><span style="color: #cbd5e1;">★</span>`;
+        }
+        const totalRevEl = document.getElementById("rating-total-reviews");
+        if (totalRevEl) totalRevEl.innerText = `0 đánh giá`;
+        for (let s = 1; s <= 5; s++) {
+          const bar = document.getElementById(`bar-${s}-star`);
+          const pctEl = document.getElementById(`pct-${s}-star`);
+          if (bar) bar.style.width = `0%`;
+          if (pctEl) pctEl.innerText = `0 (0%)`;
+        }
+      }
+
+      function renderEmptyReviewsState(reason) {
+        const container = document.getElementById("product-reviews-container");
+        if (container) {
+          container.innerHTML = `
+            <div class="text-center py-5 text-muted">
+              <i class="fas fa-triangle-exclamation text-warning fa-2x mb-2 d-block"></i>
+              <strong>Không có dữ liệu đánh giá</strong><br>
+              <span class="small text-secondary">${reason || "Cụm cơ sở dữ liệu chưa sẵn sàng hoặc cấu hình địa chỉ node chưa chính xác."}</span>
+            </div>`;
+        }
+        const lbl = document.getElementById("selected-review-product-label");
+        if (lbl) lbl.innerHTML = `<span class="text-muted fst-italic">Không có sản phẩm</span>`;
+        const nodeInfoEl = document.getElementById("reviews-node-info");
+        if (nodeInfoEl) {
+          nodeInfoEl.innerHTML = `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle"><i class="fas fa-circle-pause me-1"></i>Chưa kết nối</span>`;
+        }
+        resetRatingSummaryBlock();
+        renderReviewsPagination(1, 1, 0, 5);
       }
 
       function renderCatalogPagination(page, totalPages, totalItems, limit) {
@@ -5364,6 +5421,11 @@
 
       // load reviews mongo
       async function loadProductReviews(productId, page) {
+        if (!allProductsCatalog || allProductsCatalog.length === 0) {
+          renderEmptyReviewsState("Chưa có danh mục sản phẩm từ MySQL (Cụm đang ngắt kết nối hoặc cấu hình sai)");
+          return;
+        }
+
         if (typeof productId === "number" && productId >= 1) {
           currentReviewProductId = productId;
         }
@@ -5391,6 +5453,11 @@
           const res = await fetch("/api/reviews/list?" + params.toString(), {
             cache: "no-store",
           });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            const errMsg = errData.detail || `Lỗi kết nối cụm MongoDB (HTTP ${res.status})`;
+            throw new Error(errMsg);
+          }
           const data = await res.json();
           const revs = data.reviews || [];
           const totalItems = data.total_items || 0;
@@ -5500,6 +5567,22 @@
           );
         } catch (e) {
           console.error("Load product reviews error:", e);
+          if (container) {
+            container.innerHTML = `
+              <div class="alert alert-danger d-flex align-items-center my-3">
+                <i class="fas fa-exclamation-circle fa-lg me-2 text-danger"></i>
+                <div>
+                  <strong>Không thể tải nhận xét từ MongoDB</strong><br>
+                  <span class="small">${e.message || "Cụm MongoDB không phản hồi hoặc cấu hình địa chỉ node chưa chính xác."}</span>
+                </div>
+              </div>`;
+          }
+          const nodeInfoEl = document.getElementById("reviews-node-info");
+          if (nodeInfoEl) {
+            nodeInfoEl.innerHTML = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="fas fa-circle-xmark me-1"></i>MongoDB: Mất kết nối</span>`;
+          }
+          resetRatingSummaryBlock();
+          renderReviewsPagination(1, 1, 0, limit);
         }
       }
 
@@ -5727,9 +5810,18 @@
         }
 
         const selectedProdId = parseInt(
-          document.getElementById("review-product-id").value,
+          document.getElementById("review-product-id")?.value,
           10,
         );
+        if (!selectedProdId || isNaN(selectedProdId) || selectedProdId < 1) {
+          if (fb) fb.innerHTML = `<div class="alert alert-warning py-2 px-3 mb-0 small">Vui lòng chọn sản phẩm hợp lệ cần đánh giá (Hiện tại chưa có dữ liệu sản phẩm).</div>`;
+          window._isSubmittingReview = false;
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = "Gửi đánh giá";
+          }
+          return;
+        }
         const idempotencyKey = "REV-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9);
         const payload = {
           product_id: selectedProdId,
@@ -6568,8 +6660,8 @@
       function applyClusterPreset(mode) {
         window._currentSelectedPreset = mode;
         if (mode === "docker") {
-          document.getElementById("cfg-mysql-nodes").value = "127.0.0.1:3305, 127.0.0.1:3306, 127.0.0.1:3307, 127.0.0.1:3308";
-          document.getElementById("cfg-mongo-nodes").value = "127.0.0.1:27016, 127.0.0.1:27017, 127.0.0.1:27018, 127.0.0.1:27019";
+          document.getElementById("cfg-mysql-nodes").value = "127.0.0.1:3305, 127.0.0.1:3309, 127.0.0.1:3307, 127.0.0.1:3308";
+          document.getElementById("cfg-mongo-nodes").value = "127.0.0.1:27016, 127.0.0.1:27020, 127.0.0.1:27018, 127.0.0.1:27019";
           document.getElementById("cfg-client-node").value = "127.0.0.1";
         } else if (mode === "lan_lab") {
           document.getElementById("cfg-mysql-nodes").value = "192.168.1.221, 192.168.1.222, 192.168.1.223, 192.168.1.224";

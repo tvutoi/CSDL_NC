@@ -16,5 +16,5 @@
   "mysql_password": "root",
   "sync_interval_sec": 5,
   "active_mysql_primary": "192.168.1.221",
-  "active_mongo_primary": "192.168.1.221:27017"
+  "active_mongo_primary": "192.168.1.222:27017"
 }
