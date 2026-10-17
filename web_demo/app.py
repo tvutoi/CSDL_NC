@@ -1460,7 +1460,7 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
     for host in CLUSTER_CONFIG["mysql_nodes"]:
         h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
         p_int = int(p_int)
-        if not is_port_open(h_str, p_int, timeout=0.25):
+        if not is_port_open(h_str, p_int, timeout=1.8, retries=1):
             continue
         try:
             conn = mysql.connector.connect(
@@ -1469,7 +1469,7 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
                 password=CLUSTER_CONFIG["mysql_password"],
                 database=CLUSTER_CONFIG["mysql_db"],
                 autocommit=True,
-                connection_timeout=2
+                connection_timeout=4.0
             )
             cur = conn.cursor(dictionary=True)
             cur.execute("SELECT @@global.read_only AS ro, @@global.super_read_only AS sro")
@@ -2212,7 +2212,7 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
             if sec_host == mysql_meta.get("host") or sec_host in xcom_hosts:
                 continue
             h_sec, p_sec = (sec_host.split(":") if ":" in sec_host else (sec_host, 3306))
-            if not is_port_open(h_sec, int(p_sec), timeout=0.6):
+            if not is_port_open(h_sec, int(p_sec), timeout=1.8, retries=1):
                 continue
             try:
                 s_conn = mysql.connector.connect(
@@ -2225,7 +2225,7 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
                     use_unicode=True,
                     collation="utf8mb4_unicode_ci",
                     autocommit=True,
-                    connection_timeout=2
+                    connection_timeout=3.5
                 )
                 s_cur = s_conn.cursor()
                 s_cur.execute("SET GLOBAL super_read_only = OFF")
@@ -3547,12 +3547,39 @@ def reconcile_offline_nodes_in_file(force: bool = False):
 
 
 def _background_reconciler_worker():
+    """
+    Tiến trình nền tự động đồng bộ bù dữ liệu định kỳ cho toàn bộ cụm:
+    1. Chu kỳ lặp lấy từ CLUSTER_CONFIG['sync_interval_sec'] (mặc định 5s).
+    2. Tự động gọi reconcile_mysql_cluster_data(log_sync=True) để đối chiếu và bù dữ liệu MySQL.
+    3. Tự động gọi reconcile_offline_nodes_in_file() để cập nhật nhật ký cho node vừa online.
+    4. Tự động kiểm tra và bảo đảm tính sẵn sàng của Primary trong MongoDB Replica Set.
+    """
+    time.sleep(3)
     while True:
         try:
-            time.sleep(12)
-            reconcile_offline_nodes_in_file()
+            cfg_interval = int(CLUSTER_CONFIG.get("sync_interval_sec", 5) or 5)
+            sleep_time = max(3, min(60, cfg_interval))
+            time.sleep(sleep_time)
+
+            # 1. Tự động bù dữ liệu MySQL giữa các node online nếu phát hiện lệch
+            try:
+                reconcile_mysql_cluster_data(log_sync=True)
+            except Exception:
+                pass
+
+            # 2. Tự động cập nhật nhật ký cho các node vừa online lại
+            try:
+                reconcile_offline_nodes_in_file()
+            except Exception:
+                pass
+
+            # 3. Tự động đảm bảo tính sẵn sàng của Primary trong MongoDB Replica Set
+            try:
+                ensure_mongo_primary_priority(force=False)
+            except Exception:
+                pass
         except Exception:
-            pass
+            time.sleep(5)
 
 
 _reconciler_thread = threading.Thread(target=_background_reconciler_worker, daemon=True)
