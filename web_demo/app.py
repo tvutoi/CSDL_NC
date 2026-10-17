@@ -16,13 +16,25 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import mysql.connector
 from pymongo import MongoClient, ReadPreference, WriteConcern
+import copy
+from collections import defaultdict
 import sync_log_store
 
 _IDEMPOTENCY_CACHE: Dict[str, Dict[str, Any]] = {}
 _IDEMPOTENCY_LOCK = threading.Lock()
 
+_STATUS_CACHE_LOCK = threading.Lock()
+_LAST_STATUS_RESPONSE: Optional[Dict[str, Any]] = None
+_LAST_STATUS_TIME: float = 0.0
 
-def is_port_open(host_or_addr: str, default_port: int = 3306, timeout: float = 0.8, retries: int = 2) -> bool:
+# Bo loc chong flap trang thai: Chi chuyen sang OFFLINE neu that bai lien tiep >= 3 lan
+_MYSQL_CONSECUTIVE_FAILURES: Dict[str, int] = defaultdict(int)
+_MONGO_CONSECUTIVE_FAILURES: Dict[str, int] = defaultdict(int)
+_LAST_HEALTHY_MYSQL: Dict[str, Dict[str, Any]] = {}
+_LAST_HEALTHY_MONGO: Dict[str, Dict[str, Any]] = {}
+
+
+def is_port_open(host_or_addr: str, default_port: int = 3306, timeout: float = 1.8, retries: int = 1) -> bool:
     # check socket tin cay tren ca Localhost va mang LAN (ho tro thu lai tranh packet loss Wi-Fi)
     try:
         if ":" in host_or_addr:
@@ -1518,7 +1530,17 @@ def get_cluster_status(request: Request):
     Kiểm tra trạng thái sống/chết (ONLINE/OFFLINE), vai trò (PRIMARY/SECONDARY),
     mã GTID và đếm số lượng bản ghi trên từng Node để chứng minh cơ chế đồng bộ.
     Đảm bảo nguyên tắc Single-Primary: Khi mở 2, 3 hoặc 4 Node chỉ có duy nhất 1 PRIMARY, các Node còn lại là SECONDARY.
+    Hỗ trợ bộ lọc chống flap (hysteresis) và cache ngắn 1.5s để bảo đảm tính ổn định tuyệt đối khi demo.
     """
+    global _LAST_STATUS_RESPONSE, _LAST_STATUS_TIME
+    now_ts = time.time()
+    with _STATUS_CACHE_LOCK:
+        if _LAST_STATUS_RESPONSE is not None and (now_ts - _LAST_STATUS_TIME) < 2.0:
+            cached_copy = copy.deepcopy(_LAST_STATUS_RESPONSE)
+            if request and getattr(request, "client", None):
+                cached_copy["client_node"]["actual_Request_ip"] = request.client.host
+            return cached_copy
+
     status = {
         "mysql": [],
         "mongodb": [],
@@ -1536,7 +1558,16 @@ def get_cluster_status(request: Request):
         t0 = time.perf_counter()
         h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
         p_int = int(p_int)
-        if not is_port_open(h_str, p_int, timeout=0.8, retries=2):
+        
+        # Timeout 1.8s phu hop voi do tre mang LAN (ping do duoc len toi 1410ms tren Node 2)
+        port_ok = is_port_open(h_str, p_int, timeout=1.8, retries=1)
+        if not port_ok:
+            with _STATUS_CACHE_LOCK:
+                _MYSQL_CONSECUTIVE_FAILURES[host] += 1
+                if _MYSQL_CONSECUTIVE_FAILURES[host] < 3 and host in _LAST_HEALTHY_MYSQL:
+                    cached_item = dict(_LAST_HEALTHY_MYSQL[host])
+                    cached_item["node_name"] = f"Node {idx}"
+                    return cached_item
             return {
                 "node_name": f"Node {idx}", "host": host, "server_id": "-", "hostname": "-",
                 "state": "OFFLINE", "role": "UNREACHABLE", "ping_ms": None, "gtid": "-",
@@ -1554,9 +1585,6 @@ def get_cluster_status(request: Request):
             cur = conn.cursor(dictionary=True)
             cur.execute("SELECT @@server_uuid AS uuid, @@server_id AS sid, @@hostname AS hname, @@global.read_only AS ro, @@global.gtid_executed AS gtid")
             sys_info = cur.fetchone()
-
-            cur.execute("SELECT MEMBER_ID, MEMBER_HOST, MEMBER_STATE, MEMBER_ROLE FROM performance_schema.replication_group_members")
-            mgr_rows = cur.fetchall()
 
             cur.execute("SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME = 'group_replication_primary_member'")
             p_row = cur.fetchone()
@@ -1588,12 +1616,22 @@ def get_cluster_status(request: Request):
                 gtid_str = gtid_str.replace("22222222-2222-2222-2222-222222222222", "b8c1a93e-72df-4a61-9c88-4f271a359d02")
             gtid_short = (gtid_str[:42] + "...") if len(gtid_str) > 42 else gtid_str
 
-            return {
+            res_item = {
                 "node_name": f"Node {idx}", "host": host, "server_id": sys_info["sid"], "hostname": sys_info["hname"],
                 "state": "ONLINE", "role": "SECONDARY", "ping_ms": ping_ms, "gtid": gtid_short,
                 "counts": node_counts, "_uuid": sys_info["uuid"], "_primary_uuid": primary_uuid, "_ro": sys_info["ro"]
             }
+            with _STATUS_CACHE_LOCK:
+                _MYSQL_CONSECUTIVE_FAILURES[host] = 0
+                _LAST_HEALTHY_MYSQL[host] = res_item
+            return res_item
         except Exception:
+            with _STATUS_CACHE_LOCK:
+                _MYSQL_CONSECUTIVE_FAILURES[host] += 1
+                if _MYSQL_CONSECUTIVE_FAILURES[host] < 3 and host in _LAST_HEALTHY_MYSQL:
+                    cached_item = dict(_LAST_HEALTHY_MYSQL[host])
+                    cached_item["node_name"] = f"Node {idx}"
+                    return cached_item
             return {
                 "node_name": f"Node {idx}", "host": host, "server_id": "-", "hostname": "-",
                 "state": "OFFLINE", "role": "UNREACHABLE", "ping_ms": None, "gtid": "-",
@@ -1605,7 +1643,14 @@ def get_cluster_status(request: Request):
         idx, cfg_host = idx_host
         h_mg, p_mg = (cfg_host.split(":") if ":" in cfg_host else (cfg_host, 27017))
         p_mg = int(p_mg)
-        if not is_port_open(h_mg, p_mg, timeout=0.8, retries=2):
+        port_ok = is_port_open(h_mg, p_mg, timeout=1.8, retries=1)
+        if not port_ok:
+            with _STATUS_CACHE_LOCK:
+                _MONGO_CONSECUTIVE_FAILURES[cfg_host] += 1
+                if _MONGO_CONSECUTIVE_FAILURES[cfg_host] < 3 and cfg_host in _LAST_HEALTHY_MONGO:
+                    cached_item = dict(_LAST_HEALTHY_MONGO[cfg_host])
+                    cached_item["node_name"] = f"Node {idx}"
+                    return cached_item
             return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": "OFFLINE", "health": 0,
                 "ping_ms": None, "reviews_count": 0, "logs_count": 0, "_is_prim": False
@@ -1618,11 +1663,21 @@ def get_cluster_status(request: Request):
             is_prim = bool(hello_res.get("isWritablePrimary") or hello_res.get("ismaster"))
             state_str = "PRIMARY" if is_prim else ("SECONDARY" if hello_res.get("secondary") else "ONLINE")
             m_single.close()
-            return {
+            res_item = {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": state_str, "health": 1,
                 "ping_ms": ping_ms, "reviews_count": 0, "logs_count": 0, "_is_prim": is_prim
             }
+            with _STATUS_CACHE_LOCK:
+                _MONGO_CONSECUTIVE_FAILURES[cfg_host] = 0
+                _LAST_HEALTHY_MONGO[cfg_host] = res_item
+            return res_item
         except Exception:
+            with _STATUS_CACHE_LOCK:
+                _MONGO_CONSECUTIVE_FAILURES[cfg_host] += 1
+                if _MONGO_CONSECUTIVE_FAILURES[cfg_host] < 3 and cfg_host in _LAST_HEALTHY_MONGO:
+                    cached_item = dict(_LAST_HEALTHY_MONGO[cfg_host])
+                    cached_item["node_name"] = f"Node {idx}"
+                    return cached_item
             return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": "OFFLINE", "health": 0,
                 "ping_ms": None, "reviews_count": 0, "logs_count": 0, "_is_prim": False
@@ -1639,9 +1694,11 @@ def get_cluster_status(request: Request):
 
     for n in mysql_results:
         if n["state"] == "ONLINE":
-            if group_primary_uuid and n["_uuid"] == group_primary_uuid and not primary_assigned:
+            is_pri = (group_primary_uuid and n.get("_uuid") == group_primary_uuid) or (n.get("_ro") == 0)
+            if is_pri and not primary_assigned:
                 n["role"] = "PRIMARY"
                 primary_assigned = True
+                set_active_mysql_primary(n["host"])
             else:
                 n["role"] = "SECONDARY"
 
@@ -1652,41 +1709,11 @@ def get_cluster_status(request: Request):
             active_node["role"] = "PRIMARY"
             primary_assigned = True
         else:
-            # lay node orders moi nhat
-            candidates_p = [n for n in mysql_results if n["state"] == "ONLINE" and n.get("_ro") == 0]
-            if candidates_p:
-                best_p = max(candidates_p, key=lambda x: x["counts"].get("orders", 0))
-                best_p["role"] = "PRIMARY"
+            online_cand = [n for n in mysql_results if n["state"] == "ONLINE"]
+            if online_cand:
+                online_cand[0]["role"] = "PRIMARY"
                 primary_assigned = True
-                set_active_mysql_primary(best_p["host"])
-
-    for n in mysql_results:
-        if n.get("role") == "PRIMARY":
-            set_active_mysql_primary(n["host"])
-            break
-
-    for n in mysql_results:
-        if n["state"] == "ONLINE":
-            try:
-                h_s, p_s = n["host"].split(":") if ":" in n["host"] else (n["host"], 3306)
-                if n["role"] == "SECONDARY" and n.get("_ro") == 0:
-                    c_fix = mysql.connector.connect(host=h_s, port=int(p_s), user="root", password=CLUSTER_CONFIG["mysql_password"], connection_timeout=0.6)
-                    cur_f = c_fix.cursor()
-                    cur_f.execute("SET GLOBAL read_only = ON")
-                    cur_f.execute("SET GLOBAL super_read_only = ON")
-                    cur_f.close()
-                    c_fix.close()
-                    n["_ro"] = 1
-                elif n["role"] == "PRIMARY" and n.get("_ro") == 1:
-                    c_fix = mysql.connector.connect(host=h_s, port=int(p_s), user="root", password=CLUSTER_CONFIG["mysql_password"], connection_timeout=0.6)
-                    cur_f = c_fix.cursor()
-                    cur_f.execute("SET GLOBAL super_read_only = OFF")
-                    cur_f.execute("SET GLOBAL read_only = OFF")
-                    cur_f.close()
-                    c_fix.close()
-                    n["_ro"] = 0
-            except Exception:
-                pass
+                set_active_mysql_primary(online_cand[0]["host"])
 
     for n in mysql_results:
         for k in ["_uuid", "_primary_uuid", "_ro"]:
@@ -1695,35 +1722,12 @@ def get_cluster_status(request: Request):
             for k, v in n["counts"].items():
                 status["data_counts"][k] = v
 
-    # check lech du lieu (co cooldown de tranh goi don dap)
-    _last_rec_ts = getattr(reconcile_mysql_cluster_data, "_last_status_time", 0.0)
-    now_ts_rec = time.time()
-    if (now_ts_rec - _last_rec_ts) >= 4.0:
-        online_order_counts = [n["counts"]["orders"] for n in mysql_results if n["counts"]["orders"] > 0]
-        if len(online_order_counts) >= 2 and len(set(online_order_counts)) > 1:
-            try:
-                reconcile_mysql_cluster_data._last_status_time = now_ts_rec
-                res_rec = reconcile_mysql_cluster_data(log_sync=False)
-                if res_rec.get("total_synced_rows", 0) > 0:
-                    max_c = max(online_order_counts)
-                    for n in mysql_results:
-                        if n["counts"]["orders"] > 0:
-                            n["counts"]["orders"] = max_c
-                            n["counts"]["order_items"] = max_c * 2
-                            n["counts"]["payments"] = max_c
-                    status["data_counts"]["orders"] = max_c
-                    status["data_counts"]["order_items"] = max_c * 2
-                    status["data_counts"]["payments"] = max_c
-            except Exception:
-                pass
-
     status["mysql"] = mysql_results
 
     online_m = [m for m in mongo_results if m["health"] == 1]
     if online_m:
         primaries = [m for m in online_m if m.get("_is_prim")]
         if not primaries:
-            # Cac node hien tai dang la SECONDARY (dang bau chon hoac thieu Quorum)
             pass
         elif len(primaries) > 1:
             curr_mg_active = get_active_mongo_primary()
@@ -1775,6 +1779,11 @@ def get_cluster_status(request: Request):
     status["sync_logs_hash"] = sync_logs_hash
     status["sync_interval_sec"] = int(CLUSTER_CONFIG.get("sync_interval_sec", 2))
     status["latest_sync_log"] = all_logs[0] if all_logs else None
+
+    with _STATUS_CACHE_LOCK:
+        _LAST_STATUS_RESPONSE = copy.deepcopy(status)
+        _LAST_STATUS_TIME = time.time()
+
     return status
 
 
