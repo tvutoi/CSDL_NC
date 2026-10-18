@@ -2014,12 +2014,17 @@ def get_cluster_status(request: Request):
             m_single = MongoClient(f"mongodb://{h_mg}:{p_mg}/?directConnection=true", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=2000, connectTimeoutMS=2000)
             hello_res = m_single.admin.command("hello")
             ping_ms = round((time.perf_counter() - t_start) * 1000, 2)
+            set_name = hello_res.get("setName")
+            reported_primary = hello_res.get("primary")
             is_prim = bool(hello_res.get("isWritablePrimary") or hello_res.get("ismaster"))
             state_str = "PRIMARY" if is_prim else ("SECONDARY" if hello_res.get("secondary") else "ONLINE")
             m_single.close()
             res_item = {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": state_str, "health": 1,
-                "ping_ms": ping_ms, "reviews_count": 0, "logs_count": 0, "_is_prim": is_prim
+                "ping_ms": ping_ms, "reviews_count": 0, "logs_count": 0,
+                "_is_prim": is_prim,
+                "_set_name": set_name,
+                "_reported_primary": reported_primary
             }
             with _STATUS_CACHE_LOCK:
                 _MONGO_CONSECUTIVE_FAILURES[cfg_host] = 0
@@ -2102,47 +2107,62 @@ def get_cluster_status(request: Request):
 
     online_m = [m for m in mongo_results if m["health"] == 1]
     if online_m:
-        primaries = [m for m in online_m if m.get("_is_prim")]
-        primary_assigned_mongo = False
+        # BẦU CHỌN VÀ HIỂN THỊ ĐỒNG NHẤT THEO CHUẨN MONGODB REPLICA SET CONSENSUS:
+        # 1. Thu thập địa chỉ "primary" được các node trong Replica Set báo cáo qua hello command.
+        # Bất kỳ node nào (kể cả Secondary) cũng báo cáo chính xác Primary thực tế của cụm.
+        reported_prim_votes = {}
+        for m in online_m:
+            rp = m.get("_reported_primary")
+            if rp:
+                norm_rp = normalize_mongo_host(rp)
+                reported_prim_votes[norm_rp] = reported_prim_votes.get(norm_rp, 0) + 1
 
-        if primaries:
-            curr_mg_active = get_active_mongo_primary()
-            act_m = next((m for m in primaries if is_same_mongo_host(m["host"], curr_mg_active)), primaries[0])
+        authoritative_primary_node = None
+
+        # Cách 1 (Ưu tiên số 1 - Sự đồng thuận của cụm):
+        # Chọn node được nhiều thành viên trong Replica Set công nhận là Primary nhất:
+        if reported_prim_votes:
+            sorted_voted = sorted(reported_prim_votes.items(), key=lambda x: x[1], reverse=True)
+            for top_host, vote_cnt in sorted_voted:
+                matched = next((m for m in online_m if is_same_mongo_host(m["host"], top_host)), None)
+                if matched:
+                    authoritative_primary_node = matched
+                    break
+
+        # Cách 2 (Nếu các node chưa báo cáo trường primary):
+        # Tìm node trực tiếp mang cờ isWritablePrimary: True
+        if not authoritative_primary_node:
+            primaries = [m for m in online_m if m.get("_is_prim")]
+            if primaries:
+                curr_mg_active = get_active_mongo_primary()
+                authoritative_primary_node = next((m for m in primaries if is_same_mongo_host(m["host"], curr_mg_active)), primaries[0])
+
+        # Áp dụng vai trò hiển thị:
+        if authoritative_primary_node:
+            set_active_mongo_primary(authoritative_primary_node["host"])
             for m in online_m:
-                if is_same_mongo_host(m["host"], act_m["host"]):
+                if is_same_mongo_host(m["host"], authoritative_primary_node["host"]):
                     m["state"] = "PRIMARY"
                     m["_is_prim"] = True
-                    primary_assigned_mongo = True
                 else:
                     m["state"] = "SECONDARY"
                     m["_is_prim"] = False
-            set_active_mongo_primary(act_m["host"])
-
-        # TỰ ĐỘNG BẦU NODE CHÍNH MONGODB TƯƠNG TỰ MYSQL KHI CHƯA CÓ PRIMARY:
-        if not primary_assigned_mongo:
-            curr_mg_active = get_active_mongo_primary()
-            active_m_node = next((m for m in online_m if is_same_mongo_host(m["host"], curr_mg_active)), None)
-            if not active_m_node:
-                active_m_node = online_m[0]
-
+        else:
+            # QUY TẮC AN TOÀN: Khi MongoDB Replica Set chưa có Primary thực sự (toàn bộ rớt về Secondary hoặc mất quorum),
+            # TUYỆT ĐỐI KHÔNG tự ý phong một node cục bộ làm Primary để tránh sai lệch hiển thị giữa các máy!
             for m in online_m:
-                if is_same_mongo_host(m["host"], active_m_node["host"]):
-                    m["state"] = "PRIMARY"
-                    m["_is_prim"] = True
-                else:
-                    m["state"] = "SECONDARY"
-                    m["_is_prim"] = False
+                m["state"] = "SECONDARY"
+                m["_is_prim"] = False
 
-            set_active_mongo_primary(active_m_node["host"])
-
-            # Tự động kích hoạt Quorum Rescue trong nền để đưa node này lên làm Primary thực tế (có rate-limit 20s)
+            # Kích hoạt phục hồi Quorum trong nền (nếu cần)
             global _LAST_AUTO_MONGO_RECOVERY
             now_auto = time.time()
             if (now_auto - _LAST_AUTO_MONGO_RECOVERY) > 20.0:
                 _LAST_AUTO_MONGO_RECOVERY = now_auto
                 try:
-                    target_cand = active_m_node["host"]
-                    threading.Thread(target=ensure_mongo_primary_priority, kwargs={"force": True, "target_primary": target_cand}, daemon=True).start()
+                    curr_mg_active = get_active_mongo_primary()
+                    target_cand = next((m for m in online_m if is_same_mongo_host(m["host"], curr_mg_active)), online_m[0])
+                    threading.Thread(target=ensure_mongo_primary_priority, kwargs={"force": True, "target_primary": target_cand["host"]}, daemon=True).start()
                 except Exception as e:
                     print(f"[AUTO_MONGO_RECOVERY_THREAD] {e}")
 
@@ -2165,7 +2185,8 @@ def get_cluster_status(request: Request):
             pass
 
     for m in mongo_results:
-        m.pop("_is_prim", None)
+        for k in ["_is_prim", "_set_name", "_reported_primary"]:
+            m.pop(k, None)
 
     status["mongodb"] = mongo_results
 
