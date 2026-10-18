@@ -88,12 +88,12 @@ CLUSTER_CONFIG = {
     "mongo_db": "ecommerce_nosql",
     "replica_set": "rsEcomNhom2",
     "round_robin_idx": 0,
-    "sync_interval_sec": 2,
-    "active_mysql_primary": "127.0.0.1:3309",
-    "active_mongo_primary": "127.0.0.1:27016"
+    "sync_interval_sec": 5,
 }
 
 _PRIMARY_TRACKING_LOCK = threading.Lock()
+_RUNTIME_ACTIVE_MYSQL_PRIMARY: Optional[str] = None
+_RUNTIME_ACTIVE_MONGO_PRIMARY: Optional[str] = None
 _CONFIG_LAST_MTIME = 0.0
 
 
@@ -101,14 +101,12 @@ def save_cluster_config_to_file():
     global _CONFIG_LAST_MTIME
     try:
         data = {
-            "preset": CLUSTER_CONFIG.get("preset", "docker"),
+            "preset": CLUSTER_CONFIG.get("preset", "lan_lab"),
             "mysql_nodes": CLUSTER_CONFIG.get("mysql_nodes", []),
             "mongo_nodes": CLUSTER_CONFIG.get("mongo_nodes", []),
             "client_node": CLUSTER_CONFIG.get("client_node", ""),
             "mysql_password": CLUSTER_CONFIG.get("mysql_password", "root"),
-            "sync_interval_sec": int(CLUSTER_CONFIG.get("sync_interval_sec", 2)),
-            "active_mysql_primary": CLUSTER_CONFIG.get("active_mysql_primary"),
-            "active_mongo_primary": CLUSTER_CONFIG.get("active_mongo_primary")
+            "sync_interval_sec": int(CLUSTER_CONFIG.get("sync_interval_sec", 5)),
         }
         target_files = [CONFIG_FILE]
         parent_dir = os.path.dirname(current_dir)
@@ -127,7 +125,7 @@ def save_cluster_config_to_file():
                 json.dump(data, f, ensure_ascii=False, indent=2)
         if os.path.exists(CONFIG_FILE):
             _CONFIG_LAST_MTIME = os.path.getmtime(CONFIG_FILE)
-        print(f"[CONFIG] Đã lưu cấu hình cụm vào {CONFIG_FILE}")
+        print(f"[CONFIG] Đã lưu cấu hình cụm tĩnh vào {CONFIG_FILE}")
     except Exception as e:
         print(f"[CONFIG] Lỗi lưu {CONFIG_FILE}: {e}")
 
@@ -142,7 +140,7 @@ def load_cluster_config(force: bool = False) -> Dict[str, Any]:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 saved = json.load(f)
                 for k, v in saved.items():
-                    if v is not None:
+                    if v is not None and k not in ["active_mysql_primary", "active_mongo_primary"]:
                         if k == "sync_interval_sec":
                             CLUSTER_CONFIG[k] = max(1, min(60, int(v)))
                         else:
@@ -156,33 +154,33 @@ def load_cluster_config(force: bool = False) -> Dict[str, Any]:
 
 
 def get_active_mysql_primary() -> Optional[str]:
-    cfg = load_cluster_config()
-    return cfg.get("active_mysql_primary")
+    """Lấy Node chính MySQL hiện tại hoàn toàn từ bộ nhớ RAM (In-Memory)"""
+    with _PRIMARY_TRACKING_LOCK:
+        return _RUNTIME_ACTIVE_MYSQL_PRIMARY
 
 
 def set_active_mysql_primary(host: Optional[str]):
+    """Cập nhật Node chính MySQL trên RAM (không ghi đè file JSON, chống xung đột Git và File Lock)"""
+    global _RUNTIME_ACTIVE_MYSQL_PRIMARY
     if not host:
         return
-    cfg = load_cluster_config()
     with _PRIMARY_TRACKING_LOCK:
-        if cfg.get("active_mysql_primary") != host:
-            cfg["active_mysql_primary"] = host
-            save_cluster_config_to_file()
+        _RUNTIME_ACTIVE_MYSQL_PRIMARY = host
 
 
 def get_active_mongo_primary() -> Optional[str]:
-    cfg = load_cluster_config()
-    return cfg.get("active_mongo_primary")
+    """Lấy Node chính MongoDB hiện tại hoàn toàn từ bộ nhớ RAM (In-Memory)"""
+    with _PRIMARY_TRACKING_LOCK:
+        return _RUNTIME_ACTIVE_MONGO_PRIMARY
 
 
 def set_active_mongo_primary(host: Optional[str]):
+    """Cập nhật Node chính MongoDB trên RAM (không ghi đè file JSON, chống xung đột Git và File Lock)"""
+    global _RUNTIME_ACTIVE_MONGO_PRIMARY
     if not host:
         return
-    cfg = load_cluster_config()
     with _PRIMARY_TRACKING_LOCK:
-        if cfg.get("active_mongo_primary") != host:
-            cfg["active_mongo_primary"] = host
-            save_cluster_config_to_file()
+        _RUNTIME_ACTIVE_MONGO_PRIMARY = host
 
 
 load_cluster_config(force=True)
