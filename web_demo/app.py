@@ -7,7 +7,7 @@ import socket
 import threading
 import uuid
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException, Request, Query, Header
 from fastapi.responses import HTMLResponse, Response
@@ -34,25 +34,72 @@ _LAST_HEALTHY_MYSQL: Dict[str, Dict[str, Any]] = {}
 _LAST_HEALTHY_MONGO: Dict[str, Dict[str, Any]] = {}
 
 
-def is_port_open(host_or_addr: str, default_port: int = 3306, timeout: float = 1.8, retries: int = 1) -> bool:
-    # check socket tin cay tren ca Localhost va mang LAN (ho tro thu lai tranh packet loss Wi-Fi)
+def measure_tcp_ping(host_or_addr: str, default_port: int = 3306, timeout: float = 0.6) -> Tuple[bool, Optional[float]]:
+    """
+    Đo đạc độ trễ mạng thực tế (TCP RTT ping tính bằng ms) và kiểm tra khả năng mở cổng kết nối.
+    - Loại bỏ hiện tượng bắt tay kép (double handshake) gây phình to ping ảo lên 1000-1500ms.
+    - Phản ánh trung thực độ trễ mạng vật lý / Wi-Fi LAN (thực tế từ 1ms - 40ms).
+    """
     try:
         if ":" in host_or_addr:
             h, p_str = host_or_addr.rsplit(":", 1)
             port = int(p_str)
         else:
             h, port = host_or_addr, default_port
-        
-        for attempt in range(retries):
-            try:
-                with socket.create_connection((h, port), timeout=timeout):
-                    return True
-            except Exception:
-                if attempt < retries - 1:
-                    time.sleep(0.04)
-        return False
+
+        t0 = time.perf_counter()
+        with socket.create_connection((h, port), timeout=timeout):
+            lat_ms = round((time.perf_counter() - t0) * 1000, 2)
+            return True, lat_ms
     except Exception:
-        return False
+        return False, None
+
+
+def is_port_open(host_or_addr: str, default_port: int = 3306, timeout: float = 0.6, retries: int = 1) -> bool:
+    """Kiểm tra cổng kết nối socket nhanh và nhẹ cho cụm phân tán"""
+    ok, _ = measure_tcp_ping(host_or_addr, default_port, timeout=timeout)
+    if ok or retries <= 1:
+        return ok
+    for _ in range(retries - 1):
+        time.sleep(0.04)
+        ok, _ = measure_tcp_ping(host_or_addr, default_port, timeout=timeout)
+        if ok:
+            return True
+    return False
+
+
+# BỘ ĐỆM TỐI ƯU HÓA ĐẾM DỮ LIỆU ĐỂ TRÁNH QUÉT TOÀN BỘ CỤM (COUNT SCAN) MỖI 2 GIÂY
+_NODE_COUNTS_LOCK = threading.Lock()
+_NODE_COUNTS_CACHE: Dict[str, Tuple[float, Dict[str, int]]] = {}
+_NODE_COUNTS_TTL = 10.0  # Cache 10 giây cho số lượng bản ghi các node MySQL
+
+_MONGO_COUNTS_CACHE_DATA = {"ts": 0.0, "reviews": 0, "logs": 0}
+_MONGO_COUNTS_LOCK = threading.Lock()
+
+
+def get_cached_node_counts(host: str) -> Optional[Dict[str, int]]:
+    """Lấy số lượng bản ghi của node MySQL từ cache nếu chưa quá 10s"""
+    now = time.time()
+    with _NODE_COUNTS_LOCK:
+        if host in _NODE_COUNTS_CACHE:
+            ts, counts = _NODE_COUNTS_CACHE[host]
+            if (now - ts) < _NODE_COUNTS_TTL:
+                return dict(counts)
+    return None
+
+
+def set_cached_node_counts(host: str, counts: Dict[str, int]):
+    """Lưu số lượng bản ghi của node MySQL vào cache"""
+    with _NODE_COUNTS_LOCK:
+        _NODE_COUNTS_CACHE[host] = (time.time(), dict(counts))
+
+
+def invalidate_node_counts_cache():
+    """Xóa sạch cache đếm dữ liệu khi có ghi đơn hàng / thêm dữ liệu mới để UI cập nhật tức thì"""
+    with _NODE_COUNTS_LOCK:
+        _NODE_COUNTS_CACHE.clear()
+    with _MONGO_COUNTS_LOCK:
+        _MONGO_COUNTS_CACHE_DATA["ts"] = 0.0
 
 app = FastAPI(title="Hệ Thống Thương Mại Điện Tử Phân Tán Polyglot - Đề Tài 2")
 
@@ -224,12 +271,14 @@ SYNC_LOG_COUNTER = 0
 
 
 def check_nodes_connectivity_cache(db_type: str = "mysql") -> Dict[str, bool]:
-    """Kiểm tra và lưu cache trạng thái kết nối của toàn bộ các Node trong cụm để tăng tốc"""
+    """Kiểm tra và lưu cache trạng thái kết nối song song toàn bộ các Node trong cụm để tăng tốc"""
     cache = {}
     nodes = CLUSTER_CONFIG["mysql_nodes"] if db_type == "mysql" else CLUSTER_CONFIG["mongo_nodes"]
     default_p = 3306 if db_type == "mysql" else 27017
-    for n in nodes:
-        cache[n] = is_port_open(n, default_p, timeout=0.5)
+    with ThreadPoolExecutor(max_workers=max(1, len(nodes))) as ex:
+        futures = {n: ex.submit(is_port_open, n, default_p, 0.4) for n in nodes}
+        for n, f in futures.items():
+            cache[n] = f.result()
     return cache
 
 
@@ -380,15 +429,36 @@ def measure_mysql_replicas_for_log(primary_conn, primary_host: str, t_commit_per
     latencies = []
     pwd = CLUSTER_CONFIG.get("mysql_password", "root")
 
-    for sec_host in CLUSTER_CONFIG["mysql_nodes"]:
-        if sec_host == primary_host:
-            continue
+    target_secs = [h for h in CLUSTER_CONFIG["mysql_nodes"] if h != primary_host]
+
+    def _probe_single_replica(sec_host):
         h_sec, p_sec = (sec_host.split(":") if ":" in sec_host else (sec_host, 3306))
         lbl = get_node_label(sec_host, "mysql")
         p_sec = int(p_sec)
+        if not is_port_open(h_sec, p_sec, timeout=0.35):
+            return {"online": False, "lbl": lbl, "host": sec_host, "lag": None}
+        sec_lag = None
+        try:
+            s_conn = mysql.connector.connect(
+                host=h_sec, port=p_sec, user="root", password=pwd, database="ecommerce_db", connection_timeout=1.0
+            )
+            s_cur = s_conn.cursor(dictionary=True)
+            s_cur.execute("SELECT @@GLOBAL.gtid_executed AS gtid")
+            s_cur.fetchone()
+            s_cur.close()
+            s_conn.close()
+            sec_lag = round((time.perf_counter() - t_commit_perf) * 1000, 1)
+        except Exception:
+            sec_lag = round((time.perf_counter() - t_commit_perf) * 1000, 1)
+        return {"online": True, "lbl": lbl, "host": sec_host, "lag": sec_lag}
 
-        # Kiểm tra socket kết nối tới replica
-        if not is_port_open(h_sec, p_sec, timeout=0.6):
+    with ThreadPoolExecutor(max_workers=max(1, len(target_secs))) as ex:
+        replica_results = list(ex.map(_probe_single_replica, target_secs))
+
+    for item in replica_results:
+        lbl = item["lbl"]
+        sec_host = item["host"]
+        if not item["online"]:
             offline_labels.append(lbl)
             node_dich.append({
                 "node": lbl,
@@ -403,39 +473,24 @@ def measure_mysql_replicas_for_log(primary_conn, primary_host: str, t_commit_per
                 "state": "OFFLINE",
                 "message": "Ngoại tuyến (Chờ bù log)"
             })
-            continue
-
-        sec_lag = None
-        try:
-            s_conn = mysql.connector.connect(
-                host=h_sec, port=p_sec, user="root", password=pwd, database="ecommerce_db", connection_timeout=1.5
-            )
-            s_cur = s_conn.cursor(dictionary=True)
-            s_cur.execute("SELECT @@GLOBAL.gtid_executed AS gtid")
-            s_cur.fetchone()
-            s_cur.close()
-            s_conn.close()
-            sec_lag = round((time.perf_counter() - t_commit_perf) * 1000, 1)
-        except Exception:
-            sec_lag = round((time.perf_counter() - t_commit_perf) * 1000, 1)
-
-        online_count += 1
-        online_labels.append(lbl)
-        if sec_lag is not None:
-            latencies.append(sec_lag)
-        node_dich.append({
-            "node": lbl,
-            "host": sec_host,
-            "thoi_diem_ap_dung": datetime.now().strftime("%H:%M:%S.%f")[:-3],
-            "do_tre_ms": sec_lag,
-            "trang_thai": "APPLIED"
-        })
-        target_statuses.append({
-            "label": lbl,
-            "host": sec_host,
-            "state": "ONLINE",
-            "message": "Đã nhận"
-        })
+        else:
+            online_count += 1
+            online_labels.append(lbl)
+            if item["lag"] is not None:
+                latencies.append(item["lag"])
+            node_dich.append({
+                "node": lbl,
+                "host": sec_host,
+                "thoi_diem_ap_dung": datetime.now().strftime("%H:%M:%S.%f")[:-3],
+                "do_tre_ms": item["lag"],
+                "trang_thai": "APPLIED"
+            })
+            target_statuses.append({
+                "label": lbl,
+                "host": sec_host,
+                "state": "ONLINE",
+                "message": "Đã nhận"
+            })
 
     total_targets = len(node_dich)
     avg_latency = round(sum(latencies) / len(latencies), 1) if latencies else None
@@ -850,22 +905,31 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
         online_nodes = []
         active_primary = None
 
-        for norm_h in norm_mongo_nodes:
+        def _probe_mg(norm_h):
             h_ip, p_str = norm_h.split(":")
-            if is_port_open(h_ip, int(p_str), timeout=1.0, retries=1):
+            if is_port_open(h_ip, int(p_str), timeout=0.4, retries=1):
                 try:
                     c = MongoClient(
                         f"mongodb://{norm_h}/?directConnection=true&w=1",
-                        serverSelectionTimeoutMS=1500,
-                        connectTimeoutMS=1500
+                        serverSelectionTimeoutMS=1000,
+                        connectTimeoutMS=1000
                     )
                     hello = c.admin.command("hello")
                     c.close()
-                    online_nodes.append(norm_h)
-                    if hello.get("isWritablePrimary") or hello.get("ismaster"):
-                        active_primary = norm_h
+                    is_prim = bool(hello.get("isWritablePrimary") or hello.get("ismaster"))
+                    return norm_h, True, is_prim
                 except Exception:
-                    pass
+                    return norm_h, False, False
+            return norm_h, False, False
+
+        with ThreadPoolExecutor(max_workers=max(1, len(norm_mongo_nodes))) as ex:
+            mg_probe_res = list(ex.map(_probe_mg, norm_mongo_nodes))
+
+        for norm_h, is_on, is_prim in mg_probe_res:
+            if is_on:
+                online_nodes.append(norm_h)
+                if is_prim:
+                    active_primary = norm_h
 
         # 2. Nếu đã có PRIMARY đang hoạt động và không bắt buộc bầu lại node khác:
         if active_primary and not (target_primary and not is_same_mongo_host(target_primary, active_primary)):
@@ -1092,7 +1156,7 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
 
     for h in lan_hosts:
         h_mg, p_mg = (h.split(":") if ":" in h else (h, 27017))
-        if not is_port_open(h_mg, int(p_mg), timeout=0.8, retries=1):
+        if not is_port_open(h_mg, int(p_mg), timeout=0.4, retries=1):
             continue
         try:
             c = MongoClient(
@@ -1236,7 +1300,7 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
     for host in candidates:
         h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
         p_int = int(p_int)
-        if not is_port_open(h_str, p_int, timeout=0.8, retries=2):
+        if not is_port_open(h_str, p_int, timeout=0.4, retries=1):
             continue
         try:
             conn = mysql.connector.connect(
@@ -1516,11 +1580,11 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
     synced_details = []
 
     try:
-        for host in CLUSTER_CONFIG["mysql_nodes"]:
+        def _connect_mysql_node(host):
             h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
             p_int = int(p_int)
-            if not is_port_open(h_str, p_int, timeout=1.8, retries=1):
-                continue
+            if not is_port_open(h_str, p_int, timeout=0.35, retries=1):
+                return host, None
             try:
                 conn = mysql.connector.connect(
                     host=h_str, port=p_int,
@@ -1528,7 +1592,7 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
                     password=CLUSTER_CONFIG["mysql_password"],
                     database=CLUSTER_CONFIG["mysql_db"],
                     autocommit=True,
-                    connection_timeout=4.0
+                    connection_timeout=2.0
                 )
                 cur = conn.cursor(dictionary=False)
                 try:
@@ -1538,10 +1602,17 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
                     sro = meta[1] if meta else 0
                 except Exception:
                     ro, sro = 0, 0
-                online_conns[host] = {"conn": conn, "cur": cur, "ro": ro, "sro": sro}
+                return host, {"conn": conn, "cur": cur, "ro": ro, "sro": sro}
             except Exception as e:
                 logger.warning(f"[RECONCILE] Không thể kết nối tới {host}: {e}")
-                continue
+                return host, None
+
+        with ThreadPoolExecutor(max_workers=max(1, len(CLUSTER_CONFIG["mysql_nodes"]))) as ex:
+            conn_res = list(ex.map(_connect_mysql_node, CLUSTER_CONFIG["mysql_nodes"]))
+
+        for h, c_data in conn_res:
+            if c_data:
+                online_conns[h] = c_data
 
         if len(online_conns) <= 1:
             return {"total_synced_rows": 0, "synced_nodes": [], "elapsed_ms": 0.0}
@@ -1801,6 +1872,7 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
 
     # Xóa cache cluster status ngay lập tức để giao diện hiển thị dữ liệu khớp 100%
     if total_synced_rows > 0:
+        invalidate_node_counts_cache()
         with _STATUS_CACHE_LOCK:
             _LAST_STATUS_RESPONSE = None
             _LAST_STATUS_TIME = 0.0
@@ -1907,13 +1979,13 @@ def get_cluster_status(request: Request):
     # ping cac node mysql
     def _scan_mysql(idx_host):
         idx, host = idx_host
-        t0 = time.perf_counter()
         h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
         p_int = int(p_int)
         
-        # Timeout 1.8s phu hop voi do tre mang LAN (ping do duoc len toi 1410ms tren Node 2)
-        port_ok = is_port_open(h_str, p_int, timeout=1.8, retries=1)
-        if not port_ok:
+        # 1. Thăm dò TCP thuần túy và đo độ trễ mạng chuẩn xác (1 round-trip TCP SYN-ACK)
+        # Timeout 0.6s tối ưu cho mạng LAN Wi-Fi (ping thật 1ms - 40ms, không treo luồng)
+        is_alive, tcp_ping = measure_tcp_ping(h_str, p_int, timeout=0.6)
+        if not is_alive:
             with _STATUS_CACHE_LOCK:
                 _MYSQL_CONSECUTIVE_FAILURES[host] += 1
                 if _MYSQL_CONSECUTIVE_FAILURES[host] < 3 and host in _LAST_HEALTHY_MYSQL:
@@ -1931,47 +2003,55 @@ def get_cluster_status(request: Request):
                 host=h_str, port=p_int,
                 user=CLUSTER_CONFIG["mysql_user"],
                 password=CLUSTER_CONFIG["mysql_password"],
-                connection_timeout=2.5
+                connection_timeout=1.5
             )
-            ping_ms = round((time.perf_counter() - t0) * 1000, 2)
             cur = conn.cursor(dictionary=True)
-            cur.execute("SELECT @@server_uuid AS uuid, @@server_id AS sid, @@hostname AS hname, @@global.read_only AS ro, @@global.gtid_executed AS gtid")
-            sys_info = cur.fetchone()
+            cur.execute("""
+                SELECT 
+                    @@server_uuid AS uuid, 
+                    @@server_id AS sid, 
+                    @@hostname AS hname, 
+                    @@global.read_only AS ro, 
+                    @@global.gtid_executed AS gtid,
+                    (SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME = 'group_replication_primary_member' LIMIT 1) AS primary_uuid
+            """)
+            sys_info = cur.fetchone() or {}
+            primary_uuid = sys_info.get("primary_uuid") or None
 
-            cur.execute("SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME = 'group_replication_primary_member'")
-            p_row = cur.fetchone()
-            primary_uuid = p_row["VARIABLE_VALUE"] if p_row else None
-
-            node_counts = {"users": 0, "products": 0, "orders": 0, "order_items": 0, "payments": 0}
-            try:
-                cur.execute(f"USE {CLUSTER_CONFIG['mysql_db']}")
-                cur.execute("""
-                    SELECT 
-                        (SELECT COUNT(*) FROM users) AS users,
-                        (SELECT COUNT(*) FROM products) AS products,
-                        (SELECT COUNT(*) FROM orders) AS orders,
-                        (SELECT COUNT(*) FROM order_items) AS order_items,
-                        (SELECT COUNT(*) FROM payments) AS payments
-                """)
-                row_counts = cur.fetchone()
-                if row_counts:
-                    for tbl in node_counts:
-                        node_counts[tbl] = int(row_counts.get(tbl) or 0)
-            except Exception:
-                pass
+            # Tối ưu hóa đếm bản ghi: Dùng cache 10s để giảm tải CPU và I/O khi giám sát chu kỳ ngắn
+            node_counts = get_cached_node_counts(host)
+            if node_counts is None:
+                node_counts = {"users": 0, "products": 0, "orders": 0, "order_items": 0, "payments": 0}
+                try:
+                    cur.execute(f"USE {CLUSTER_CONFIG['mysql_db']}")
+                    cur.execute("""
+                        SELECT 
+                            (SELECT COUNT(*) FROM users) AS users,
+                            (SELECT COUNT(*) FROM products) AS products,
+                            (SELECT COUNT(*) FROM orders) AS orders,
+                            (SELECT COUNT(*) FROM order_items) AS order_items,
+                            (SELECT COUNT(*) FROM payments) AS payments
+                    """)
+                    row_counts = cur.fetchone()
+                    if row_counts:
+                        for tbl in node_counts:
+                            node_counts[tbl] = int(row_counts.get(tbl) or 0)
+                    set_cached_node_counts(host, node_counts)
+                except Exception:
+                    pass
 
             cur.close()
             conn.close()
 
-            gtid_str = sys_info["gtid"] or "N/A"
+            gtid_str = sys_info.get("gtid") or "N/A"
             if "22222222-2222-2222-2222-222222222222" in gtid_str:
                 gtid_str = gtid_str.replace("22222222-2222-2222-2222-222222222222", "b8c1a93e-72df-4a61-9c88-4f271a359d02")
             gtid_short = (gtid_str[:42] + "...") if len(gtid_str) > 42 else gtid_str
 
             res_item = {
-                "node_name": f"Node {idx}", "host": host, "server_id": sys_info["sid"], "hostname": sys_info["hname"],
-                "state": "ONLINE", "role": "SECONDARY", "ping_ms": ping_ms, "gtid": gtid_short,
-                "counts": node_counts, "_uuid": sys_info["uuid"], "_primary_uuid": primary_uuid, "_ro": sys_info["ro"]
+                "node_name": f"Node {idx}", "host": host, "server_id": sys_info.get("sid", "-"), "hostname": sys_info.get("hname", "-"),
+                "state": "ONLINE", "role": "SECONDARY", "ping_ms": tcp_ping, "gtid": gtid_short,
+                "counts": node_counts, "_uuid": sys_info.get("uuid"), "_primary_uuid": primary_uuid, "_ro": sys_info.get("ro", 1)
             }
             with _STATUS_CACHE_LOCK:
                 _MYSQL_CONSECUTIVE_FAILURES[host] = 0
@@ -1995,8 +2075,9 @@ def get_cluster_status(request: Request):
         idx, cfg_host = idx_host
         h_mg, p_mg = (cfg_host.split(":") if ":" in cfg_host else (cfg_host, 27017))
         p_mg = int(p_mg)
-        port_ok = is_port_open(h_mg, p_mg, timeout=1.8, retries=1)
-        if not port_ok:
+        # Thăm dò TCP thuần túy và đo độ trễ mạng chuẩn xác
+        is_alive, tcp_ping = measure_tcp_ping(h_mg, p_mg, timeout=0.6)
+        if not is_alive:
             with _STATUS_CACHE_LOCK:
                 _MONGO_CONSECUTIVE_FAILURES[cfg_host] += 1
                 if _MONGO_CONSECUTIVE_FAILURES[cfg_host] < 3 and cfg_host in _LAST_HEALTHY_MONGO:
@@ -2008,10 +2089,13 @@ def get_cluster_status(request: Request):
                 "ping_ms": None, "reviews_count": 0, "logs_count": 0, "_is_prim": False
             }
         try:
-            t_start = time.perf_counter()
-            m_single = MongoClient(f"mongodb://{h_mg}:{p_mg}/?directConnection=true", read_preference=ReadPreference.SECONDARY_PREFERRED, serverSelectionTimeoutMS=2000, connectTimeoutMS=2000)
+            m_single = MongoClient(
+                f"mongodb://{h_mg}:{p_mg}/?directConnection=true", 
+                read_preference=ReadPreference.SECONDARY_PREFERRED, 
+                serverSelectionTimeoutMS=1000, 
+                connectTimeoutMS=1000
+            )
             hello_res = m_single.admin.command("hello")
-            ping_ms = round((time.perf_counter() - t_start) * 1000, 2)
             set_name = hello_res.get("setName")
             reported_primary = hello_res.get("primary")
             is_prim = bool(hello_res.get("isWritablePrimary") or hello_res.get("ismaster"))
@@ -2019,7 +2103,7 @@ def get_cluster_status(request: Request):
             m_single.close()
             res_item = {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": state_str, "health": 1,
-                "ping_ms": ping_ms, "reviews_count": 0, "logs_count": 0,
+                "ping_ms": tcp_ping, "reviews_count": 0, "logs_count": 0,
                 "_is_prim": is_prim,
                 "_set_name": set_name,
                 "_reported_primary": reported_primary
@@ -2164,23 +2248,42 @@ def get_cluster_status(request: Request):
                 except Exception as e:
                     print(f"[AUTO_MONGO_RECOVERY_THREAD] {e}")
 
-        # Lấy số lượng tài liệu từ node online đầu tiên (hoặc primary)
-        probe_target = next((m for m in online_m if m["state"] == "PRIMARY"), online_m[0])
-        try:
-            t_h = probe_target["host"]
-            h_mg, p_mg = (t_h.split(":") if ":" in t_h else (t_h, 27017))
-            probe_c = MongoClient(f"mongodb://{h_mg}:{p_mg}/?directConnection=true", read_preference=ReadPreference.PRIMARY_PREFERRED, serverSelectionTimeoutMS=1200, connectTimeoutMS=1200)
-            probe_db = probe_c[CLUSTER_CONFIG["mongo_db"]]
-            r_c = probe_db["product_reviews"].estimated_document_count()
-            l_c = probe_db["user_activity_logs"].estimated_document_count()
-            status["data_counts"]["reviews"] = r_c
-            status["data_counts"]["logs"] = l_c
-            for m in online_m:
-                m["reviews_count"] = r_c
-                m["logs_count"] = l_c
-            probe_c.close()
-        except Exception:
-            pass
+        # Lấy số lượng tài liệu từ cache hoặc node online đầu tiên (hoặc primary)
+        now_ts = time.time()
+        need_mongo_count = False
+        with _MONGO_COUNTS_LOCK:
+            if (now_ts - _MONGO_COUNTS_CACHE_DATA["ts"]) > _NODE_COUNTS_TTL:
+                need_mongo_count = True
+            else:
+                r_c = _MONGO_COUNTS_CACHE_DATA["reviews"]
+                l_c = _MONGO_COUNTS_CACHE_DATA["logs"]
+                status["data_counts"]["reviews"] = r_c
+                status["data_counts"]["logs"] = l_c
+                for m in online_m:
+                    m["reviews_count"] = r_c
+                    m["logs_count"] = l_c
+
+        if need_mongo_count:
+            probe_target = next((m for m in online_m if m["state"] == "PRIMARY"), online_m[0])
+            try:
+                t_h = probe_target["host"]
+                h_mg, p_mg = (t_h.split(":") if ":" in t_h else (t_h, 27017))
+                probe_c = MongoClient(f"mongodb://{h_mg}:{p_mg}/?directConnection=true", read_preference=ReadPreference.PRIMARY_PREFERRED, serverSelectionTimeoutMS=1000, connectTimeoutMS=1000)
+                probe_db = probe_c[CLUSTER_CONFIG["mongo_db"]]
+                r_c = probe_db["product_reviews"].estimated_document_count()
+                l_c = probe_db["user_activity_logs"].estimated_document_count()
+                status["data_counts"]["reviews"] = r_c
+                status["data_counts"]["logs"] = l_c
+                for m in online_m:
+                    m["reviews_count"] = r_c
+                    m["logs_count"] = l_c
+                probe_c.close()
+                with _MONGO_COUNTS_LOCK:
+                    _MONGO_COUNTS_CACHE_DATA["ts"] = now_ts
+                    _MONGO_COUNTS_CACHE_DATA["reviews"] = r_c
+                    _MONGO_COUNTS_CACHE_DATA["logs"] = l_c
+            except Exception:
+                pass
 
     for m in mongo_results:
         for k in ["_is_prim", "_set_name", "_reported_primary"]:
@@ -2442,7 +2545,7 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
             if sec_host == mysql_meta.get("host") or sec_host in xcom_hosts:
                 continue
             h_sec, p_sec = (sec_host.split(":") if ":" in sec_host else (sec_host, 3306))
-            if not is_port_open(h_sec, int(p_sec), timeout=1.8, retries=1):
+            if not is_port_open(h_sec, int(p_sec), timeout=0.35, retries=1):
                 continue
             try:
                 s_conn = mysql.connector.connect(
@@ -2576,6 +2679,7 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
             "latency_ms": tx_ms,
             "sync_log": sync_entry
         }
+        invalidate_node_counts_cache()
         if x_idempotency_key:
             with _IDEMPOTENCY_LOCK:
                 _IDEMPOTENCY_CACHE[x_idempotency_key] = res_data
@@ -2730,6 +2834,7 @@ def add_review(req: ReviewRequest, x_idempotency_key: Optional[str] = Header(Non
         "latency_ms": elapsed_ms,
         "sync_log": sync_entry
     }
+    invalidate_node_counts_cache()
     if x_idempotency_key:
         with _IDEMPOTENCY_LOCK:
             _IDEMPOTENCY_CACHE[x_idempotency_key] = res_data
@@ -3419,6 +3524,7 @@ def seed_large_database_api(scale: str = Query("standard", description="standard
     except Exception:
         pass
 
+    invalidate_node_counts_cache()
     return {
         "status": "SEED_COMPLETED",
         "elapsed_seconds": elapsed_sec,
@@ -3513,6 +3619,7 @@ def bulk_import_demo_api(count: int = Query(500, ge=10, le=2000)):
         target_display=meas.get("targets_display")
     )
 
+    invalidate_node_counts_cache()
     return {
         "status": "SUCCESS",
         "affected_rows": actual_count,
