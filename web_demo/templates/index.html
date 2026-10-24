@@ -4390,7 +4390,7 @@
                   <div class="row g-3">
                     <div class="col-md-4">
                       <div class="p-2.5 bg-light rounded border h-100">
-                        <div class="fw-bold text-secondary small mb-1.5"><i class="bi bi-stopwatch text-primary me-1"></i>Thông số kỹ thuật:</div>
+                        <div class="fw-bold text-secondary small mb-1.5"><i class="bi bi-stopwatch text-primary me-1"></i>Giao thức & Cơ chế:</div>
                         <div class="small mb-1"><strong>Cơ chế:</strong> <span class="font-monospace text-primary">${l.mechanism}</span></div>
                         <div class="small mb-1"><strong>Bắt đầu:</strong> <span class="font-monospace text-dark">${startTimeStr}</span></div>
                         <div class="small mb-1"><strong>Kết thúc:</strong> <span class="font-monospace text-dark">${endTimeStr}</span></div>
@@ -4407,7 +4407,7 @@
                     </div>
                     <div class="col-md-4">
                       <div class="p-2.5 bg-light rounded border h-100">
-                        <div class="fw-bold text-secondary small mb-1.5"><i class="bi bi-code-square text-info me-1"></i>Payload & Nội dung thay đổi:</div>
+                        <div class="fw-bold text-secondary small mb-1.5"><i class="bi bi-code-square text-info me-1"></i>Dữ liệu cập nhật & Payload:</div>
                         <div class="audit-payload-codebox" id="payload-code-${detailId}">${cleanPayload}</div>
                       </div>
                     </div>
@@ -6642,10 +6642,11 @@
       function detectCurrentPreset() {
         const mysqlVal = document.getElementById("cfg-mysql-nodes")?.value.replace(/\s+/g, "") || "";
 
-        const dockerMysql = "127.0.0.1:3305,127.0.0.1:3306,127.0.0.1:3307,127.0.0.1:3308".replace(/\s+/g, "");
+        const dockerMysql1 = "127.0.0.1:3305,127.0.0.1:3309,127.0.0.1:3307,127.0.0.1:3308".replace(/\s+/g, "");
+        const dockerMysql2 = "127.0.0.1:3305,127.0.0.1:3306,127.0.0.1:3307,127.0.0.1:3308".replace(/\s+/g, "");
         const labMysql = "192.168.1.221,192.168.1.222,192.168.1.223,192.168.1.224".replace(/\s+/g, "");
 
-        if (mysqlVal === dockerMysql) return "docker";
+        if (mysqlVal === dockerMysql1 || mysqlVal === dockerMysql2) return "docker";
         if (mysqlVal === labMysql) return "lan_lab";
         return null;
       }

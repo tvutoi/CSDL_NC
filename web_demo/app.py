@@ -1663,33 +1663,80 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
         if len(online_conns) <= 1:
             return {"total_synced_rows": 0, "synced_nodes": [], "elapsed_ms": 0.0}
 
-        # 1. Thu thập ID tất cả bảng orders, order_items, payments trên từng node
+        # Kiem tra nhanh: neu count va max(order_id) cua tat ca cac node dong nhat thi hoan toan dong bo
+        node_sigs = {}
+        try:
+            quick_diff = False
+            first_sig = None
+            for host, item in online_conns.items():
+                cur = item["cur"]
+                cur.execute("SELECT COUNT(*), COALESCE(MAX(order_id), 0) FROM orders")
+                oc, omax = cur.fetchone()
+                cur.execute("SELECT COUNT(*) FROM order_items")
+                ic = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM payments")
+                pc = cur.fetchone()[0]
+                sig = (oc, omax, ic, pc)
+                node_sigs[host] = sig
+                if first_sig is None:
+                    first_sig = sig
+                elif first_sig != sig:
+                    quick_diff = True
+            if not quick_diff and first_sig is not None:
+                for h, item in online_conns.items():
+                    try:
+                        item["cur"].close()
+                        item["conn"].close()
+                    except Exception:
+                        pass
+                return {"total_synced_rows": 0, "synced_nodes": [], "elapsed_ms": round((time.perf_counter() - t0) * 1000, 1)}
+        except Exception:
+            pass
+
+        # 1. Thu thap ID cac bang orders, order_items, payments tren tung node (song song)
+        min_omax = min(s[1] for s in node_sigs.values()) if node_sigs else 0
+        diff_count = max(s[0] for s in node_sigs.values()) - min(s[0] for s in node_sigs.values()) if node_sigs else 0
+        safe_min_order_id = max(0, min_omax - max(500, diff_count * 2))
+
         all_orders_by_node = {}
         all_items_by_node = {}
         all_payments_by_node = {}
 
-        for host, item in online_conns.items():
-            cur = item["cur"]
+        def _fetch_node_ids(host_item):
+            h, itm = host_item
+            c = itm["conn"]
+            cur = c.cursor()
             try:
-                cur.execute("SELECT order_id FROM orders")
-                all_orders_by_node[host] = set(r[0] for r in cur.fetchall())
+                cur.execute("SELECT order_id FROM orders WHERE order_id >= %s", (safe_min_order_id,))
+                oids = set(r[0] for r in cur.fetchall())
             except Exception as e:
-                logger.warning(f"[RECONCILE] Lỗi đọc order_id từ {host}: {e}")
-                all_orders_by_node[host] = set()
+                logger.warning(f"[RECONCILE] Lỗi đọc order_id từ {h}: {e}")
+                oids = set()
+            try:
+                cur.execute("SELECT item_id FROM order_items WHERE order_id >= %s", (safe_min_order_id,))
+                iids = set(r[0] for r in cur.fetchall())
+            except Exception as e:
+                logger.warning(f"[RECONCILE] Lỗi đọc item_id từ {h}: {e}")
+                iids = set()
+            try:
+                cur.execute("SELECT payment_id FROM payments WHERE order_id >= %s", (safe_min_order_id,))
+                pids = set(r[0] for r in cur.fetchall())
+            except Exception as e:
+                logger.warning(f"[RECONCILE] Lỗi đọc payment_id từ {h}: {e}")
+                pids = set()
+            try:
+                cur.close()
+            except Exception:
+                pass
+            return h, oids, iids, pids
 
-            try:
-                cur.execute("SELECT item_id FROM order_items")
-                all_items_by_node[host] = set(r[0] for r in cur.fetchall())
-            except Exception as e:
-                logger.warning(f"[RECONCILE] Lỗi đọc item_id từ {host}: {e}")
-                all_items_by_node[host] = set()
+        with ThreadPoolExecutor(max_workers=max(1, len(online_conns))) as ex:
+            id_results = list(ex.map(_fetch_node_ids, list(online_conns.items())))
 
-            try:
-                cur.execute("SELECT payment_id FROM payments")
-                all_payments_by_node[host] = set(r[0] for r in cur.fetchall())
-            except Exception as e:
-                logger.warning(f"[RECONCILE] Lỗi đọc payment_id từ {host}: {e}")
-                all_payments_by_node[host] = set()
+        for h, oids, iids, pids in id_results:
+            all_orders_by_node[h] = oids
+            all_items_by_node[h] = iids
+            all_payments_by_node[h] = pids
 
         all_known_orders = set.union(*all_orders_by_node.values()) if all_orders_by_node else set()
         missing_orders_by_node = {h: all_known_orders - oids for h, oids in all_orders_by_node.items() if (all_known_orders - oids)}
