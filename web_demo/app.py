@@ -942,88 +942,20 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
             if top_cand in online_nodes:
                 active_primary = top_cand
 
-        # 2. Nếu đã có PRIMARY đang hoạt động và không bắt buộc bầu lại node khác:
-        if active_primary and not (target_primary and not is_same_mongo_host(target_primary, active_primary)):
+        # 2. NGUYÊN TẮC CỐT LÕI: NẾU ĐÃ CÓ NODE CHÍNH (PRIMARY) ĐANG HOẠT ĐỘNG:
+        # TUYỆT ĐỐI KHÔNG BẦU LẠI, KHÔNG GỌI replSetReconfig, KHÔNG CAN THIỆP!
+        # Giữ nguyên cấu hình hiện tại để đảm bảo tính ổn định tuyệt đối, chống chập chờn,
+        # chống rớt về Secondary và chống crash/stop service mongod.
+        # CHỈ can thiệp khi:
+        # - Hoặc người dùng chủ động yêu cầu đổi sang Node khác (force=True và target_primary khác active_primary)
+        # - Hoặc Node chính thực sự bị chết (OFFLINE) - khi đó active_primary sẽ là None.
+        if active_primary and not (force and target_primary and not is_same_mongo_host(target_primary, active_primary)):
             set_active_mongo_primary(active_primary)
-            # Kiểm tra xem danh sách members có cần cập nhật bổ sung node hay phục hồi quyền votes=1 hay không
-            try:
-                c_pri = MongoClient(f"mongodb://{active_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=2000)
-                cfg_rs = c_pri.admin.command("replSetGetConfig")["config"]
-                cur_hosts = {normalize_mongo_host(m.get("host", "")) for m in cfg_rs.get("members", [])}
-                target_hosts = set(norm_mongo_nodes)
-                
-                is_docker_internal = any("node" in str(h) and "mongodb" in str(h) for h in cur_hosts)
-                needs_repair = False
-                if not is_docker_internal:
-                    if cur_hosts != target_hosts:
-                        needs_repair = True
-                    else:
-                        for m in cfg_rs.get("members", []):
-                            h_norm = normalize_mongo_host(m.get("host", ""))
-                            if m.get("votes", 1) == 0:
-                                needs_repair = True
-                                break
-                            if is_same_mongo_host(h_norm, active_primary) and m.get("priority", 1.0) < 2.0:
-                                needs_repair = True
-                                break
-
-                if needs_repair:
-                    cfg_rs["version"] += 1
-                    existing_id_by_host = {normalize_mongo_host(m.get("host", "")): m.get("_id") for m in cfg_rs.get("members", [])}
-                    used_ids = set(existing_id_by_host.values())
-                    next_id = 0
-                    new_m = []
-
-                    priority_ladder = [1.5, 1.2, 1.0, 0.8]
-                    sec_idx = 0
-
-                    for nh in norm_mongo_nodes:
-                        if nh in existing_id_by_host:
-                            m_id = existing_id_by_host[nh]
-                        else:
-                            while next_id in used_ids:
-                                next_id += 1
-                            m_id = next_id
-                            used_ids.add(m_id)
-                            next_id += 1
-
-                        is_pri = is_same_mongo_host(nh, active_primary)
-                        is_on = (nh in online_nodes)
-                        # QUY TẮC QUORUM AN TOÀN:
-                        # - Nếu cụm có >= 3 node online: Cấp votes=1 cho tất cả node online để đạt quorum phân tán.
-                        # - Nếu chỉ có 1-2 node online (< 3): CHỈ cấp votes=1 cho Primary, các node khác votes=0
-                        #   để bảo toàn Quorum 1/1, chống hiện tượng Primary bị Quorum Loss Step Down!
-                        if is_pri:
-                            v = 1
-                            p = 2.0
-                        elif is_on and len(online_nodes) >= 3:
-                            v = 1
-                            p = priority_ladder[min(sec_idx, len(priority_ladder)-1)]
-                            sec_idx += 1
-                        else:
-                            v = 0
-                            p = 0.0
-
-                        new_m.append({
-                            "_id": m_id, "host": nh, "priority": p, "votes": v,
-                            "arbiterOnly": False, "buildIndexes": True, "hidden": False,
-                            "secondaryDelaySecs": 0, "tags": {}
-                        })
-                    if not any(m.get("votes", 0) > 0 for m in new_m):
-                        new_m[0]["votes"] = 1
-                        new_m[0]["priority"] = 2.0
-                    cfg_rs["members"] = new_m
-                    # Dùng force=True trên c_pri (Primary thực tế) để khôi phục votes=1 cho nhiều node cùng lúc (tránh lỗi code 103)
-                    c_pri.admin.command("replSetReconfig", cfg_rs, force=True)
-                c_pri.close()
-            except Exception as e:
-                print(f"[MONGO_MEMBERS_SYNC_WARN] {e}")
-
             return {
                 "status": "ALREADY_PRIMARY",
                 "primary": active_primary,
                 "online_nodes": online_nodes,
-                "message": f"Node chính {active_primary} đang hoạt động bình thường"
+                "message": f"Node chính {active_primary} đang hoạt động ổn định, không can thiệp"
             }
 
         if not online_nodes:
