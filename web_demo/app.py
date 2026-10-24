@@ -1044,6 +1044,17 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
             chosen_primary = online_nodes[0]
 
         # 4. Thực hiện Quorum Rescue / Bầu chọn trên chosen_primary
+        if not force:
+            # QUY TẮC AN TOÀN TUYỆT ĐỐI: Khi chạy nền tự động (force=False), KHÔNG can thiệp rs.reconfig(force=True)
+            # để tránh làm rẽ nhánh Oplog (Divergent Oplog) gây crash fatal assertion 51121 / 5007100.
+            # Để cụm tự do bầu chọn Primary tự nhiên theo giao thức đồng thuận MongoDB.
+            return {
+                "status": "WAITING_ELECTION",
+                "message": "Đang chờ MongoDB Replica Set tự bầu chọn theo giao thức nội bộ...",
+                "candidate": chosen_primary,
+                "online_nodes": online_nodes
+            }
+
         try:
             c_cand = MongoClient(f"mongodb://{chosen_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=2500)
             cfg_rs = c_cand.admin.command("replSetGetConfig")["config"]
@@ -1215,7 +1226,8 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
                         if any(is_same_mongo_host(h, cn) for _, h, _ in online_lan_hosts):
                             pref_target = cn
                             break
-                    rec_res = ensure_mongo_primary_priority(force=True, target_primary=pref_target)
+                    # Chỉ dùng force=False trong nền để không tự ý reconfig force gây crash fassert(51121)
+                    rec_res = ensure_mongo_primary_priority(force=False, target_primary=pref_target)
                     if rec_res.get("primary"):
                         set_active_mongo_primary(rec_res["primary"])
                 except Exception as e:
@@ -2280,7 +2292,8 @@ def get_cluster_status(request: Request):
                     if not target_cand and online_m:
                         target_cand = online_m[0]
                     if target_cand:
-                        threading.Thread(target=ensure_mongo_primary_priority, kwargs={"force": True, "target_primary": target_cand["host"]}, daemon=True).start()
+                        # Dung force=False trong nen de tranh gay crash fassert(51121)
+                        threading.Thread(target=ensure_mongo_primary_priority, kwargs={"force": False, "target_primary": target_cand["host"]}, daemon=True).start()
                 except Exception as e:
                     print(f"[AUTO_MONGO_RECOVERY_THREAD] {e}")
 
