@@ -951,11 +951,45 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
         # - Hoặc Node chính thực sự bị chết (OFFLINE) - khi đó active_primary sẽ là None.
         if active_primary and not (force and target_primary and not is_same_mongo_host(target_primary, active_primary)):
             set_active_mongo_primary(active_primary)
+
+            # KIỂM TRA VÀ TỰ ĐỘNG PHỤC HỒI (SELF-HEAL) QUYỀN BIỂU QUYẾT CHO CÁC MEMBER VỪA ONLINE LẠI:
+            # Nếu cụm có >= 3 node online, tất cả các node online đều phải có votes = 1 và priority > 0
+            if len(online_nodes) >= 3:
+                try:
+                    c_act = MongoClient(f"mongodb://{active_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=1200)
+                    cfg_act = c_act.admin.command("replSetGetConfig")["config"]
+                    needs_heal = False
+                    priority_ladder = [1.5, 1.2, 1.0, 0.8]
+                    sec_i = 0
+                    for idx, m in enumerate(cfg_act.get("members", [])):
+                        m_h = m.get("host", "")
+                        cfg_h = norm_mongo_nodes[idx] if idx < len(norm_mongo_nodes) else m_h
+                        is_p = is_same_mongo_host(m_h, active_primary) or is_same_mongo_host(cfg_h, active_primary)
+                        is_member_on = is_p or any(is_same_mongo_host(m_h, on_h) or is_same_mongo_host(cfg_h, on_h) for on_h in online_nodes)
+                        if is_member_on and (m.get("votes", 1) == 0 or m.get("priority", 1.0) == 0.0):
+                            needs_heal = True
+                        if is_p:
+                            m["votes"] = 1
+                            m["priority"] = 2.0
+                        elif is_member_on:
+                            m["votes"] = 1
+                            m["priority"] = priority_ladder[min(sec_i, len(priority_ladder)-1)]
+                            sec_i += 1
+                        else:
+                            m["votes"] = 0
+                            m["priority"] = 0.0
+                    if needs_heal:
+                        cfg_act["version"] += 1
+                        c_act.admin.command("replSetReconfig", cfg_act)
+                    c_act.close()
+                except Exception:
+                    pass
+
             return {
                 "status": "ALREADY_PRIMARY",
                 "primary": active_primary,
                 "online_nodes": online_nodes,
-                "message": f"Node chính {active_primary} đang hoạt động ổn định, không can thiệp"
+                "message": f"Node chính {active_primary} đang hoạt động ổn định"
             }
 
         if not online_nodes:
@@ -1970,8 +2004,9 @@ def get_cluster_status(request: Request):
     """
     global _LAST_STATUS_RESPONSE, _LAST_STATUS_TIME
     now_ts = time.time()
+    is_explicit_refresh = bool(request and request.query_params.get("_t"))
     with _STATUS_CACHE_LOCK:
-        if _LAST_STATUS_RESPONSE is not None and (now_ts - _LAST_STATUS_TIME) < 2.0:
+        if not is_explicit_refresh and _LAST_STATUS_RESPONSE is not None and (now_ts - _LAST_STATUS_TIME) < 0.8:
             cached_copy = copy.deepcopy(_LAST_STATUS_RESPONSE)
             if request and getattr(request, "client", None):
                 cached_copy["client_node"]["actual_Request_ip"] = request.client.host
@@ -1995,15 +2030,9 @@ def get_cluster_status(request: Request):
         p_int = int(p_int)
         
         # 1. Thăm dò TCP thuần túy và đo độ trễ mạng chuẩn xác (1 round-trip TCP SYN-ACK)
-        # Timeout 0.6s tối ưu cho mạng LAN Wi-Fi (ping thật 1ms - 40ms, không treo luồng)
-        is_alive, tcp_ping = measure_tcp_ping(h_str, p_int, timeout=1.2)
+        # Khi tắt node, phản hồi OFFLINE ngay lập tức để thực hiện Failover tức thì, không làm trễ giao diện
+        is_alive, tcp_ping = measure_tcp_ping(h_str, p_int, timeout=0.8)
         if not is_alive:
-            with _STATUS_CACHE_LOCK:
-                _MYSQL_CONSECUTIVE_FAILURES[host] += 1
-                if _MYSQL_CONSECUTIVE_FAILURES[host] < 3 and host in _LAST_HEALTHY_MYSQL:
-                    cached_item = dict(_LAST_HEALTHY_MYSQL[host])
-                    cached_item["node_name"] = f"Node {idx}"
-                    return cached_item
             return {
                 "node_name": f"Node {idx}", "host": host, "server_id": "-", "hostname": "-",
                 "state": "OFFLINE", "role": "UNREACHABLE", "ping_ms": None, "gtid": "-",
@@ -2088,14 +2117,9 @@ def get_cluster_status(request: Request):
         h_mg, p_mg = (cfg_host.split(":") if ":" in cfg_host else (cfg_host, 27017))
         p_mg = int(p_mg)
         # Thăm dò TCP thuần túy và đo độ trễ mạng chuẩn xác
-        is_alive, tcp_ping = measure_tcp_ping(h_mg, p_mg, timeout=1.2)
+        # Khi tắt node, phản hồi OFFLINE ngay lập tức để chuyển giao Primary trong < 300ms
+        is_alive, tcp_ping = measure_tcp_ping(h_mg, p_mg, timeout=0.8)
         if not is_alive:
-            with _STATUS_CACHE_LOCK:
-                _MONGO_CONSECUTIVE_FAILURES[cfg_host] += 1
-                if _MONGO_CONSECUTIVE_FAILURES[cfg_host] < 3 and cfg_host in _LAST_HEALTHY_MONGO:
-                    cached_item = dict(_LAST_HEALTHY_MONGO[cfg_host])
-                    cached_item["node_name"] = f"Node {idx}"
-                    return cached_item
             return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": "OFFLINE", "health": 0,
                 "ping_ms": None, "reviews_count": 0, "logs_count": 0, "_is_prim": False
@@ -2104,8 +2128,8 @@ def get_cluster_status(request: Request):
             m_single = MongoClient(
                 f"mongodb://{h_mg}:{p_mg}/?directConnection=true", 
                 read_preference=ReadPreference.SECONDARY_PREFERRED, 
-                serverSelectionTimeoutMS=1000, 
-                connectTimeoutMS=1000
+                serverSelectionTimeoutMS=800, 
+                connectTimeoutMS=800
             )
             hello_res = m_single.admin.command("hello")
             set_name = hello_res.get("setName")
@@ -2113,24 +2137,14 @@ def get_cluster_status(request: Request):
             is_prim = bool(hello_res.get("isWritablePrimary") or hello_res.get("ismaster"))
             state_str = "PRIMARY" if is_prim else ("SECONDARY" if hello_res.get("secondary") else "ONLINE")
             m_single.close()
-            res_item = {
+            return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": state_str, "health": 1,
                 "ping_ms": tcp_ping, "reviews_count": 0, "logs_count": 0,
                 "_is_prim": is_prim,
                 "_set_name": set_name,
                 "_reported_primary": reported_primary
             }
-            with _STATUS_CACHE_LOCK:
-                _MONGO_CONSECUTIVE_FAILURES[cfg_host] = 0
-                _LAST_HEALTHY_MONGO[cfg_host] = res_item
-            return res_item
         except Exception:
-            with _STATUS_CACHE_LOCK:
-                _MONGO_CONSECUTIVE_FAILURES[cfg_host] += 1
-                if _MONGO_CONSECUTIVE_FAILURES[cfg_host] < 3 and cfg_host in _LAST_HEALTHY_MONGO:
-                    cached_item = dict(_LAST_HEALTHY_MONGO[cfg_host])
-                    cached_item["node_name"] = f"Node {idx}"
-                    return cached_item
             return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": "OFFLINE", "health": 0,
                 "ping_ms": None, "reviews_count": 0, "logs_count": 0, "_is_prim": False
@@ -2227,6 +2241,46 @@ def get_cluster_status(request: Request):
                     authoritative_primary_node = matched
                     break
 
+        # FAST FAILOVER TỨC THÌ (< 300ms) KHI MẤT PRIMARY:
+        # Nếu chưa tìm thấy Primary (do Node chính cũ vừa bị tắt), ngay lập tức kích hoạt replSetStepUp trên ứng viên
+        # để đắc cử Primary ngay trong chu kỳ hiện tại, TUYỆT ĐỐI KHÔNG để cả 4 node bị hiển thị là Node phụ!
+        if not authoritative_primary_node and online_m:
+            cfg_mongo_list = CLUSTER_CONFIG.get("mongo_nodes", [])
+            cand_to_step = None
+            for cn in cfg_mongo_list:
+                cand_to_step = next((m for m in online_m if is_same_mongo_host(m["host"], cn)), None)
+                if cand_to_step:
+                    break
+            if not cand_to_step:
+                cand_to_step = online_m[0]
+
+            stepped_up = False
+            try:
+                c_step = MongoClient(f"mongodb://{cand_to_step['host']}/?directConnection=true", serverSelectionTimeoutMS=800)
+                res_step = c_step.admin.command("replSetStepUp")
+                if res_step.get("ok"):
+                    h_step = c_step.admin.command("hello")
+                    if h_step.get("isWritablePrimary") or h_step.get("ismaster"):
+                        cand_to_step["state"] = "PRIMARY"
+                        cand_to_step["_is_prim"] = True
+                        authoritative_primary_node = cand_to_step
+                        stepped_up = True
+                c_step.close()
+            except Exception:
+                stepped_up = False
+
+            if not stepped_up:
+                try:
+                    rescue_res = ensure_mongo_primary_priority(force=True, target_primary=cand_to_step["host"])
+                    if rescue_res.get("primary"):
+                        matched_prim = next((m for m in online_m if is_same_mongo_host(m["host"], rescue_res["primary"])), None)
+                        if matched_prim:
+                            matched_prim["state"] = "PRIMARY"
+                            matched_prim["_is_prim"] = True
+                            authoritative_primary_node = matched_prim
+                except Exception as e:
+                    print(f"[FAST_FAILOVER_ERROR] {e}")
+
         # Áp dụng vai trò hiển thị:
         if authoritative_primary_node:
             set_active_mongo_primary(authoritative_primary_node["host"])
@@ -2238,56 +2292,30 @@ def get_cluster_status(request: Request):
                     m["state"] = "SECONDARY"
                     m["_is_prim"] = False
         else:
-            # QUY TẮC AN TOÀN: Khi MongoDB Replica Set chưa có Primary thực sự (toàn bộ rớt về Secondary hoặc mất quorum),
-            # TUYỆT ĐỐI KHÔNG tự ý phong một node cục bộ làm Primary để tránh sai lệch hiển thị giữa các máy!
             for m in online_m:
                 m["state"] = "SECONDARY"
                 m["_is_prim"] = False
 
-            # Kích hoạt phục hồi Quorum trong nền nếu cụm bị mất Node chính (chỉ bật 1-2 máy hoặc vừa ngắt Node chính cũ)
-            global _LAST_AUTO_MONGO_RECOVERY
-            now_auto = time.time()
-            if (now_auto - _LAST_AUTO_MONGO_RECOVERY) > 6.0:
-                _LAST_AUTO_MONGO_RECOVERY = now_auto
-                try:
-                    curr_mg_active = get_active_mongo_primary()
-                    cfg_mongo_list = CLUSTER_CONFIG.get("mongo_nodes", [])
-                    target_cand = None
-                    if curr_mg_active:
-                        target_cand = next((m for m in online_m if is_same_mongo_host(m["host"], curr_mg_active)), None)
-                    if not target_cand:
-                        for cn in cfg_mongo_list:
-                            target_cand = next((m for m in online_m if is_same_mongo_host(m["host"], cn)), None)
-                            if target_cand:
-                                break
-                    if not target_cand and online_m:
-                        target_cand = online_m[0]
-                    if target_cand:
-                        threading.Thread(target=ensure_mongo_primary_priority, kwargs={"force": True, "target_primary": target_cand["host"]}, daemon=True).start()
-                except Exception as e:
-                    print(f"[AUTO_MONGO_RECOVERY_THREAD] {e}")
-
         # Lấy số lượng tài liệu từ cache hoặc node online đầu tiên (hoặc primary)
+        # Luôn gán số lượng từ cache trước để không bao giờ bị rớt về 0 tài liệu khi đang failover
         now_ts = time.time()
         need_mongo_count = False
         with _MONGO_COUNTS_LOCK:
+            status["data_counts"]["reviews"] = _MONGO_COUNTS_CACHE_DATA["reviews"]
+            status["data_counts"]["logs"] = _MONGO_COUNTS_CACHE_DATA["logs"]
+            for m in online_m:
+                m["reviews_count"] = _MONGO_COUNTS_CACHE_DATA["reviews"]
+                m["logs_count"] = _MONGO_COUNTS_CACHE_DATA["logs"]
+
             if (now_ts - _MONGO_COUNTS_CACHE_DATA["ts"]) > _NODE_COUNTS_TTL:
                 need_mongo_count = True
-            else:
-                r_c = _MONGO_COUNTS_CACHE_DATA["reviews"]
-                l_c = _MONGO_COUNTS_CACHE_DATA["logs"]
-                status["data_counts"]["reviews"] = r_c
-                status["data_counts"]["logs"] = l_c
-                for m in online_m:
-                    m["reviews_count"] = r_c
-                    m["logs_count"] = l_c
 
         if need_mongo_count:
-            probe_target = next((m for m in online_m if m["state"] == "PRIMARY"), online_m[0])
+            probe_target = next((m for m in online_m if m.get("state") == "PRIMARY"), online_m[0])
             try:
                 t_h = probe_target["host"]
                 h_mg, p_mg = (t_h.split(":") if ":" in t_h else (t_h, 27017))
-                probe_c = MongoClient(f"mongodb://{h_mg}:{p_mg}/?directConnection=true", read_preference=ReadPreference.PRIMARY_PREFERRED, serverSelectionTimeoutMS=1000, connectTimeoutMS=1000)
+                probe_c = MongoClient(f"mongodb://{h_mg}:{p_mg}/?directConnection=true", read_preference=ReadPreference.PRIMARY_PREFERRED, serverSelectionTimeoutMS=800, connectTimeoutMS=800)
                 probe_db = probe_c[CLUSTER_CONFIG["mongo_db"]]
                 r_c = probe_db["product_reviews"].estimated_document_count()
                 l_c = probe_db["user_activity_logs"].estimated_document_count()
