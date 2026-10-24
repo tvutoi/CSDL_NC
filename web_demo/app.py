@@ -1007,69 +1007,78 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
 
         try:
             c_cand = MongoClient(f"mongodb://{chosen_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=2500)
+            hello_cand = c_cand.admin.command("hello")
+            my_internal_name = hello_cand.get("me")
             cfg_rs = c_cand.admin.command("replSetGetConfig")["config"]
             cfg_rs["version"] += 1
 
-            existing_id_by_host = {normalize_mongo_host(m.get("host", "")): m.get("_id") for m in cfg_rs.get("members", [])}
-            used_ids = set(existing_id_by_host.values())
-            next_id = 0
-            new_members = []
-            priority_ladder = [1.5, 1.2, 1.0, 0.8]
-            sec_idx = 0
+            existing_members = cfg_rs.get("members", [])
+            cand_idx = next((i for i, h in enumerate(norm_mongo_nodes) if is_same_mongo_host(h, chosen_primary)), -1)
 
-            for nh in norm_mongo_nodes:
-                if nh in existing_id_by_host:
-                    m_id = existing_id_by_host[nh]
-                else:
-                    while next_id in used_ids:
+            # BẢO TOÀN HOST GỐC CỦA TỪNG MEMBER TRONG CONFIG:
+            # Rất quan trọng khi chạy Docker: container dùng host nodeX_mongodb, không được ghi đè bằng 127.0.0.1
+            if len(existing_members) == len(norm_mongo_nodes):
+                priority_ladder = [1.5, 1.2, 1.0, 0.8]
+                sec_idx = 0
+                for idx, m in enumerate(existing_members):
+                    m_host = m.get("host", "")
+                    cfg_host = norm_mongo_nodes[idx] if idx < len(norm_mongo_nodes) else m_host
+                    is_cand = (idx == cand_idx) or (m_host == my_internal_name) or is_same_mongo_host(m_host, chosen_primary) or is_same_mongo_host(cfg_host, chosen_primary)
+                    is_on = is_cand or any(is_same_mongo_host(cfg_host, on_h) for on_h in online_nodes)
+
+                    # QUY TẮC CỨU QUORUM CHUẨN XÁC KHI CHỈ CÓ 1 HOẶC 2 NODE ONLINE:
+                    # - Node candidate được chọn luôn nhận votes=1, priority=2.0 để đắc cử làm Node chính ngay lập tức!
+                    # - Nếu chỉ có 1 node online: Node duy nhất nhận votes=1 (Quorum 1/1 = 100%), các node offline votes=0.
+                    # - Nếu có >= 3 node online: Cấp votes=1 cho toàn bộ các node online.
+                    if is_cand:
+                        v = 1
+                        p = 2.0
+                    elif is_on and len(online_nodes) >= 3:
+                        v = 1
+                        p = priority_ladder[min(sec_idx, len(priority_ladder)-1)]
+                        sec_idx += 1
+                    else:
+                        v = 0
+                        p = 0.0
+
+                    m["votes"] = v
+                    m["priority"] = p
+            else:
+                existing_id_by_host = {normalize_mongo_host(m.get("host", "")): m.get("_id") for m in existing_members}
+                used_ids = set(existing_id_by_host.values())
+                next_id = 0
+                new_members = []
+                priority_ladder = [1.5, 1.2, 1.0, 0.8]
+                sec_idx = 0
+                for nh in norm_mongo_nodes:
+                    if nh in existing_id_by_host:
+                        m_id = existing_id_by_host[nh]
+                    else:
+                        while next_id in used_ids:
+                            next_id += 1
+                        m_id = next_id
+                        used_ids.add(m_id)
                         next_id += 1
-                    m_id = next_id
-                    used_ids.add(m_id)
-                    next_id += 1
+                    is_cand = is_same_mongo_host(nh, chosen_primary)
+                    is_on = (nh in online_nodes)
+                    if is_cand:
+                        v, p = 1, 2.0
+                    elif is_on and len(online_nodes) >= 3:
+                        v = 1
+                        p = priority_ladder[min(sec_idx, len(priority_ladder)-1)]
+                        sec_idx += 1
+                    else:
+                        v, p = 0, 0.0
+                    new_members.append({
+                        "_id": m_id, "host": nh, "priority": p, "votes": v,
+                        "arbiterOnly": False, "buildIndexes": True, "hidden": False,
+                        "secondaryDelaySecs": 0, "tags": {}
+                    })
+                cfg_rs["members"] = new_members
 
-                is_cand = is_same_mongo_host(nh, chosen_primary)
-                is_on = (nh in online_nodes)
-
-                # NGUYÊN TẮC CỨU QUORUM CHUẨN XÁC:
-                # - TẤT CẢ các node đang ONLINE (is_on) ĐỀU CÓ votes = 1 và tham gia biểu quyết.
-                # - Candidate nhận priority = 2.0 (cao nhất) để chắc chắn đắc cử.
-                # - Các node phụ online nhận priority phân tầng (1.5, 1.2, 1.0).
-                # - Đối với các node offline:
-                #   + Nếu có >= 3 node online: giữ nguyên votes = 1 cho cả node offline.
-                #   + Nếu chỉ có 1-2 node online (< 3): tạm gán votes = 0 cho các node offline để
-                #     số node online lập tức đạt 100% Quorum (1/1 hoặc 2/2) và bầu được PRIMARY.
-                #     Khi các node offline sống lại, hàm repair ở mục 2 sẽ tự động phục hồi votes = 1!
-                # QUY TẮC CỨU QUORUM AN TOÀN CHỐNG STEP DOWN:
-                # - Khi len(online_nodes) < 3: CHỈ candidate nhận votes=1, priority=2.0 để đạt 1/1 Quorum (100%).
-                #   Tất cả các node khác (kể cả online phụ lẫn offline) nhận votes=0, priority=0.0.
-                # - Khi len(online_nodes) >= 3: Cấp votes=1 cho toàn bộ các node online.
-                if is_cand:
-                    v = 1
-                    p = 2.0
-                elif is_on and len(online_nodes) >= 3:
-                    v = 1
-                    p = priority_ladder[min(sec_idx, len(priority_ladder)-1)]
-                    sec_idx += 1
-                else:
-                    v = 0
-                    p = 0.0
-
-                new_members.append({
-                    "_id": m_id,
-                    "host": nh,
-                    "priority": p,
-                    "votes": v,
-                    "arbiterOnly": False,
-                    "buildIndexes": True,
-                    "hidden": False,
-                    "secondaryDelaySecs": 0,
-                    "tags": {}
-                })
-
-            if not any(m.get("votes", 0) > 0 for m in new_members):
-                new_members[0]["votes"] = 1
-                new_members[0]["priority"] = 2.0
-            cfg_rs["members"] = new_members
+            if not any(m.get("votes", 0) > 0 for m in cfg_rs.get("members", [])):
+                cfg_rs["members"][0]["votes"] = 1
+                cfg_rs["members"][0]["priority"] = 2.0
             c_cand.admin.command("replSetReconfig", cfg_rs, force=True)
             try:
                 c_cand.admin.command("replSetStepUp")
@@ -1079,7 +1088,7 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
             # Chờ candidate chuyển trạng thái sang PRIMARY
             elected = False
             t_wait = time.time()
-            while time.time() - t_wait < 3.5:
+            while time.time() - t_wait < 5.0:
                 time.sleep(0.3)
                 try:
                     h_chk = c_cand.admin.command("hello")
