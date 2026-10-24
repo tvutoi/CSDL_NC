@@ -988,14 +988,21 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                             next_id += 1
 
                         is_pri = is_same_mongo_host(nh, active_primary)
-                        # Khi đã có Primary, TOÀN BỘ các members trong cụm đều được cấp votes=1
-                        # Node chính priority=2.0, các node phụ theo thang phân cấp priority_ladder
-                        v = 1
+                        is_on = (nh in online_nodes)
+                        # QUY TẮC QUORUM AN TOÀN:
+                        # - Nếu cụm có >= 3 node online: Cấp votes=1 cho tất cả node online để đạt quorum phân tán.
+                        # - Nếu chỉ có 1-2 node online (< 3): CHỈ cấp votes=1 cho Primary, các node khác votes=0
+                        #   để bảo toàn Quorum 1/1, chống hiện tượng Primary bị Quorum Loss Step Down!
                         if is_pri:
+                            v = 1
                             p = 2.0
-                        else:
+                        elif is_on and len(online_nodes) >= 3:
+                            v = 1
                             p = priority_ladder[min(sec_idx, len(priority_ladder)-1)]
                             sec_idx += 1
+                        else:
+                            v = 0
+                            p = 0.0
 
                         new_m.append({
                             "_id": m_id, "host": nh, "priority": p, "votes": v,
@@ -1100,20 +1107,20 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                 #   + Nếu chỉ có 1-2 node online (< 3): tạm gán votes = 0 cho các node offline để
                 #     số node online lập tức đạt 100% Quorum (1/1 hoặc 2/2) và bầu được PRIMARY.
                 #     Khi các node offline sống lại, hàm repair ở mục 2 sẽ tự động phục hồi votes = 1!
-                if is_on:
+                # QUY TẮC CỨU QUORUM AN TOÀN CHỐNG STEP DOWN:
+                # - Khi len(online_nodes) < 3: CHỈ candidate nhận votes=1, priority=2.0 để đạt 1/1 Quorum (100%).
+                #   Tất cả các node khác (kể cả online phụ lẫn offline) nhận votes=0, priority=0.0.
+                # - Khi len(online_nodes) >= 3: Cấp votes=1 cho toàn bộ các node online.
+                if is_cand:
                     v = 1
-                    if is_cand:
-                        p = 2.0
-                    else:
-                        p = priority_ladder[min(sec_idx, len(priority_ladder)-1)]
-                        sec_idx += 1
+                    p = 2.0
+                elif is_on and len(online_nodes) >= 3:
+                    v = 1
+                    p = priority_ladder[min(sec_idx, len(priority_ladder)-1)]
+                    sec_idx += 1
                 else:
-                    if len(online_nodes) >= 3:
-                        v = 1
-                        p = 1.0
-                    else:
-                        v = 0
-                        p = 0.0
+                    v = 0
+                    p = 0.0
 
                 new_members.append({
                     "_id": m_id,
@@ -1132,6 +1139,10 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                 new_members[0]["priority"] = 2.0
             cfg_rs["members"] = new_members
             c_cand.admin.command("replSetReconfig", cfg_rs, force=True)
+            try:
+                c_cand.admin.command("replSetStepUp")
+            except Exception:
+                pass
 
             # Chờ candidate chuyển trạng thái sang PRIMARY
             elected = False
