@@ -34,7 +34,7 @@ _LAST_HEALTHY_MYSQL: Dict[str, Dict[str, Any]] = {}
 _LAST_HEALTHY_MONGO: Dict[str, Dict[str, Any]] = {}
 
 
-def measure_tcp_ping(host_or_addr: str, default_port: int = 3306, timeout: float = 0.6) -> Tuple[bool, Optional[float]]:
+def measure_tcp_ping(host_or_addr: str, default_port: int = 3306, timeout: float = 1.2) -> Tuple[bool, Optional[float]]:
     """
     Đo đạc độ trễ mạng thực tế (TCP RTT ping tính bằng ms) và kiểm tra khả năng mở cổng kết nối.
     - Loại bỏ hiện tượng bắt tay kép (double handshake) gây phình to ping ảo lên 1000-1500ms.
@@ -55,7 +55,7 @@ def measure_tcp_ping(host_or_addr: str, default_port: int = 3306, timeout: float
         return False, None
 
 
-def is_port_open(host_or_addr: str, default_port: int = 3306, timeout: float = 0.6, retries: int = 1) -> bool:
+def is_port_open(host_or_addr: str, default_port: int = 3306, timeout: float = 1.2, retries: int = 2) -> bool:
     """Kiểm tra cổng kết nối socket nhanh và nhẹ cho cụm phân tán"""
     ok, _ = measure_tcp_ping(host_or_addr, default_port, timeout=timeout)
     if ok or retries <= 1:
@@ -276,7 +276,7 @@ def check_nodes_connectivity_cache(db_type: str = "mysql") -> Dict[str, bool]:
     nodes = CLUSTER_CONFIG["mysql_nodes"] if db_type == "mysql" else CLUSTER_CONFIG["mongo_nodes"]
     default_p = 3306 if db_type == "mysql" else 27017
     with ThreadPoolExecutor(max_workers=max(1, len(nodes))) as ex:
-        futures = {n: ex.submit(is_port_open, n, default_p, 0.4) for n in nodes}
+        futures = {n: ex.submit(is_port_open, n, default_p, 1.2, 2) for n in nodes}
         for n, f in futures.items():
             cache[n] = f.result()
     return cache
@@ -904,39 +904,50 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
         # 1. Quét tìm các node online và kiểm tra xem đã có node nào làm PRIMARY chưa
         online_nodes = []
         active_primary = None
+        reported_prim_counts = {}
 
         def _probe_mg(norm_h):
             h_ip, p_str = norm_h.split(":")
-            if is_port_open(h_ip, int(p_str), timeout=0.4, retries=1):
+            if is_port_open(h_ip, int(p_str), timeout=1.2, retries=2):
                 try:
                     c = MongoClient(
                         f"mongodb://{norm_h}/?directConnection=true&w=1",
-                        serverSelectionTimeoutMS=1000,
-                        connectTimeoutMS=1000
+                        serverSelectionTimeoutMS=1500,
+                        connectTimeoutMS=1500
                     )
                     hello = c.admin.command("hello")
                     c.close()
                     is_prim = bool(hello.get("isWritablePrimary") or hello.get("ismaster"))
-                    return norm_h, True, is_prim
+                    rep_p = hello.get("primary")
+                    return norm_h, True, is_prim, rep_p
                 except Exception:
-                    return norm_h, False, False
-            return norm_h, False, False
+                    return norm_h, False, False, None
+            return norm_h, False, False, None
 
         with ThreadPoolExecutor(max_workers=max(1, len(norm_mongo_nodes))) as ex:
             mg_probe_res = list(ex.map(_probe_mg, norm_mongo_nodes))
 
-        for norm_h, is_on, is_prim in mg_probe_res:
+        for norm_h, is_on, is_prim, rep_p in mg_probe_res:
             if is_on:
                 online_nodes.append(norm_h)
                 if is_prim:
                     active_primary = norm_h
+                if rep_p:
+                    n_rep = normalize_mongo_host(rep_p)
+                    reported_prim_counts[n_rep] = reported_prim_counts.get(n_rep, 0) + 1
+
+        # Nếu chưa trực tiếp thấy Primary nhưng các node đều đồng thuận một Primary và node đó online:
+        if not active_primary and reported_prim_counts:
+            top_cand = max(reported_prim_counts.items(), key=lambda x: x[1])[0]
+            if top_cand in online_nodes:
+                active_primary = top_cand
 
         # 2. Nếu đã có PRIMARY đang hoạt động và không bắt buộc bầu lại node khác:
         if active_primary and not (target_primary and not is_same_mongo_host(target_primary, active_primary)):
             set_active_mongo_primary(active_primary)
             # Kiểm tra xem danh sách members có cần cập nhật bổ sung node hay phục hồi quyền votes=1 hay không
             try:
-                c_pri = MongoClient(f"mongodb://{active_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=1500)
+                c_pri = MongoClient(f"mongodb://{active_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=2000)
                 cfg_rs = c_pri.admin.command("replSetGetConfig")["config"]
                 cur_hosts = {normalize_mongo_host(m.get("host", "")) for m in cfg_rs.get("members", [])}
                 target_hosts = set(norm_mongo_nodes)
@@ -946,10 +957,13 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                 if not is_docker_internal:
                     if cur_hosts != target_hosts:
                         needs_repair = True
-                    elif len(online_nodes) >= 3:
+                    else:
                         for m in cfg_rs.get("members", []):
                             h_norm = normalize_mongo_host(m.get("host", ""))
-                            if h_norm in online_nodes and (m.get("votes", 1) == 0 or m.get("priority", 1.0) == 0.0):
+                            if m.get("votes", 1) == 0:
+                                needs_repair = True
+                                break
+                            if is_same_mongo_host(h_norm, active_primary) and m.get("priority", 1.0) < 2.0:
                                 needs_repair = True
                                 break
 
@@ -974,20 +988,14 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                             next_id += 1
 
                         is_pri = is_same_mongo_host(nh, active_primary)
-                        is_on = (nh in online_nodes)
-
-                        if len(online_nodes) >= 3:
-                            v = 1
-                            if is_pri:
-                                p = 2.0
-                            elif is_on:
-                                p = priority_ladder[min(sec_idx, len(priority_ladder)-1)]
-                                sec_idx += 1
-                            else:
-                                p = 0.5
+                        # Khi đã có Primary, TOÀN BỘ các members trong cụm đều được cấp votes=1
+                        # Node chính priority=2.0, các node phụ theo thang phân cấp priority_ladder
+                        v = 1
+                        if is_pri:
+                            p = 2.0
                         else:
-                            v = 1 if is_pri else 0
-                            p = 2.0 if is_pri else 0.0
+                            p = priority_ladder[min(sec_idx, len(priority_ladder)-1)]
+                            sec_idx += 1
 
                         new_m.append({
                             "_id": m_id, "host": nh, "priority": p, "votes": v,
@@ -998,7 +1006,8 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                         new_m[0]["votes"] = 1
                         new_m[0]["priority"] = 2.0
                     cfg_rs["members"] = new_m
-                    c_pri.admin.command("replSetReconfig", cfg_rs)
+                    # Dùng force=True trên c_pri (Primary thực tế) để khôi phục votes=1 cho nhiều node cùng lúc (tránh lỗi code 103)
+                    c_pri.admin.command("replSetReconfig", cfg_rs, force=True)
                 c_pri.close()
             except Exception as e:
                 print(f"[MONGO_MEMBERS_SYNC_WARN] {e}")
@@ -1014,7 +1023,11 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
             return {"status": "ERROR", "message": "Không có node MongoDB nào trực tuyến để bầu chọn!"}
 
         # 3. Chọn node ứng viên làm PRIMARY:
-        # Ưu tiên: target_primary -> active_mongo_primary đã cấu hình -> Node online đầu tiên
+        # Thứ tự ưu tiên nghiêm ngặt để bảo đảm tính ổn định và chống split-brain:
+        # 1. target_primary (nếu được yêu cầu rõ ràng qua API)
+        # 2. Node đầu tiên trong cấu hình CLUSTER_CONFIG["mongo_nodes"] (Node 1) nếu online
+        # 3. active_mongo_primary đã cấu hình trước đó nếu online
+        # 4. Node có thứ tự ưu tiên cao nhất theo CLUSTER_CONFIG["mongo_nodes"]
         chosen_primary = None
         if target_primary:
             tgt_norm = normalize_mongo_host(target_primary)
@@ -1022,15 +1035,17 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                 chosen_primary = tgt_norm
 
         if not chosen_primary:
-            cfg_pri = normalize_mongo_host(get_active_mongo_primary() or "")
-            if cfg_pri in online_nodes:
-                chosen_primary = cfg_pri
-            else:
-                chosen_primary = online_nodes[0]
+            for nh in norm_mongo_nodes:
+                if nh in online_nodes:
+                    chosen_primary = nh
+                    break
 
-        # 4. Thực hiện Quorum Rescue trên chosen_primary
+        if not chosen_primary:
+            chosen_primary = online_nodes[0]
+
+        # 4. Thực hiện Quorum Rescue / Bầu chọn trên chosen_primary
         try:
-            c_cand = MongoClient(f"mongodb://{chosen_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=2000)
+            c_cand = MongoClient(f"mongodb://{chosen_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=2500)
             cfg_rs = c_cand.admin.command("replSetGetConfig")["config"]
             cfg_rs["version"] += 1
 
@@ -1038,6 +1053,9 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
             used_ids = set(existing_id_by_host.values())
             next_id = 0
             new_members = []
+            priority_ladder = [1.5, 1.2, 1.0, 0.8]
+            sec_idx = 0
+
             for nh in norm_mongo_nodes:
                 if nh in existing_id_by_host:
                     m_id = existing_id_by_host[nh]
@@ -1050,19 +1068,16 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
 
                 is_cand = is_same_mongo_host(nh, chosen_primary)
                 is_on = (nh in online_nodes)
-                # Động thái Quorum Rescue:
-                # Nếu chỉ có 1 hoặc 2 node online, chỉ gán votes=1 cho candidate duy nhất để lập tức đạt Quorum 100% (1/1)
-                # Nếu có >= 3 node online, cấp quyền bỏ phiếu votes=1 cho tất cả các node trong cụm và phân cấp priority
-                priority_ladder = [1.5, 1.2, 1.0, 0.8]
+
                 if len(online_nodes) >= 3:
                     v = 1
                     if is_cand:
                         p = 2.0
-                    elif is_on:
-                        p = 1.0
                     else:
-                        p = 0.5
+                        p = priority_ladder[min(sec_idx, len(priority_ladder)-1)]
+                        sec_idx += 1
                 else:
+                    # Nếu chỉ có 1 hoặc 2 node online, chỉ gán votes=1 cho candidate duy nhất để lập tức đạt Quorum 100% (1/1)
                     v = 1 if is_cand else 0
                     p = 2.0 if is_cand else 0.0
 
@@ -1156,7 +1171,7 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
 
     for h in lan_hosts:
         h_mg, p_mg = (h.split(":") if ":" in h else (h, 27017))
-        if not is_port_open(h_mg, int(p_mg), timeout=0.4, retries=1):
+        if not is_port_open(h_mg, int(p_mg), timeout=1.2, retries=2):
             continue
         try:
             c = MongoClient(
@@ -1187,14 +1202,24 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
     if primary_client:
         set_active_mongo_primary(primary_host)
     else:
-        # Nếu đang cần primary mà chưa có, thực hiện cứu Quorum / bầu chọn tức thì
+        # Nếu đang cần primary mà chưa có, thực hiện cứu Quorum / bầu chọn tức thì (có cooldown an toàn 15s)
         if online_lan_hosts:
-            try:
-                rec_res = ensure_mongo_primary_priority(force=True)
-                if rec_res.get("primary"):
-                    set_active_mongo_primary(rec_res["primary"])
-            except Exception as e:
-                print(f"[MONGO_PRIMARY_RECOVERY] {e}")
+            global _LAST_AUTO_MONGO_RECOVERY
+            now_rec = time.time()
+            if (now_rec - _LAST_AUTO_MONGO_RECOVERY) > 15.0:
+                _LAST_AUTO_MONGO_RECOVERY = now_rec
+                try:
+                    cfg_mongo_list = CLUSTER_CONFIG.get("mongo_nodes", [])
+                    pref_target = None
+                    for cn in cfg_mongo_list:
+                        if any(is_same_mongo_host(h, cn) for _, h, _ in online_lan_hosts):
+                            pref_target = cn
+                            break
+                    rec_res = ensure_mongo_primary_priority(force=True, target_primary=pref_target)
+                    if rec_res.get("primary"):
+                        set_active_mongo_primary(rec_res["primary"])
+                except Exception as e:
+                    print(f"[MONGO_PRIMARY_RECOVERY] {e}")
 
             for c_cand, h_cand, _ in online_lan_hosts:
                 try:
@@ -1984,7 +2009,7 @@ def get_cluster_status(request: Request):
         
         # 1. Thăm dò TCP thuần túy và đo độ trễ mạng chuẩn xác (1 round-trip TCP SYN-ACK)
         # Timeout 0.6s tối ưu cho mạng LAN Wi-Fi (ping thật 1ms - 40ms, không treo luồng)
-        is_alive, tcp_ping = measure_tcp_ping(h_str, p_int, timeout=0.6)
+        is_alive, tcp_ping = measure_tcp_ping(h_str, p_int, timeout=1.2)
         if not is_alive:
             with _STATUS_CACHE_LOCK:
                 _MYSQL_CONSECUTIVE_FAILURES[host] += 1
@@ -2076,7 +2101,7 @@ def get_cluster_status(request: Request):
         h_mg, p_mg = (cfg_host.split(":") if ":" in cfg_host else (cfg_host, 27017))
         p_mg = int(p_mg)
         # Thăm dò TCP thuần túy và đo độ trễ mạng chuẩn xác
-        is_alive, tcp_ping = measure_tcp_ping(h_mg, p_mg, timeout=0.6)
+        is_alive, tcp_ping = measure_tcp_ping(h_mg, p_mg, timeout=1.2)
         if not is_alive:
             with _STATUS_CACHE_LOCK:
                 _MONGO_CONSECUTIVE_FAILURES[cfg_host] += 1
@@ -2243,8 +2268,19 @@ def get_cluster_status(request: Request):
                 _LAST_AUTO_MONGO_RECOVERY = now_auto
                 try:
                     curr_mg_active = get_active_mongo_primary()
-                    target_cand = next((m for m in online_m if is_same_mongo_host(m["host"], curr_mg_active)), online_m[0])
-                    threading.Thread(target=ensure_mongo_primary_priority, kwargs={"force": True, "target_primary": target_cand["host"]}, daemon=True).start()
+                    cfg_mongo_list = CLUSTER_CONFIG.get("mongo_nodes", [])
+                    target_cand = None
+                    if curr_mg_active:
+                        target_cand = next((m for m in online_m if is_same_mongo_host(m["host"], curr_mg_active)), None)
+                    if not target_cand:
+                        for cn in cfg_mongo_list:
+                            target_cand = next((m for m in online_m if is_same_mongo_host(m["host"], cn)), None)
+                            if target_cand:
+                                break
+                    if not target_cand and online_m:
+                        target_cand = online_m[0]
+                    if target_cand:
+                        threading.Thread(target=ensure_mongo_primary_priority, kwargs={"force": True, "target_primary": target_cand["host"]}, daemon=True).start()
                 except Exception as e:
                     print(f"[AUTO_MONGO_RECOVERY_THREAD] {e}")
 
