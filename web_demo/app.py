@@ -828,14 +828,14 @@ def is_same_mysql_host(h1: Optional[str], h2: Optional[str]) -> bool:
 
 
 def _ensure_mysql_writable(host: str):
-    """Mở quyền ghi cho Node Primary: read_only = OFF, super_read_only = OFF"""
+    """Mở quyền ghi cho Node Primary: read_only = OFF, super_read_only = OFF (Timeout ngắn 0.8s chống treo luồng)"""
     try:
         h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
         conn = mysql.connector.connect(
             host=h_str, port=int(p_int),
             user=CLUSTER_CONFIG["mysql_user"],
             password=CLUSTER_CONFIG["mysql_password"],
-            connection_timeout=2.0
+            connection_timeout=0.8
         )
         cur = conn.cursor()
         cur.execute("SET GLOBAL super_read_only = OFF")
@@ -847,14 +847,14 @@ def _ensure_mysql_writable(host: str):
 
 
 def _ensure_mysql_read_only(host: str):
-    """Khóa quyền ghi cho Node Secondary: read_only = ON, super_read_only = ON"""
+    """Khóa quyền ghi cho Node Secondary: read_only = ON, super_read_only = ON (Timeout ngắn 0.8s chống treo luồng)"""
     try:
         h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
         conn = mysql.connector.connect(
             host=h_str, port=int(p_int),
             user=CLUSTER_CONFIG["mysql_user"],
             password=CLUSTER_CONFIG["mysql_password"],
-            connection_timeout=2.0
+            connection_timeout=0.8
         )
         cur = conn.cursor()
         cur.execute("SET GLOBAL read_only = ON")
@@ -2030,8 +2030,8 @@ def get_cluster_status(request: Request):
         p_int = int(p_int)
         
         # 1. Thăm dò TCP thuần túy và đo độ trễ mạng chuẩn xác (1 round-trip TCP SYN-ACK)
-        # Khi tắt node, phản hồi OFFLINE ngay lập tức để thực hiện Failover tức thì, không làm trễ giao diện
-        is_alive, tcp_ping = measure_tcp_ping(h_str, p_int, timeout=0.8)
+        # Timeout 0.4s siêu nhanh: khi tắt node chính, lập tức phát hiện trong vài mili-giây
+        is_alive, tcp_ping = measure_tcp_ping(h_str, p_int, timeout=0.4)
         if not is_alive:
             return {
                 "node_name": f"Node {idx}", "host": host, "server_id": "-", "hostname": "-",
@@ -2044,7 +2044,7 @@ def get_cluster_status(request: Request):
                 host=h_str, port=p_int,
                 user=CLUSTER_CONFIG["mysql_user"],
                 password=CLUSTER_CONFIG["mysql_password"],
-                connection_timeout=1.5
+                connection_timeout=0.8
             )
             cur = conn.cursor(dictionary=True)
             cur.execute("""
@@ -2099,12 +2099,7 @@ def get_cluster_status(request: Request):
                 _LAST_HEALTHY_MYSQL[host] = res_item
             return res_item
         except Exception:
-            with _STATUS_CACHE_LOCK:
-                _MYSQL_CONSECUTIVE_FAILURES[host] += 1
-                if _MYSQL_CONSECUTIVE_FAILURES[host] < 3 and host in _LAST_HEALTHY_MYSQL:
-                    cached_item = dict(_LAST_HEALTHY_MYSQL[host])
-                    cached_item["node_name"] = f"Node {idx}"
-                    return cached_item
+            # Khi kết nối MySQL bị lỗi (đang tắt service hoặc ngắt mạng), lập tức phản hồi OFFLINE, không trì hoãn 3 chu kỳ
             return {
                 "node_name": f"Node {idx}", "host": host, "server_id": "-", "hostname": "-",
                 "state": "OFFLINE", "role": "UNREACHABLE", "ping_ms": None, "gtid": "-",
@@ -2185,20 +2180,19 @@ def get_cluster_status(request: Request):
                 primary_node = online_cand[0]
 
     # 4. Áp dụng vai trò và chuẩn hóa quyền ghi read_only cho toàn bộ cụm:
+    # Tối ưu hóa tốc độ phản hồi: Gọi _ensure_mysql_writable / _ensure_mysql_read_only trong thread nền không chặn luồng HTTP
     if primary_node:
         set_active_mysql_primary(primary_node["host"])
         for n in mysql_results:
             if is_same_mysql_host(n["host"], primary_node["host"]):
                 n["role"] = "PRIMARY"
                 if n.get("_ro") == 1:
-                    _ensure_mysql_writable(n["host"])
+                    threading.Thread(target=_ensure_mysql_writable, args=(n["host"],), daemon=True).start()
                     n["_ro"] = 0
             else:
                 n["role"] = "SECONDARY" if n["state"] == "ONLINE" else "UNREACHABLE"
-                # NGUYÊN TẮC BẢO VỆ CỤM: Nếu là Node phụ mà đang mang read_only = 0 (do vừa khởi động lại),
-                # lập tức khóa ghi read_only = 1 để bảo vệ tính nhất quán dữ liệu và ngăn cướp quyền!
                 if n["state"] == "ONLINE" and n.get("_ro") == 0:
-                    _ensure_mysql_read_only(n["host"])
+                    threading.Thread(target=_ensure_mysql_read_only, args=(n["host"],), daemon=True).start()
                     n["_ro"] = 1
     else:
         for n in mysql_results:
