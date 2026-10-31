@@ -1264,18 +1264,11 @@
             </button>
           </div>
         </div>
-        <!-- HA & SPLIT-BRAIN ALERT BANNER -->
-        <div id="cluster-ha-alert-banner" class="alert alert-info py-2 px-3 mb-2 small d-none align-items-center justify-content-between flex-wrap gap-2" style="font-size: 12.5px; border-radius: 6px; background-color: #f0fdf4; border-color: #bbf7d0; color: #166534;">
-          <div class="d-flex align-items-center gap-2">
-            <i class="bi bi-shield-check fs-6 text-success"></i>
-            <span id="cluster-ha-alert-text"><strong>Cơ chế Non-Preemptive HA & Chống phân mảnh dữ liệu (Split-Brain Prevention):</strong> Đang duy trì ổn định Node chính hiện tại, bảo vệ an toàn cho các node rớt mạng/hòa mạng lại tránh xung đột Oplog & GTID.</span>
-          </div>
-        </div>
+
         <div class="row g-0 cluster-grid-container">
           <div class="col-lg-6 cluster-col pe-lg-3">
             <div class="cluster-col-title d-flex justify-content-between align-items-center">
               <span>Cụm MySQL Group Replication</span>
-              <span id="mysql-quorum-badge"></span>
             </div>
             <div class="cluster-node-header" id="header-mysql-nodes">
               <span class="text-start">Node</span>
@@ -1289,7 +1282,6 @@
           <div class="col-lg-6 cluster-col ps-lg-3 border-start-lg">
             <div class="cluster-col-title d-flex justify-content-between align-items-center">
               <span>Cụm MongoDB Replica Set</span>
-              <span id="mongo-quorum-badge"></span>
             </div>
             <div class="cluster-node-header" id="header-mongo-nodes">
               <span class="text-start">Node</span>
@@ -1716,7 +1708,7 @@
                       </div>
                     </div>
                   </div>
-                  <div id="review-quorum-warning" class="alert alert-warning py-1.5 px-3 mb-2 small d-none align-items-center justify-content-between flex-wrap gap-1" style="font-size: 12px; border-radius: 6px;"></div>
+
                   <button
                     id="btn-submit-review"
                     class="btn btn-navy w-100 py-2 fw-semibold"
@@ -1936,7 +1928,7 @@
                     <strong class="fs-6 text-dark fw-bold" id="order-total-preview">0 đ</strong>
                   </div>
 
-                  <div id="order-quorum-warning" class="alert alert-warning py-1.5 px-3 mb-2 small d-none align-items-center justify-content-between flex-wrap gap-1" style="font-size: 12px; border-radius: 6px;"></div>
+
                   <button
                     class="btn btn-navy w-100 py-2 fw-semibold opacity-50"
                     id="btn-submit-order"
@@ -3025,13 +3017,6 @@
         const userId = document.getElementById("order-user-id")?.value;
         const btn = document.getElementById("btn-submit-order");
         if (!btn) return;
-        if (window._hasMysqlPrimary === false) {
-          btn.disabled = true;
-          btn.classList.add("opacity-50");
-          btn.innerHTML = `<i class="bi bi-lock-fill me-1"></i>Chế độ Chỉ đọc (Thiếu Node chính MySQL)`;
-          btn.title = "Cụm MySQL hiện không có Node chính (Primary). Hệ thống tự động khóa ghi để chống phân mảnh dữ liệu.";
-          return;
-        }
         btn.innerHTML = "Xác nhận đặt hàng";
         btn.title = "";
         const hasProd = prodId && String(prodId).trim() !== "" && String(prodId).trim() !== "0";
@@ -3523,19 +3508,6 @@
           document.body.classList.remove("tech-on");
         }
 
-        const alertBanner = document.getElementById("cluster-ha-alert-banner");
-        if (alertBanner && window._lastClusterData) {
-          const onlineMySql = window._lastClusterData.mysql ? window._lastClusterData.mysql.filter(n => n.state && n.state.indexOf("ONLINE") !== -1).length : 0;
-          const onlineMongo = window._lastClusterData.mongodb ? window._lastClusterData.mongodb.filter(n => n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1).length : 0;
-          if (technicalMode && (onlineMySql < 3 || onlineMongo < 3)) {
-            alertBanner.classList.remove("d-none");
-            alertBanner.classList.add("d-flex");
-          } else {
-            alertBanner.classList.remove("d-flex");
-            alertBanner.classList.add("d-none");
-          }
-        }
-
         const btnExpand = document.getElementById("btn-toggle-cluster-expand");
         if (btnExpand) {
           btnExpand.style.display = showToggleButton ? "" : "none";
@@ -3747,128 +3719,6 @@
         }
 
         window._lastClusterData = data;
-
-        // Cập nhật huy hiệu Quorum và bảo vệ phân mảnh
-        const onlineMySql = data.mysql ? data.mysql.filter(n => n.state && n.state.indexOf("ONLINE") !== -1).length : 0;
-        const totalMySql = data.mysql ? data.mysql.length : 4;
-        const onlineMongo = data.mongodb ? data.mongodb.filter(n => n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1).length : 0;
-        const totalMongo = data.mongodb ? data.mongodb.length : 4;
-
-        const hasMysqlPrimary = data.mysql && data.mysql.some(n => n.role === 'PRIMARY' && n.state && n.state.indexOf("ONLINE") !== -1);
-        window._hasMysqlPrimary = Boolean(hasMysqlPrimary);
-
-        const hasMongoPrimary = data.mongodb && data.mongodb.some(n => n.health === 1 && (n.state === 'PRIMARY' || n.role === 'PRIMARY'));
-        window._hasMongoPrimary = Boolean(hasMongoPrimary);
-
-        const mysqlBadge = document.getElementById("mysql-quorum-badge");
-        if (mysqlBadge) {
-          if (onlineMySql >= 3) {
-            mysqlBadge.innerHTML = `<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-0.5 small fw-normal" style="font-size: 11px;"><i class="bi bi-shield-check me-1"></i>Đủ Quorum (${onlineMySql}/${totalMySql})</span>`;
-          } else {
-            mysqlBadge.innerHTML = `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-2 py-0.5 small fw-normal" style="font-size: 11px;" title="Cụm thiếu đa số (> 50%), tự động khóa bảo vệ chế độ Chỉ đọc để chống Split-Brain"><i class="bi bi-shield-exclamation me-1"></i>Thiếu Quorum (${onlineMySql}/${totalMySql}) &middot; Chỉ đọc</span>`;
-          }
-        }
-
-        const mongoBadge = document.getElementById("mongo-quorum-badge");
-        if (mongoBadge) {
-          if (onlineMongo >= 3) {
-            mongoBadge.innerHTML = `<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-0.5 small fw-normal" style="font-size: 11px;"><i class="bi bi-shield-check me-1"></i>Đủ Quorum (${onlineMongo}/${totalMongo})</span>`;
-          } else {
-            mongoBadge.innerHTML = `<span class="d-inline-flex align-items-center gap-1"><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-2 py-0.5 small fw-normal" style="font-size: 11px;" title="Cụm thiếu đa số (> 50%), tự động khóa bảo vệ chế độ Chỉ đọc để chống Split-Brain"><i class="bi bi-shield-exclamation me-1"></i>Thiếu Quorum (${onlineMongo}/${totalMongo}) &middot; Chỉ đọc</span><button class="btn btn-xs btn-outline-primary py-0 px-1.5 tech-detail" style="font-size: 10.5px; height: 20px; line-height: 1;" onclick="triggerMongoRescueModal()" title="Cứu nguy Quorum để cấp quyền Ghi cho Node online"><i class="bi bi-lightning-charge me-0.5"></i>Cứu Quorum</button></span>`;
-          }
-        }
-
-        // Cập nhật cảnh báo & trạng thái nút trên form Viết đánh giá
-        const revWarnEl = document.getElementById("review-quorum-warning");
-        const btnReview = document.getElementById("btn-submit-review");
-        if (onlineMongo === 0) {
-          if (revWarnEl) {
-            revWarnEl.classList.remove("d-none");
-            revWarnEl.classList.add("d-flex");
-            revWarnEl.innerHTML = `<span class="d-inline-flex align-items-center text-danger"><i class="bi bi-x-circle me-1.5"></i>Toàn bộ Node MongoDB đang ngoại tuyến! Không thể thực hiện đánh giá.</span>`;
-          }
-          if (btnReview && !window._isSubmittingReview) {
-            btnReview.disabled = true;
-            btnReview.classList.add("opacity-50");
-            btnReview.innerHTML = `<i class="bi bi-x-circle me-1"></i>Ngoại tuyến (Không có MongoDB)`;
-            btnReview.title = "Toàn bộ Node MongoDB đang ngoại tuyến.";
-          }
-        } else if (!hasMongoPrimary) {
-          if (revWarnEl) {
-            revWarnEl.classList.remove("d-none");
-            revWarnEl.classList.add("d-flex");
-            revWarnEl.innerHTML = `<span class="d-inline-flex align-items-center"><i class="bi bi-shield-exclamation me-1.5 text-warning-emphasis"></i>Cụm MongoDB thiếu Quorum (${onlineMongo}/4 node) &middot; <strong>Chế độ Bảo vệ Chỉ đọc chống phân mảnh Split-Brain</strong>.</span><button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 fw-medium tech-detail" onclick="triggerMongoRescueModal()" title="Cứu nguy Quorum để cấp quyền Ghi cho Node online"><i class="bi bi-lightning-charge me-0.5"></i>Cứu Quorum</button>`;
-          }
-          if (btnReview && !window._isSubmittingReview) {
-            btnReview.disabled = true;
-            btnReview.classList.add("opacity-50");
-            btnReview.innerHTML = `<i class="bi bi-lock-fill me-1"></i>Chế độ Chỉ đọc (Thiếu Quorum MongoDB)`;
-            btnReview.title = "Cụm MongoDB hiện không có Node chính (Primary). Hệ thống tự động khóa ghi để chống phân mảnh dữ liệu (Split-Brain).";
-          }
-        } else {
-          if (revWarnEl) {
-            revWarnEl.classList.remove("d-flex");
-            revWarnEl.classList.add("d-none");
-          }
-          if (btnReview && !window._isSubmittingReview) {
-            btnReview.disabled = false;
-            btnReview.classList.remove("opacity-50");
-            btnReview.innerHTML = `Gửi đánh giá`;
-            btnReview.title = "";
-          }
-        }
-
-        // Cập nhật cảnh báo & trạng thái nút trên form Đặt hàng
-        const ordWarnEl = document.getElementById("order-quorum-warning");
-        const btnOrder = document.getElementById("btn-submit-order");
-        if (onlineMySql === 0) {
-          if (ordWarnEl) {
-            ordWarnEl.classList.remove("d-none");
-            ordWarnEl.classList.add("d-flex");
-            ordWarnEl.innerHTML = `<span class="d-inline-flex align-items-center text-danger"><i class="bi bi-x-circle me-1.5"></i>Toàn bộ Node MySQL đang ngoại tuyến! Không thể lập phiếu đặt hàng.</span>`;
-          }
-          if (btnOrder) {
-            btnOrder.disabled = true;
-            btnOrder.classList.add("opacity-50");
-            btnOrder.innerHTML = `<i class="bi bi-x-circle me-1"></i>Ngoại tuyến (Không có MySQL)`;
-            btnOrder.title = "Toàn bộ Node MySQL đang ngoại tuyến.";
-          }
-        } else if (!hasMysqlPrimary) {
-          if (ordWarnEl) {
-            ordWarnEl.classList.remove("d-none");
-            ordWarnEl.classList.add("d-flex");
-            ordWarnEl.innerHTML = `<span class="d-inline-flex align-items-center"><i class="bi bi-shield-exclamation me-1.5 text-warning-emphasis"></i>Cụm MySQL thiếu Quorum (${onlineMySql}/4 node) &middot; <strong>Chế độ Bảo vệ Chỉ đọc chống phân mảnh Split-Brain</strong>.</span>`;
-          }
-          if (btnOrder) {
-            btnOrder.disabled = true;
-            btnOrder.classList.add("opacity-50");
-            btnOrder.innerHTML = `<i class="bi bi-lock-fill me-1"></i>Chế độ Chỉ đọc (Thiếu Node chính MySQL)`;
-            btnOrder.title = "Cụm MySQL hiện không có Node chính (Primary). Hệ thống tự động khóa ghi để chống phân mảnh dữ liệu.";
-          }
-        } else {
-          if (ordWarnEl) {
-            ordWarnEl.classList.remove("d-flex");
-            ordWarnEl.classList.add("d-none");
-          }
-          checkOrderFormValidity();
-        }
-
-        // Cập nhật Banner cảnh báo chống phân mảnh Split-Brain (chỉ hiển thị khi bật Chế độ kỹ thuật)
-        const alertBanner = document.getElementById("cluster-ha-alert-banner");
-        if (alertBanner) {
-          const isTechMode = typeof technicalMode !== "undefined" ? technicalMode : document.body.classList.contains("tech-on");
-          if (isTechMode && (onlineMySql < 3 || onlineMongo < 3)) {
-            alertBanner.classList.remove("d-none");
-            alertBanner.classList.add("d-flex");
-            const alertText = document.getElementById("cluster-ha-alert-text");
-            if (alertText) {
-              alertText.innerHTML = `<strong>Cơ chế Chống phân mảnh dữ liệu (Split-Brain Prevention) & Non-Preemptive HA đang kích hoạt:</strong> Phát hiện cụm đang hoạt động phân vùng (${onlineMySql}/4 MySQL, ${onlineMongo}/4 MongoDB). Hệ thống tự động khóa bảo vệ chế độ Chỉ đọc trên các node cô lập và giữ vững Node chính hiện tại để không gây xung đột Oplog & GTID khi các node hòa mạng trở lại.`;
-            }
-          } else {
-            alertBanner.classList.remove("d-flex");
-            alertBanner.classList.add("d-none");
-          }
-        }
 
         // Cập nhật động địa chỉ IP trong bảng đối chiếu
         for (let i = 0; i < 4; i++) {
@@ -6106,7 +5956,13 @@
             fetchClusterStatus();
             loadSyncLogs();
           } else {
-            if (fb) fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">${data.detail || "Không thể tạo đơn hàng (sản phẩm có thể đã hết hàng)."}</div>`;
+            if (fb) {
+              if (res.status === 503) {
+                fb.innerHTML = `<div class="alert alert-warning py-2 px-3 mb-0 small"><i class="fas fa-shield-halved me-1"></i><strong>Chế độ Bảo toàn Dữ liệu:</strong> ${data.detail}</div>`;
+              } else {
+                fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">${data.detail || "Không thể tạo đơn hàng (sản phẩm có thể đã hết hàng)."}</div>`;
+              }
+            }
           }
         } catch (e) {
           if (fb) fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Không thể kết nối máy chủ: ${e.message}</div>`;
@@ -6225,15 +6081,9 @@
         } finally {
           window._isSubmittingReview = false;
           if (btn) {
-            if (window._hasMongoPrimary === false) {
-              btn.disabled = true;
-              btn.classList.add("opacity-50");
-              btn.innerHTML = `<i class="bi bi-lock-fill me-1"></i>Chế độ Chỉ đọc (Thiếu Quorum MongoDB)`;
-            } else {
-              btn.disabled = false;
-              btn.classList.remove("opacity-50");
-              btn.innerHTML = "Gửi đánh giá";
-            }
+            btn.disabled = false;
+            btn.classList.remove("opacity-50");
+            btn.innerHTML = "Gửi đánh giá";
           }
         }
       }
