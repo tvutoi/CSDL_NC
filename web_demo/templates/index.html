@@ -5907,7 +5907,11 @@
             fetchClusterStatus();
             loadSyncLogs();
           } else {
-            fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Lỗi: ${data.detail}</div>`;
+            if (res.status === 503) {
+              fb.innerHTML = `<div class="alert alert-warning py-2 px-3 mb-0 small"><i class="fas fa-shield-halved me-1"></i><strong>Chế độ Bảo toàn Dữ liệu:</strong> ${data.detail}</div>`;
+            } else {
+              fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Lỗi: ${data.detail}</div>`;
+            }
           }
         } catch (e) {
           fb.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-0 small">Lỗi kết nối máy chủ khi gửi đánh giá.</div>`;

@@ -876,20 +876,22 @@ _MONGO_ELECTION_LOCK = threading.Lock()
 
 def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[str] = None) -> Dict[str, Any]:
     """
-    Quản lý tính sẵn sàng và tự động phục hồi Quorum của cụm MongoDB Replica Set:
+    Quản lý tính sẵn sàng và duy trì đồng thuận của cụm MongoDB Replica Set:
     1. KHI ĐÃ CÓ NODE CHÍNH (PRIMARY):
-       - Không can thiệp bầu lại hoặc step down để tránh chập chờn khi demo.
-       - Kiểm tra và tự động phục hồi danh sách members trong rs.conf() (cấp lại votes=1, priority phân tầng)
-         khi phát hiện node phụ bị tước quyền votes=0 sau sự cố Quorum Rescue.
-    2. KHI CHƯA CÓ NODE CHÍNH (Toàn bộ cụm rớt về SECONDARY do mất Quorum / demo mạng LAN chỉ bật 1 hoặc 2 máy):
-       - Tự động thực hiện cứu Quorum (Dynamic Quorum Rescue):
-         + Nếu số node online < 3: Gán votes=1, priority=2.0 cho Node được chọn làm Primary;
-           gán votes=0, priority=0.0 cho các Node khác để đạt 100% Quorum (1/1 phiếu).
-         + Nếu số node online >= 3: Phục hồi votes=1 cho toàn bộ các node, đảm bảo khả năng chịu lỗi cao.
+       - Áp dụng nguyên tắc Non-Preemptive HA: Tuyệt đối giữ nguyên Primary hiện tại.
+       - Không gọi replSetReconfig liên tục trong luồng nền để tránh làm gián đoạn Oplog và tránh Exit Code 100.
+       - Khi đủ 100% node online, chuẩn hóa nhẹ nhàng priority=1.0, votes=1 nếu cần.
+    2. KHI CHƯA CÓ NODE CHÍNH:
+       - Nếu số node online >= 3 (đủ Quorum tự nhiên >= 3/4):
+         Gọi lệnh replSetStepUp tự nhiên (chuẩn Raft, không ghi đè version cấu hình).
+       - Nếu số node online < 3 (thiếu Quorum) và force=False:
+         Tự động bảo toàn ở trạng thái CHỈ ĐỌC (Read-Only) để chống Split-Brain và chống phân mảnh dữ liệu.
+         TUYỆT ĐỐI KHÔNG gọi replSetReconfig(force=True) tự động vì sẽ làm crash service mongod khi node cũ gia nhập lại.
+       - Chỉ khi force=True (người dùng chủ động nhấn nút ép bầu trên Web UI) mới thực hiện can thiệp cứu Quorum.
     """
     global _LAST_MONGO_PRIORITY_CHECK
     now_ts = time.time()
-    cooldown = 5.0 if force else 15.0
+    cooldown = 4.0 if force else 10.0
     if (now_ts - _LAST_MONGO_PRIORITY_CHECK) < cooldown:
         return {"status": "SKIPPED", "message": "Vừa kiểm tra cách đây ít giây"}
 
@@ -912,12 +914,12 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
 
         def _probe_mg(norm_h):
             h_ip, p_str = norm_h.split(":")
-            if is_port_open(h_ip, int(p_str), timeout=1.2, retries=2):
+            if is_port_open(h_ip, int(p_str), timeout=0.8, retries=1):
                 try:
                     c = MongoClient(
                         f"mongodb://{norm_h}/?directConnection=true&w=1",
-                        serverSelectionTimeoutMS=1500,
-                        connectTimeoutMS=1500
+                        serverSelectionTimeoutMS=1200,
+                        connectTimeoutMS=1200
                     )
                     hello = c.admin.command("hello")
                     c.close()
@@ -946,10 +948,7 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
             if top_cand in online_nodes:
                 active_primary = top_cand
 
-        # 2. NGUYÊN TẮC CỐT LÕI (NON-PREEMPTIVE HA): NẾU ĐÃ CÓ NODE CHÍNH (PRIMARY) ĐANG HOẠT ĐỘNG:
-        # TUYỆT ĐỐI KHÔNG BẦU LẠI, KHÔNG GỌI replSetReconfig ép buộc (force=True), KHÔNG CAN THIỆP PHÁ VỠ QUORUM!
-        # Giữ nguyên cấu hình hiện tại để đảm bảo tính ổn định tuyệt đối, chống chập chờn,
-        # chống rớt về Secondary và chống crash/stop service mongod.
+        # 2. NGUYÊN TẮC CỐT LÕI (NON-PREEMPTIVE HA): NẾU ĐÃ CÓ NODE CHÍNH ĐANG HOẠT ĐỘNG:
         if active_primary:
             # A. Người dùng chủ động yêu cầu chuyển giao Node chính (Manual Switch):
             if force and target_primary and not is_same_mongo_host(target_primary, active_primary):
@@ -989,42 +988,24 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                 except Exception:
                     pass
 
-            # B. Node chính hiện tại đang hoạt động bình thường -> DUY TRÌ & TỰ ĐỘNG PHỤC HỒI (SELF-HEAL) QUYỀN BIỂU QUYẾT CHO CÁC MEMBER VỪA GIA NHẬP LẠI:
+            # B. Duy trì Node chính hiện tại. Chỉ khi toàn bộ 100% node online mới chuẩn hóa cấu hình êm ả:
             set_active_mongo_primary(active_primary)
-            try:
-                c_act = MongoClient(f"mongodb://{active_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=1500)
-                cfg_act = c_act.admin.command("replSetGetConfig")["config"]
-                needs_heal = False
-                for idx, m in enumerate(cfg_act.get("members", [])):
-                    m_h = m.get("host", "")
-                    cfg_h = norm_mongo_nodes[idx] if idx < len(norm_mongo_nodes) else m_h
-                    is_p = is_same_mongo_host(m_h, active_primary) or is_same_mongo_host(cfg_h, active_primary)
-                    is_member_on = is_p or any(is_same_mongo_host(m_h, on_h) or is_same_mongo_host(cfg_h, on_h) for on_h in online_nodes)
-                    
-                    if is_p:
-                        # Primary hiện tại luôn giữ priority = 2.0, votes = 1
-                        if m.get("priority") != 2.0 or m.get("votes") != 1:
-                            needs_heal = True
-                        m["votes"] = 1
-                        m["priority"] = 2.0
-                    elif is_member_on:
-                        # Node online khác (kể cả Node 1 vừa bật lại) nhận priority = 1.0 < 2.0 để KHÔNG cướp quyền Primary
-                        if m.get("priority") != 1.0 or m.get("votes") != 1:
-                            needs_heal = True
-                        m["votes"] = 1
-                        m["priority"] = 1.0
-                    elif len(online_nodes) >= 3:
-                        # Cụm đủ Quorum (>= 3 node): Bảo toàn votes=1 cho toàn bộ để khi node bật lại sẵn sàng tham gia
-                        if m.get("priority") != 1.0 or m.get("votes") != 1:
-                            needs_heal = True
-                        m["votes"] = 1
-                        m["priority"] = 1.0
-                if needs_heal:
-                    cfg_act["version"] += 1
-                    c_act.admin.command("replSetReconfig", cfg_act)
-                c_act.close()
-            except Exception:
-                pass
+            if len(online_nodes) == len(norm_mongo_nodes):
+                try:
+                    c_act = MongoClient(f"mongodb://{active_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=1500)
+                    cfg_act = c_act.admin.command("replSetGetConfig")["config"]
+                    needs_normalize = False
+                    for m in cfg_act.get("members", []):
+                        if m.get("votes") != 1 or m.get("priority") != 1.0:
+                            m["votes"] = 1
+                            m["priority"] = 1.0
+                            needs_normalize = True
+                    if needs_normalize:
+                        cfg_act["version"] += 1
+                        c_act.admin.command("replSetReconfig", cfg_act)
+                    c_act.close()
+                except Exception:
+                    pass
 
             return {
                 "status": "ALREADY_PRIMARY",
@@ -1037,10 +1018,6 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
             return {"status": "ERROR", "message": "Không có node MongoDB nào trực tuyến để bầu chọn!"}
 
         # 3. Chọn node ứng viên làm PRIMARY:
-        # Thứ tự ưu tiên nghiêm ngặt để bảo đảm tính ổn định và chống split-brain:
-        # 1. target_primary (nếu được yêu cầu rõ ràng qua API)
-        # 2. Node từng làm Primary trước đó nếu vẫn còn online (Non-Preemptive HA)
-        # 3. Node có thứ tự ưu tiên trong cấu hình CLUSTER_CONFIG["mongo_nodes"]
         chosen_primary = None
         if target_primary:
             tgt_norm = normalize_mongo_host(target_primary)
@@ -1061,29 +1038,42 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
         if not chosen_primary and online_nodes:
             chosen_primary = online_nodes[0]
 
-        # 4. Thực hiện Quorum Rescue / Bầu chọn trên chosen_primary
-        # Khi cụm chưa có Primary (do rớt Quorum khi demo tắt node hoặc chỉ bật 1-2 máy):
-        # - Nếu không force và có >= 3 node online: chờ 1s xem MongoDB có tự bầu cử nội bộ hay không
-        # - Nếu sau 1s vẫn chưa có Primary hoặc chỉ có 1-2 node online (< 3 không thể tự đạt Quorum):
-        #   Tự động kích hoạt Quorum Rescue an toàn để bầu Primary, không để cụm bị treo toàn bộ ở Secondary.
-        if not force and len(online_nodes) >= 3:
-            time.sleep(1.0)
-            for on_h in online_nodes:
-                try:
-                    c_chk = MongoClient(f"mongodb://{on_h}/?directConnection=true&w=1", serverSelectionTimeoutMS=1000)
-                    h_chk = c_chk.admin.command("hello")
-                    c_chk.close()
+        # 4. TIẾN HÀNH BẦU CHỌN THEO CHUẨN ĐỒNG THUẬN AN TOÀN (SAFE RAFT CONSENSUS):
+        # A. NẾU CỤM ĐỦ QUORUM (>= 3 NODE ONLINE / 4 NODE):
+        # Sử dụng replSetStepUp tự nhiên - Tuyệt đối không can thiệp replSetReconfig, bảo đảm 100% không crash service
+        if len(online_nodes) >= 3:
+            try:
+                c_cand = MongoClient(f"mongodb://{chosen_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=2000)
+                step_res = c_cand.admin.command("replSetStepUp")
+                if step_res.get("ok"):
+                    time.sleep(0.5)
+                    h_chk = c_cand.admin.command("hello")
                     if h_chk.get("isWritablePrimary") or h_chk.get("ismaster"):
-                        set_active_mongo_primary(on_h)
+                        set_active_mongo_primary(chosen_primary)
+                        c_cand.close()
                         return {
                             "status": "ELECTED_NATURALLY",
-                            "primary": on_h,
+                            "primary": chosen_primary,
                             "online_nodes": online_nodes,
-                            "message": f"MongoDB Replica Set đã tự bầu chọn thành công Node chính: {on_h}"
+                            "message": f"MongoDB Replica Set đã tự bầu chọn thành công Node chính: {chosen_primary}"
                         }
-                except Exception:
-                    pass
+                c_cand.close()
+            except Exception:
+                pass
 
+        # B. NẾU CỤM THIẾU QUORUM (< 3 NODE ONLINE) VÀ KHÔNG PHẢI LỆNH FORCE THỦ CÔNG:
+        # BẢO VỆ CHẾ ĐỘ CHỈ ĐỌC (READ-ONLY) - TUYỆT ĐỐI KHÔNG GỌI replSetReconfig(force=True) TRONG NỀN!
+        # Việc không ép force=True giúp bảo toàn cấu hình Oplog, khi node cũ online lại sẽ hòa nhập êm ả, không bao giờ bị Exit Code 100.
+        if not force:
+            set_active_mongo_primary(chosen_primary)
+            return {
+                "status": "QUORUM_LOST_READONLY",
+                "primary": chosen_primary,
+                "online_nodes": online_nodes,
+                "message": f"Cụm MongoDB đang ở chế độ Chỉ đọc để bảo toàn dữ liệu (chỉ có {len(online_nodes)}/4 node online, thiếu Quorum). Không cưỡng chế cấu hình để tránh Stop Service."
+            }
+
+        # C. CHỈ KHI NGƯỜI DÙNG BẤM NÚT ÉP BẦU (force=True) QUA GIAO DIỆN MỚI CAN THIỆP CỨU NGUY (QUORUM RESCUE):
         try:
             c_cand = MongoClient(f"mongodb://{chosen_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=2500)
             hello_cand = c_cand.admin.command("hello")
@@ -1094,34 +1084,18 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
             existing_members = cfg_rs.get("members", [])
             cand_idx = next((i for i, h in enumerate(norm_mongo_nodes) if is_same_mongo_host(h, chosen_primary)), -1)
 
-            # BẢO TOÀN HOST GỐC CỦA TỪNG MEMBER TRONG CONFIG:
-            # Rất quan trọng khi chạy Docker: container dùng host nodeX_mongodb, không được ghi đè bằng 127.0.0.1
             if len(existing_members) == len(norm_mongo_nodes):
-                priority_ladder = [1.5, 1.2, 1.0, 0.8]
-                sec_idx = 0
                 for idx, m in enumerate(existing_members):
                     m_host = m.get("host", "")
                     cfg_host = norm_mongo_nodes[idx] if idx < len(norm_mongo_nodes) else m_host
                     is_cand = (idx == cand_idx) or (m_host == my_internal_name) or is_same_mongo_host(m_host, chosen_primary) or is_same_mongo_host(cfg_host, chosen_primary)
                     is_on = is_cand or any(is_same_mongo_host(cfg_host, on_h) for on_h in online_nodes)
-
-                    # QUY TẮC CỨU QUORUM CHUẨN XÁC KHI CHỈ CÓ 1 HOẶC 2 NODE ONLINE:
-                    # - Node candidate được chọn luôn nhận votes=1, priority=2.0 để đắc cử làm Node chính ngay lập tức!
-                    # - Nếu chỉ có 1 node online: Node duy nhất nhận votes=1 (Quorum 1/1 = 100%), các node offline votes=0.
-                    # - Nếu có >= 3 node online: Cấp votes=1 cho toàn bộ các node online.
                     if is_cand:
-                        v = 1
-                        p = 2.0
+                        v, p = 1, 2.0
                     elif is_on:
-                        v = 1
-                        p = 1.0
-                    elif len(online_nodes) >= 3:
-                        v = 1
-                        p = 1.0
+                        v, p = 1, 1.0
                     else:
-                        v = 0
-                        p = 0.0
-
+                        v, p = 0, 0.0
                     m["votes"] = v
                     m["priority"] = p
             else:
@@ -1129,8 +1103,6 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                 used_ids = set(existing_id_by_host.values())
                 next_id = 0
                 new_members = []
-                priority_ladder = [1.5, 1.2, 1.0, 0.8]
-                sec_idx = 0
                 for nh in norm_mongo_nodes:
                     if nh in existing_id_by_host:
                         m_id = existing_id_by_host[nh]
@@ -1146,8 +1118,6 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                         v, p = 1, 2.0
                     elif is_on:
                         v, p = 1, 1.0
-                    elif len(online_nodes) >= 3:
-                        v, p = 1, 1.0
                     else:
                         v, p = 0, 0.0
                     new_members.append({
@@ -1157,16 +1127,12 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                     })
                 cfg_rs["members"] = new_members
 
-            if not any(m.get("votes", 0) > 0 for m in cfg_rs.get("members", [])):
-                cfg_rs["members"][0]["votes"] = 1
-                cfg_rs["members"][0]["priority"] = 2.0
             c_cand.admin.command("replSetReconfig", cfg_rs, force=True)
             try:
                 c_cand.admin.command("replSetStepUp")
             except Exception:
                 pass
 
-            # Chờ candidate chuyển trạng thái sang PRIMARY
             elected = False
             t_wait = time.time()
             while time.time() - t_wait < 5.0:
@@ -1182,7 +1148,6 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
 
             set_active_mongo_primary(chosen_primary)
 
-            # Xóa cache status để giao diện web cập nhật tức thì
             with _STATUS_CACHE_LOCK:
                 _LAST_STATUS_RESPONSE = None
                 _LAST_STATUS_TIME = 0.0
@@ -1192,8 +1157,7 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                     "status": "SUCCESS",
                     "primary": chosen_primary,
                     "online_nodes": online_nodes,
-                    "members": new_members,
-                    "message": f"Bầu chọn thành công Node chính MongoDB: {chosen_primary}"
+                    "message": f"Cưỡng chế bầu chọn thành công Node chính MongoDB: {chosen_primary}"
                 }
             else:
                 return {
@@ -1206,6 +1170,7 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
             err_msg = f"[MONGO_ELECTION_ERROR] {e}"
             print(err_msg)
             return {"status": "ERROR", "message": str(e)}
+
 
 
 def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
@@ -2930,7 +2895,13 @@ def add_review(req: ReviewRequest, x_idempotency_key: Optional[str] = Header(Non
                 time.sleep(0.4)
 
     if not res:
-        raise HTTPException(status_code=500, detail=f"Lỗi ghi MongoDB: {str(last_err)}")
+        err_msg = str(last_err)
+        if any(k in err_msg.lower() for k in ["not primary", "notwritableprimary", "replstatechange", "node phụ", "secondary"]):
+            raise HTTPException(
+                status_code=503,
+                detail="Cụm MongoDB hiện đang ở chế độ Chỉ đọc để bảo toàn dữ liệu (do chưa có Node chính hoặc cụm thiếu Quorum đa số node trực tuyến). Vui lòng thử lại sau khi cụm kết nối đủ node!"
+            )
+        raise HTTPException(status_code=500, detail=f"Lỗi ghi MongoDB: {err_msg}")
 
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
 
