@@ -1264,9 +1264,19 @@
             </button>
           </div>
         </div>
+        <!-- HA & SPLIT-BRAIN ALERT BANNER -->
+        <div id="cluster-ha-alert-banner" class="alert alert-info py-2 px-3 mb-2 small d-none align-items-center justify-content-between flex-wrap gap-2" style="font-size: 12.5px; border-radius: 6px; background-color: #f0fdf4; border-color: #bbf7d0; color: #166534;">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-shield-check fs-6 text-success"></i>
+            <span id="cluster-ha-alert-text"><strong>Cơ chế Non-Preemptive HA & Chống phân mảnh dữ liệu (Split-Brain Prevention):</strong> Đang duy trì ổn định Node chính hiện tại, bảo vệ an toàn cho các node rớt mạng/hòa mạng lại tránh xung đột Oplog & GTID.</span>
+          </div>
+        </div>
         <div class="row g-0 cluster-grid-container">
           <div class="col-lg-6 cluster-col pe-lg-3">
-            <div class="cluster-col-title">Cụm MySQL Group Replication</div>
+            <div class="cluster-col-title d-flex justify-content-between align-items-center">
+              <span>Cụm MySQL Group Replication</span>
+              <span id="mysql-quorum-badge"></span>
+            </div>
             <div class="cluster-node-header" id="header-mysql-nodes">
               <span class="text-start">Node</span>
               <span class="text-start tech-detail">Địa chỉ</span>
@@ -1277,7 +1287,10 @@
             <div id="summary-mysql-nodes">Đang kiểm tra...</div>
           </div>
           <div class="col-lg-6 cluster-col ps-lg-3 border-start-lg">
-            <div class="cluster-col-title">Cụm MongoDB Replica Set</div>
+            <div class="cluster-col-title d-flex justify-content-between align-items-center">
+              <span>Cụm MongoDB Replica Set</span>
+              <span id="mongo-quorum-badge"></span>
+            </div>
             <div class="cluster-node-header" id="header-mongo-nodes">
               <span class="text-start">Node</span>
               <span class="text-start tech-detail">Địa chỉ</span>
@@ -1703,6 +1716,7 @@
                       </div>
                     </div>
                   </div>
+                  <div id="review-quorum-warning" class="alert alert-warning py-1.5 px-3 mb-2 small d-none align-items-center justify-content-between flex-wrap gap-1" style="font-size: 12px; border-radius: 6px;"></div>
                   <button
                     id="btn-submit-review"
                     class="btn btn-navy w-100 py-2 fw-semibold"
@@ -1922,6 +1936,7 @@
                     <strong class="fs-6 text-dark fw-bold" id="order-total-preview">0 đ</strong>
                   </div>
 
+                  <div id="order-quorum-warning" class="alert alert-warning py-1.5 px-3 mb-2 small d-none align-items-center justify-content-between flex-wrap gap-1" style="font-size: 12px; border-radius: 6px;"></div>
                   <button
                     class="btn btn-navy w-100 py-2 fw-semibold opacity-50"
                     id="btn-submit-order"
@@ -1939,6 +1954,66 @@
 
       <!-- tab 3 -->
         <div class="tab-pane fade" id="tab-cluster" role="tabpanel">
+          <!-- MỤC: ĐIỀU PHỐI HA VÀ QUẢN TRỊ ĐỒNG THUẬN PHÂN TÁN (HA & FAILOVER MANAGEMENT) -->
+          <div class="panel-box mb-3 border shadow-sm">
+            <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2 py-2" style="min-height: 44px; background: #f8fafc;">
+              <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-diagram-3-fill text-primary fs-5"></i>
+                <span class="fw-bold fs-6 text-dark">Quản trị Đồng thuận & Điều phối Chống phân mảnh (HA Management)</span>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-2.5 py-1 small">
+                  Non-Preemptive HA Active
+                </span>
+              </div>
+            </div>
+            <div class="panel-body p-3">
+              <div class="row g-3">
+                <div class="col-12 col-md-6">
+                  <div class="p-3 bg-light border rounded-2 h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <span class="fw-bold text-dark"><i class="bi bi-database me-1 text-primary"></i>Điều phối Cụm MySQL (Group Replication)</span>
+                      <span id="tab-mysql-ha-status" class="badge bg-light text-secondary border">Single-Primary</span>
+                    </div>
+                    <p class="small text-muted mb-2" style="font-size: 12.5px;">
+                      Nguyên tắc Non-Preemptive Single-Primary: Node rớt mạng khi kết nối lại tự động làm Node phụ, tuyệt đối không cướp quyền Node chính. Node cô lập tự động bật <code>super_read_only</code> để chống phân mảnh.
+                    </p>
+                    <div class="d-flex align-items-center gap-2 mt-2">
+                      <select id="select-switch-mysql-primary" class="form-select form-select-sm" style="max-width: 220px;">
+                        <option value="">-- Chọn Node chuyển Primary --</option>
+                      </select>
+                      <button class="btn btn-sm btn-outline-primary fw-medium" onclick="triggerMysqlSwitchPrimary(document.getElementById('select-switch-mysql-primary').value)">
+                        <i class="bi bi-arrow-left-right me-1"></i>Chuyển Primary
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-12 col-md-6">
+                  <div class="p-3 bg-light border rounded-2 h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <span class="fw-bold text-dark"><i class="bi bi-hdd-network me-1 text-success"></i>Điều phối Cụm MongoDB (Replica Set)</span>
+                      <span id="tab-mongo-ha-status" class="badge bg-light text-secondary border">Safe Raft</span>
+                    </div>
+                    <p class="small text-muted mb-2" style="font-size: 12.5px;">
+                      Cơ chế Safe Raft & Quorum Rescue: Khi thiếu Quorum (&lt; 3 node), cụm khóa Chỉ đọc để chống Split-Brain (tránh Exit Code 100). Khi cần thao tác trên node cô lập, thực hiện Cứu nguy Quorum an toàn.
+                    </p>
+                    <div class="d-flex align-items-center gap-2 mt-2 flex-wrap">
+                      <select id="select-switch-mongo-primary" class="form-select form-select-sm" style="max-width: 200px;">
+                        <option value="">-- Chọn Node chuyển Primary --</option>
+                      </select>
+                      <button class="btn btn-sm btn-outline-success fw-medium" onclick="triggerMongoRescueModal(document.getElementById('select-switch-mongo-primary').value)">
+                        <i class="bi bi-arrow-left-right me-1"></i>Chuyển Primary
+                      </button>
+                      <button class="btn btn-sm btn-warning fw-medium shadow-sm" onclick="triggerMongoRescueModal(null)" title="Cứu nguy Quorum khi cụm chỉ có 1 hoặc 2 node online">
+                        <i class="bi bi-lightning-charge me-1"></i>Cứu Quorum
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="panel-box mb-3">
             <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2" style="min-height: 48px;">
               <div class="fw-bold">Đối chiếu số bản ghi</div>
@@ -3648,6 +3723,152 @@
             </div>`;
           }).join("");
         }
+
+        // Cập nhật huy hiệu Quorum và bảo vệ phân mảnh
+        const onlineMySql = data.mysql ? data.mysql.filter(n => n.state && n.state.indexOf("ONLINE") !== -1).length : 0;
+        const totalMySql = data.mysql ? data.mysql.length : 4;
+        const onlineMongo = data.mongodb ? data.mongodb.filter(n => n.health === 1 && n.state !== 'OFFLINE' && n.state.indexOf('not reachable') === -1).length : 0;
+        const totalMongo = data.mongodb ? data.mongodb.length : 4;
+
+        const mysqlBadge = document.getElementById("mysql-quorum-badge");
+        if (mysqlBadge) {
+          if (onlineMySql >= 3) {
+            mysqlBadge.innerHTML = `<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-0.5 small fw-normal" style="font-size: 11px;"><i class="bi bi-shield-check me-1"></i>Đủ Quorum (${onlineMySql}/${totalMySql})</span>`;
+          } else {
+            mysqlBadge.innerHTML = `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-2 py-0.5 small fw-normal" style="font-size: 11px;" title="Cụm bảo vệ ở chế độ Single-Primary/Chỉ đọc để chống phân mảnh"><i class="bi bi-shield-exclamation me-1"></i>Chống phân mảnh (${onlineMySql}/${totalMySql})</span>`;
+          }
+        }
+
+        const mongoBadge = document.getElementById("mongo-quorum-badge");
+        if (mongoBadge) {
+          if (onlineMongo >= 3) {
+            mongoBadge.innerHTML = `<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-0.5 small fw-normal" style="font-size: 11px;"><i class="bi bi-shield-check me-1"></i>Đủ Quorum (${onlineMongo}/${totalMongo})</span>`;
+          } else {
+            mongoBadge.innerHTML = `<span class="d-inline-flex align-items-center gap-1"><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-2 py-0.5 small fw-normal" style="font-size: 11px;" title="Cụm bảo vệ ở chế độ Chỉ đọc chống phân mảnh Split-Brain"><i class="bi bi-shield-exclamation me-1"></i>Chống phân mảnh (${onlineMongo}/${totalMongo})</span><button class="btn btn-xs btn-outline-primary py-0 px-1.5 tech-detail" style="font-size: 10.5px; height: 20px; line-height: 1;" onclick="triggerMongoRescueModal()" title="Cứu nguy Quorum để cấp quyền Ghi cho Node online"><i class="bi bi-lightning-charge me-0.5"></i>Cứu Quorum</button></span>`;
+          }
+        }
+
+        // Cập nhật cảnh báo trên form Viết đánh giá
+        const revWarnEl = document.getElementById("review-quorum-warning");
+        if (revWarnEl) {
+          if (onlineMongo < 3 && onlineMongo > 0) {
+            revWarnEl.classList.remove("d-none");
+            revWarnEl.classList.add("d-flex");
+            revWarnEl.innerHTML = `<span class="d-inline-flex align-items-center"><i class="bi bi-shield-exclamation me-1.5 text-warning-emphasis"></i>Cụm MongoDB thiếu Quorum (${onlineMongo}/4 node online) &middot; <strong>Chế độ Bảo vệ Chỉ đọc chống phân mảnh Split-Brain</strong>.</span><button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 fw-medium" onclick="triggerMongoRescueModal()" title="Cứu nguy Quorum để cấp quyền Ghi cho Node online"><i class="bi bi-lightning-charge me-0.5"></i>Cứu Quorum</button>`;
+          } else if (onlineMongo === 0) {
+            revWarnEl.classList.remove("d-none");
+            revWarnEl.classList.add("d-flex");
+            revWarnEl.innerHTML = `<span class="d-inline-flex align-items-center text-danger"><i class="bi bi-x-circle me-1.5"></i>Toàn bộ Node MongoDB đang ngoại tuyến! Không thể thực hiện đánh giá.</span>`;
+          } else {
+            revWarnEl.classList.remove("d-flex");
+            revWarnEl.classList.add("d-none");
+          }
+        }
+
+        // Cập nhật cảnh báo trên form Đặt hàng
+        const ordWarnEl = document.getElementById("order-quorum-warning");
+        if (ordWarnEl) {
+          if (onlineMySql === 0) {
+            ordWarnEl.classList.remove("d-none");
+            ordWarnEl.classList.add("d-flex");
+            ordWarnEl.innerHTML = `<span class="d-inline-flex align-items-center text-danger"><i class="bi bi-x-circle me-1.5"></i>Toàn bộ Node MySQL đang ngoại tuyến! Không thể lập phiếu đặt hàng.</span>`;
+          } else {
+            ordWarnEl.classList.remove("d-flex");
+            ordWarnEl.classList.add("d-none");
+          }
+        }
+
+        // Cập nhật Banner cảnh báo chống phân mảnh Split-Brain
+        const alertBanner = document.getElementById("cluster-ha-alert-banner");
+        if (alertBanner) {
+          if (onlineMySql < 3 || onlineMongo < 3) {
+            alertBanner.classList.remove("d-none");
+            alertBanner.classList.add("d-flex");
+            const alertText = document.getElementById("cluster-ha-alert-text");
+            if (alertText) {
+              alertText.innerHTML = `<strong>Cơ chế Chống phân mảnh dữ liệu (Split-Brain Prevention) & Non-Preemptive HA đang kích hoạt:</strong> Phát hiện cụm đang hoạt động phân vùng (${onlineMySql}/4 MySQL, ${onlineMongo}/4 MongoDB). Hệ thống tự động khóa bảo vệ chế độ Chỉ đọc trên các node cô lập và giữ vững Node chính hiện tại để không gây xung đột Oplog & GTID khi các node hòa mạng trở lại.`;
+            }
+          } else {
+            alertBanner.classList.remove("d-flex");
+            alertBanner.classList.add("d-none");
+          }
+        }
+
+        // Cập nhật động địa chỉ IP trong bảng đối chiếu
+        for (let i = 0; i < 4; i++) {
+          const thEl = document.getElementById(`th-sync-node${i + 1}`);
+          if (thEl && data.mysql && data.mysql[i]) {
+            thEl.innerText = `Node ${i + 1} (${data.mysql[i].host})`;
+          }
+        }
+
+        // Điền danh sách chọn Node cho bộ điều phối HA
+        const selMysql = document.getElementById("select-switch-mysql-primary");
+        if (selMysql && data.mysql) {
+          const currentVal = selMysql.value;
+          selMysql.innerHTML = '<option value="">-- Chọn Node chuyển Primary --</option>' +
+            data.mysql.filter(n => n.state && n.state.indexOf("ONLINE") !== -1).map(n => `<option value="${n.host}">${n.node_name} (${n.host}) ${n.role === 'PRIMARY' ? '★ Đang là Primary' : ''}</option>`).join('');
+          if (currentVal) selMysql.value = currentVal;
+        }
+
+        const selMongo = document.getElementById("select-switch-mongo-primary");
+        if (selMongo && data.mongodb) {
+          const currentVal = selMongo.value;
+          selMongo.innerHTML = '<option value="">-- Chọn Node chuyển Primary --</option>' +
+            data.mongodb.filter(n => n.health === 1 && n.state !== 'OFFLINE').map(n => `<option value="${n.host}">${n.node_name} (${n.host}) ${n.state === 'PRIMARY' ? '★ Đang là Primary' : ''}</option>`).join('');
+          if (currentVal) selMongo.value = currentVal;
+        }
+      }
+
+      // HÀM ĐIỀU PHỐI CỨU QUORUM VÀ CHUYỂN GIAO NODE CHÍNH
+      async function triggerMongoRescueModal(targetNode = null) {
+        const confirmMsg = targetNode
+          ? `Bạn có chắc chắn muốn chuyển giao Node chính MongoDB sang ${targetNode} không?`
+          : `Bạn có muốn kích hoạt Cứu nguy Quorum (Quorum Rescue) cho cụm MongoDB không?\n\nCơ chế này sẽ tạm thời giảm phiếu bầu của các node offline để cấp quyền Ghi an toàn cho Node online hiện tại mà không làm hỏng Oplog.`;
+        if (!confirm(confirmMsg)) return;
+        try {
+          showToastNotification("Đang điều phối Quorum / Node chính MongoDB...", "info");
+          const payload = targetNode ? { target_node: targetNode } : {};
+          const res = await fetch("/api/cluster/mongo/elect-primary", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (data.status === "SUCCESS" || data.status === "ALREADY_PRIMARY" || data.status === "ELECTED_NATURALLY" || data.status === "SWITCHED") {
+            showToastNotification(`✓ ${data.message || "Đã điều phối thành công!"}`, "success");
+            await fetchClusterStatus();
+          } else {
+            showToastNotification(data.message || "Không thể thực hiện cứu Quorum", "warning");
+          }
+        } catch (err) {
+          showToastNotification("Lỗi điều phối MongoDB: " + err.message, "danger");
+        }
+      }
+
+      async function triggerMysqlSwitchPrimary(targetNode) {
+        if (!targetNode) {
+          showToastNotification("Vui lòng chọn một Node online để chuyển quyền Primary!", "warning");
+          return;
+        }
+        if (!confirm(`Bạn có chắc chắn muốn chuyển giao Node chính MySQL sang ${targetNode} không?`)) return;
+        try {
+          showToastNotification("Đang chuyển giao Node chính MySQL...", "info");
+          const res = await fetch("/api/cluster/mysql/elect-primary", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ target_node: targetNode })
+          });
+          const data = await res.json();
+          if (data.status === "SUCCESS") {
+            showToastNotification(`✓ ${data.message}`, "success");
+            await fetchClusterStatus();
+          } else {
+            showToastNotification(data.message || "Không thể chuyển giao MySQL", "warning");
+          }
+        } catch (err) {
+          showToastNotification("Lỗi chuyển giao MySQL: " + err.message, "danger");
+        }
       }
 
       // 1. load cluster status
@@ -5268,8 +5489,13 @@
           }
 
           const searchInput = document.getElementById("order-product-search");
-          if (!searchInput || !searchInput.value) {
-            checkOrderFormValidity();
+          const prodIdVal = document.getElementById("order-product-id")?.value;
+          if ((!searchInput || !searchInput.value) && (!prodIdVal || String(prodIdVal).trim() === "" || String(prodIdVal).trim() === "0")) {
+            if (products.length > 0) {
+              chooseProduct(products[0].product_id);
+            } else {
+              checkOrderFormValidity();
+            }
           }
 
           const countLbl = document.getElementById("order-product-count-label");
@@ -5657,7 +5883,7 @@
       }
 
       function selectProductForOrder(productId) {
-        selectComboItem("order-product-id", productId, false);
+        chooseProduct(Number(productId));
         selectComboItem("review-product-id", productId, false);
         updateOrderTotalPreview();
         loadRecentOrders(1);
@@ -5699,8 +5925,13 @@
           catalogUsers = users;
 
           const searchInput = document.getElementById("order-user-search");
-          if (!searchInput || !searchInput.value) {
-            checkOrderFormValidity();
+          const userIdVal = document.getElementById("order-user-id")?.value;
+          if ((!searchInput || !searchInput.value) && (!userIdVal || String(userIdVal).trim() === "" || String(userIdVal).trim() === "0")) {
+            if (users.length > 0) {
+              chooseUser(users[0].user_id);
+            } else {
+              checkOrderFormValidity();
+            }
           }
         } catch (e) {
           console.error("Load users error:", e);

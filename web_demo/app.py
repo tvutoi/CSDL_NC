@@ -2066,6 +2066,54 @@ async def api_elect_mongo_primary(request: Request):
     return res
 
 
+@app.post("/api/cluster/mysql/elect-primary")
+async def api_elect_mysql_primary(request: Request):
+    """
+    API Chuyển giao quyền Node chính MySQL (Manual Failover / Primary Switch):
+    Áp dụng chuẩn Non-Preemptive Single-Primary HA và kích hoạt quyền Ghi an toàn.
+    """
+    target = None
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            target = body.get("target_node")
+    except Exception:
+        pass
+    if not target:
+        return {"status": "ERROR", "message": "Vui lòng chỉ định target_node"}
+
+    try:
+        conn, _ = get_mysql_connection("primary")
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT MEMBER_ID, MEMBER_HOST, MEMBER_PORT FROM performance_schema.replication_group_members WHERE MEMBER_STATE = 'ONLINE'")
+        members = cur.fetchall()
+        target_uuid = None
+        for m in members:
+            h_full = f"{m.get('MEMBER_HOST')}:{m.get('MEMBER_PORT')}"
+            if is_same_mysql_host(h_full, target) or is_same_mysql_host(m.get('MEMBER_HOST'), target):
+                target_uuid = m.get("MEMBER_ID")
+                break
+        if target_uuid:
+            cur.execute(f"SELECT group_replication_set_as_primary('{target_uuid}')")
+        cur.close()
+        conn.close()
+    except Exception:
+        pass
+
+    set_active_mysql_primary(target)
+    _ensure_mysql_writable(target)
+    for h in CLUSTER_CONFIG.get("mysql_nodes", []):
+        if not is_same_mysql_host(h, target):
+            _ensure_mysql_read_only(h)
+
+    with _STATUS_CACHE_LOCK:
+        global _LAST_STATUS_RESPONSE, _LAST_STATUS_TIME
+        _LAST_STATUS_RESPONSE = None
+        _LAST_STATUS_TIME = 0.0
+
+    return {"status": "SUCCESS", "primary": target, "message": f"Đã chuyển giao an toàn Node chính MySQL sang {target}"}
+
+
 # monitor cluster
 @app.get("/api/cluster/status")
 def get_cluster_status(request: Request):
@@ -2890,6 +2938,11 @@ def add_review(req: ReviewRequest, x_idempotency_key: Optional[str] = Header(Non
             last_err = e
             err_str = str(e).lower()
             if "not primary" in err_str or "notwritableprimary" in err_str or "replstatechange" in err_str:
+                if attempt == 0 and active_host:
+                    try:
+                        ensure_mongo_primary_priority(force=True, target_primary=active_host)
+                    except Exception:
+                        pass
                 time.sleep(0.8)
             else:
                 time.sleep(0.4)
