@@ -1213,10 +1213,7 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
         ordered_hosts = list(norm_nodes)
 
     def _make_meta(host_str: str, is_primary: bool):
-        cluster_pri = get_active_mongo_primary()
-        if cluster_pri and is_same_mongo_host(host_str, cluster_pri):
-            is_primary = True
-        elif is_primary and host_str:
+        if is_primary and host_str:
             set_active_mongo_primary(host_str)
         role_str = "PRIMARY" if is_primary else "SECONDARY"
         role_vn = "Node chính" if is_primary else "Node phụ"
@@ -1263,13 +1260,7 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
                 else:
                     found_primary = (c, h)
             elif is_sec:
-                # Nếu node này là Node chính của cụm (ví dụ phân vùng mạng mất Quorum)
                 curr_cluster_pri = get_active_mongo_primary()
-                if curr_cluster_pri and is_same_mongo_host(h, curr_cluster_pri) and read_mode == "primary":
-                    if with_meta:
-                        return c, _make_meta(h, True)
-                    return c, h
-
                 if read_mode in ["secondary_preferred", "nearest"]:
                     is_p = bool(curr_cluster_pri and is_same_mongo_host(h, curr_cluster_pri))
                     if with_meta:
@@ -1316,12 +1307,9 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
                     try: c_other.close()
                     except: pass
 
-            if not active_p:
-                set_active_mongo_primary(h_fb)
-
-            # Phục vụ chế độ read_mode='primary' nên node này luôn đại diện cho Node chính
+            # Không có Primary (do cụm thiếu Quorum/mất mạng), cho phép fallback đọc nhưng trung thực báo là Node phụ
             if with_meta:
-                return c_fb, _make_meta(h_fb, True)
+                return c_fb, _make_meta(h_fb, False)
             return c_fb, h_fb
 
     if found_primary:
@@ -2348,7 +2336,7 @@ def get_cluster_status(request: Request):
         curr_mg_active = get_active_mongo_primary()
         authoritative_primary_node = None
         if curr_mg_active:
-            matched_curr = next((m for m in online_m if is_same_mongo_host(m["host"], curr_mg_active)), None)
+            matched_curr = next((m for m in online_m if is_same_mongo_host(m["host"], curr_mg_active) and m.get("_is_prim")), None)
             if matched_curr:
                 authoritative_primary_node = matched_curr
 
@@ -2373,9 +2361,9 @@ def get_cluster_status(request: Request):
                         authoritative_primary_node = matched
                         break
 
-        # CHỈ KHI PRIMARY HIỆN TẠI THỰC SỰ CHẾT (OFFLINE):
+        # CHỈ KHI PRIMARY HIỆN TẠI THỰC SỰ CHẾT (OFFLINE) VÀ CỤM ĐỦ QUORUM (>= 3 NODE ONLINE):
         # Mới tiến hành Failover bầu Node mới tự nhiên qua replSetStepUp:
-        if not authoritative_primary_node and online_m:
+        if not authoritative_primary_node and len(online_m) >= 3:
             cand_to_step = None
             curr_known = get_active_mongo_primary()
             if curr_known:
@@ -2415,6 +2403,7 @@ def get_cluster_status(request: Request):
                     m["state"] = "SECONDARY"
                     m["_is_prim"] = False
         else:
+            set_active_mongo_primary(None)
             for m in online_m:
                 m["state"] = "SECONDARY"
                 m["_is_prim"] = False
@@ -2926,7 +2915,7 @@ def add_review(req: ReviewRequest, x_idempotency_key: Optional[str] = Header(Non
     res = None
     active_host = None
 
-    for attempt in range(4):
+    for attempt in range(2):
         try:
             m_client, active_host = get_mongo_client("primary")
             mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
@@ -2937,22 +2926,18 @@ def add_review(req: ReviewRequest, x_idempotency_key: Optional[str] = Header(Non
         except Exception as e:
             last_err = e
             err_str = str(e).lower()
-            if "not primary" in err_str or "notwritableprimary" in err_str or "replstatechange" in err_str:
-                if attempt == 0 and active_host:
-                    try:
-                        ensure_mongo_primary_priority(force=True, target_primary=active_host)
-                    except Exception:
-                        pass
-                time.sleep(0.8)
-            else:
-                time.sleep(0.4)
+            if any(k in err_str for k in ["not primary", "notwritableprimary", "replstatechange", "secondary"]):
+                # TUYỆT ĐỐI KHÔNG TỰ ĐỘNG GỌI ensure_mongo_primary_priority(force=True) ở đây!
+                # Để bảo toàn dữ liệu và tuân thủ cơ chế chống Split-Brain khi thiếu Quorum.
+                break
+            time.sleep(0.3)
 
     if not res:
         err_msg = str(last_err)
         if any(k in err_msg.lower() for k in ["not primary", "notwritableprimary", "replstatechange", "node phụ", "secondary"]):
             raise HTTPException(
                 status_code=503,
-                detail="Cụm MongoDB hiện đang ở chế độ Chỉ đọc để bảo toàn dữ liệu (do chưa có Node chính hoặc cụm thiếu Quorum đa số node trực tuyến). Vui lòng thử lại sau khi cụm kết nối đủ node!"
+                detail="Cụm MongoDB hiện đang ở chế độ Chỉ đọc để bảo toàn dữ liệu và chống phân mảnh (Split-Brain Prevention) do thiếu Quorum (> 50% node trực tuyến). Vui lòng kết nối đủ node mạng hoặc sử dụng tính năng Cứu Quorum trong tab Quản trị HA."
             )
         raise HTTPException(status_code=500, detail=f"Lỗi ghi MongoDB: {err_msg}")
 
