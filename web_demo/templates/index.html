@@ -2836,6 +2836,23 @@
           roleText = "Node phụ";
           roleClass = "text-success fw-medium";
         }
+
+        // Đồng bộ vai trò theo trạng thái Node chính được hiển thị tại Cụm máy chủ
+        if (dbType === "mongo" && window._lastActiveMongoPrimary) {
+          const pHost = window._lastActiveMongoPrimary.split(":")[0];
+          const currHost = host.split(":")[0];
+          if (pHost && currHost && pHost === currHost) {
+            roleText = "Node chính";
+            roleClass = "text-primary fw-bold";
+          }
+        } else if (dbType === "mysql" && window._lastActiveMysqlPrimary) {
+          const pHost = window._lastActiveMysqlPrimary.split(":")[0];
+          const currHost = host.split(":")[0];
+          if (pHost && currHost && pHost === currHost) {
+            roleText = "Node chính";
+            roleClass = "text-primary fw-bold";
+          }
+        }
         if (nodeLbl) {
           return `<strong class="text-dark">${nodeLbl}</strong> (${host} &middot; <span class="${roleClass}">${roleText}</span>)`;
         }
@@ -3536,6 +3553,15 @@
       function renderClusterStatusSummary(data) {
         if (!data) return;
         cachedClusterData = data;
+
+        if (data.mysql && Array.isArray(data.mysql)) {
+          const p = data.mysql.find(n => (n.role === "PRIMARY" || n.state === "PRIMARY") && n.state && n.state.indexOf("ONLINE") !== -1);
+          if (p) window._lastActiveMysqlPrimary = p.host;
+        }
+        if (data.mongodb && Array.isArray(data.mongodb)) {
+          const p = data.mongodb.find(n => (n.role === "PRIMARY" || n.state === "PRIMARY") && n.health === 1);
+          if (p) window._lastActiveMongoPrimary = p.host;
+        }
 
         const headerMysql = document.getElementById("header-mysql-nodes");
         const headerMongo = document.getElementById("header-mongo-nodes");
