@@ -1914,7 +1914,7 @@
                     ></span
                   >
                   <span class="label-tag tag-secondary tech-detail"
-                    >ecommerce_nosql</span
+                    >Ghi vào Node chính</span
                   >
                 </div>
                 <div class="panel-body">
@@ -2313,7 +2313,7 @@
                     ></span
                   >
                   <span class="label-tag tag-primary tech-detail"
-                    >Ghi vào Primary</span
+                    >Ghi vào Node chính</span
                   >
                 </div>
                 <div class="panel-body">
@@ -3751,8 +3751,14 @@
         }
         function isSameNodeHost(h1, h2) {
           if (!h1 || !h2) return false;
-          h1 = String(h1).trim().toLowerCase().replace("localhost", "127.0.0.1");
-          h2 = String(h2).trim().toLowerCase().replace("localhost", "127.0.0.1");
+          h1 = String(h1)
+            .trim()
+            .toLowerCase()
+            .replace("localhost", "127.0.0.1");
+          h2 = String(h2)
+            .trim()
+            .toLowerCase()
+            .replace("localhost", "127.0.0.1");
           if (h1 === h2) return true;
           const [ip1, p1] = h1.split(":");
           const [ip2, p2] = h2.split(":");
