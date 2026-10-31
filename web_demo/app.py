@@ -1411,6 +1411,11 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
             continue
 
     cfg_hosts_str = ", ".join(nodes) or "trống"
+    if mode == "primary":
+        raise HTTPException(
+            status_code=503,
+            detail="Cụm MySQL Group Replication hiện đang ở chế độ Chỉ đọc để bảo toàn dữ liệu và chống phân mảnh (Split-Brain Prevention) do thiếu Quorum (> 50% node trực tuyến). Không có Node chính nào được cấp quyền Ghi."
+        )
     if last_err:
         raise HTTPException(status_code=503, detail=f"Không thể kết nối tới cụm MySQL ({cfg_hosts_str}): {last_err}")
     raise HTTPException(status_code=503, detail=f"Không có node MySQL nào khả dụng trong cấu hình ({cfg_hosts_str}).")
@@ -2259,63 +2264,69 @@ def get_cluster_status(request: Request):
         mysql_results = [f.result() for f in f_mysql]
         mongo_results = [f.result() for f in f_mongo]
 
-    # BẦU CHỌN VÀ GIỮ VỮNG NODE CHÍNH (PRIMARY) THEO CHUẨN NON-PREEMPTIVE HA (CHO MYSQL):
-    # 1. NGUYÊN TẮC CỐT LÕI (ƯU TIÊN SỐ 1):
-    # Nếu Node Primary hiện tại (curr_active) VẪN ĐANG ONLINE và hoạt động bình thường:
-    # BẮT BUỘC TIẾP TỤC GIỮ VỮNG QUYỀN PRIMARY CHO NODE ĐÓ!
-    # Node cũ vừa khởi động lại / mở mạng lại (như Node 4) TUYỆT ĐỐI KHÔNG ĐƯỢC CƯỚP QUYỀN PRIMARY!
-    curr_active = get_active_mysql_primary()
-    primary_node = None
-    if curr_active:
-        matched_curr = next((n for n in mysql_results if n["state"] == "ONLINE" and is_same_mysql_host(n["host"], curr_active)), None)
-        if matched_curr:
-            primary_node = matched_curr
+    online_mysql = [n for n in mysql_results if n["state"] == "ONLINE"]
+    online_mysql_count = len(online_mysql)
 
-    # 2. CHỈ KHI CHƯA CÓ PRIMARY HOẶC PRIMARY HIỆN TẠI ĐÃ CHẾT (OFFLINE):
-    # Mới tiến hành xét bầu chọn Primary mới:
-    if not primary_node:
-        # 2A. Nếu cụm MySQL Group Replication có sự đồng thuận từ đa số node online:
-        uuid_votes = {}
+    # NGUYÊN TẮC BẢO VỆ CHỐNG PHÂN MẢNH (SPLIT-BRAIN PREVENTION) & QUORUM:
+    # Cụm gồm 4 node (N=4), Quorum tối thiểu là 3 node (>= 3).
+    # KHI THIẾU QUORUM (< 3 NODE ONLINE):
+    # Cụm MySQL Group Replication BẮT BUỘC RƠI VÀO CHẾ ĐỘ CHỈ ĐỌC (READ-ONLY)!
+    # Toàn bộ node online phải là SECONDARY, tự động bật super_read_only = ON để chống Split-Brain.
+    # Tuyệt đối KHÔNG tự ý phong Primary và KHÔNG mở quyền ghi!
+    if online_mysql_count < 3:
+        primary_node = None
+        set_active_mysql_primary(None)
         for n in mysql_results:
-            p_uuid = n.get("_primary_uuid")
-            if p_uuid and n["state"] == "ONLINE":
-                uuid_votes[p_uuid] = uuid_votes.get(p_uuid, 0) + 1
-        if uuid_votes:
-            top_uuid, vote_cnt = max(uuid_votes.items(), key=lambda x: x[1])
-            online_count = len([n for n in mysql_results if n["state"] == "ONLINE"])
-            if vote_cnt >= max(2, online_count // 2):
-                primary_node = next((n for n in mysql_results if n["state"] == "ONLINE" and n.get("_uuid") == top_uuid), None)
-
-    # 2B. Nếu vẫn chưa có Primary: Ưu tiên node đang có quyền ghi (read_only = 0)
-    if not primary_node:
-        pri_cand = [n for n in mysql_results if n["state"] == "ONLINE" and n.get("_ro") == 0]
-        if pri_cand:
-            primary_node = pri_cand[0]
-
-    # 2C. Nếu tất cả đều read_only = 1: Bầu node online đầu tiên theo thứ tự cấu hình
-    if not primary_node:
-        online_cand = [n for n in mysql_results if n["state"] == "ONLINE"]
-        if online_cand:
-            primary_node = online_cand[0]
-
-    # 3. Áp dụng vai trò và chuẩn hóa quyền ghi read_only cho toàn bộ cụm:
-    # Tối ưu hóa tốc độ phản hồi: Gọi _ensure_mysql_writable / _ensure_mysql_read_only trong thread nền không chặn luồng HTTP
-    if primary_node:
-        set_active_mysql_primary(primary_node["host"])
-        for n in mysql_results:
-            if is_same_mysql_host(n["host"], primary_node["host"]):
-                n["role"] = "PRIMARY"
-                if n.get("_ro") == 1:
-                    threading.Thread(target=_ensure_mysql_writable, args=(n["host"],), daemon=True).start()
-                    n["_ro"] = 0
-            else:
-                n["role"] = "SECONDARY" if n["state"] == "ONLINE" else "UNREACHABLE"
-                if n["state"] == "ONLINE" and n.get("_ro") == 0:
+            if n["state"] == "ONLINE":
+                n["role"] = "SECONDARY"
+                if n.get("_ro") == 0:
                     threading.Thread(target=_ensure_mysql_read_only, args=(n["host"],), daemon=True).start()
                     n["_ro"] = 1
+            else:
+                n["role"] = "UNREACHABLE"
     else:
-        for n in mysql_results:
-            n["role"] = "SECONDARY" if n["state"] == "ONLINE" else "UNREACHABLE"
+        curr_active = get_active_mysql_primary()
+        primary_node = None
+        if curr_active:
+            matched_curr = next((n for n in online_mysql if is_same_mysql_host(n["host"], curr_active)), None)
+            if matched_curr:
+                primary_node = matched_curr
+
+        if not primary_node:
+            uuid_votes = {}
+            for n in online_mysql:
+                p_uuid = n.get("_primary_uuid")
+                if p_uuid:
+                    uuid_votes[p_uuid] = uuid_votes.get(p_uuid, 0) + 1
+            if uuid_votes:
+                top_uuid, vote_cnt = max(uuid_votes.items(), key=lambda x: x[1])
+                if vote_cnt >= max(2, online_mysql_count // 2):
+                    primary_node = next((n for n in online_mysql if n.get("_uuid") == top_uuid), None)
+
+        if not primary_node:
+            pri_cand = [n for n in online_mysql if n.get("_ro") == 0]
+            if pri_cand:
+                primary_node = pri_cand[0]
+
+        if not primary_node and online_mysql:
+            primary_node = online_mysql[0]
+
+        if primary_node:
+            set_active_mysql_primary(primary_node["host"])
+            for n in mysql_results:
+                if is_same_mysql_host(n["host"], primary_node["host"]):
+                    n["role"] = "PRIMARY"
+                    if n.get("_ro") == 1:
+                        threading.Thread(target=_ensure_mysql_writable, args=(n["host"],), daemon=True).start()
+                        n["_ro"] = 0
+                else:
+                    n["role"] = "SECONDARY" if n["state"] == "ONLINE" else "UNREACHABLE"
+                    if n["state"] == "ONLINE" and n.get("_ro") == 0:
+                        threading.Thread(target=_ensure_mysql_read_only, args=(n["host"],), daemon=True).start()
+                        n["_ro"] = 1
+        else:
+            for n in mysql_results:
+                n["role"] = "SECONDARY" if n["state"] == "ONLINE" else "UNREACHABLE"
 
     for n in mysql_results:
         for k in ["_uuid", "_primary_uuid", "_ro"]:
@@ -2665,6 +2676,17 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
                 return _IDEMPOTENCY_CACHE[x_idempotency_key]
 
     t0 = time.perf_counter()
+    online_sql = []
+    for h in CLUSTER_CONFIG.get("mysql_nodes", []):
+        h_str, p_int = (h.split(":") if ":" in h else (h, 3306))
+        if is_port_open(h_str, int(p_int), timeout=0.25):
+            online_sql.append(h)
+    if len(online_sql) < 3:
+        raise HTTPException(
+            status_code=503,
+            detail="Cụm MySQL Group Replication hiện đang ở chế độ Chỉ đọc để bảo toàn dữ liệu và chống phân mảnh (Split-Brain Prevention) do thiếu Quorum (> 50% node trực tuyến). Không cho phép đặt hàng khi mất kết nối đa số."
+        )
+
     conn, mysql_meta = get_mysql_connection(mode="primary")
     cursor = conn.cursor(dictionary=True)
     try:
