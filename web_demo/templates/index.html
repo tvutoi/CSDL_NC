@@ -1509,9 +1509,9 @@
                         onchange="
                           loadProductReviews(currentReviewProductId, 1)
                         ">
+                        <option value="primary" selected>Chỉ đọc Node chính</option>
                         <option value="secondary_preferred">Ưu tiên đọc Node phụ</option>
                         <option value="nearest">Đọc Node gần nhất</option>
-                        <option value="primary">Chỉ đọc Node chính</option>
                       </select>
                     </div>
                     <div class="col-auto">
@@ -2817,10 +2817,10 @@
           nodeLbl = `Node ${node.server_id}`;
         }
         if (!nodeLbl) {
-          if (host.includes(":3307") || host.includes(":27018")) nodeLbl = "Node 3";
-          else if (host.includes(":3308") || host.includes(":27019")) nodeLbl = "Node 4";
-          else if (host.includes(".222")) nodeLbl = "Node 2";
-          else if (host.includes(".221")) nodeLbl = "Node 1";
+          if (host.includes(":3305") || host.includes(":27016") || host.includes(".221")) nodeLbl = "Node 1";
+          else if (host.includes(":3309") || host.includes(":27020") || host.includes(".222")) nodeLbl = "Node 2";
+          else if (host.includes(":3307") || host.includes(":27018") || host.includes(".223")) nodeLbl = "Node 3";
+          else if (host.includes(":3308") || host.includes(":27019") || host.includes(".224")) nodeLbl = "Node 4";
           else nodeLbl = "";
         }
         const role = String(node.role_vn || node.role || "").toUpperCase();
@@ -5435,7 +5435,7 @@
         const sizeEl = document.getElementById("reviews-page-size");
         const limit = sizeEl ? parseInt(sizeEl.value || "5", 10) : 5;
         const rmEl = document.getElementById("reviews-readmode");
-        const readMode = rmEl ? rmEl.value : "secondary_preferred";
+        const readMode = rmEl ? rmEl.value : "primary";
 
         const container = document.getElementById("product-reviews-container");
         try {
@@ -6859,6 +6859,8 @@
           if (lastUpd) lastUpd.innerText = "Đang tải...";
           const ordInfo = document.getElementById("orders-node-info");
           if (ordInfo) ordInfo.innerHTML = "<em>Đang làm mới dữ liệu...</em>";
+          const revInfo = document.getElementById("reviews-node-info");
+          if (revInfo) revInfo.innerHTML = "<em>Đang làm mới dữ liệu...</em>";
         }
         try {
           await Promise.allSettled([

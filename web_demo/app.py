@@ -255,8 +255,10 @@ def get_node_label(host_str: str, db_type: str = "mysql") -> str:
     if str(host_str).startswith("Node "):
         return str(host_str)
     clean_host = host_str.split(" ")[0].strip()
-    nodes = CLUSTER_CONFIG["mysql_nodes"] if db_type == "mysql" else CLUSTER_CONFIG["mongo_nodes"]
+    nodes = CLUSTER_CONFIG.get("mysql_nodes" if db_type == "mysql" else "mongo_nodes", [])
     for idx, h in enumerate(nodes, start=1):
+        if is_same_mongo_host(h, clean_host) if db_type == "mongo" else is_same_mysql_host(h, clean_host):
+            return f"Node {idx}"
         if h == clean_host:
             return f"Node {idx}"
         if h.split(":")[0] == clean_host.split(":")[0]:
@@ -264,6 +266,8 @@ def get_node_label(host_str: str, db_type: str = "mysql") -> str:
             c_port = clean_host.split(":")[1] if ":" in clean_host else ("3306" if db_type == "mysql" else "27017")
             if h_port == c_port:
                 return f"Node {idx}"
+        if f"node{idx}" in clean_host.lower() or f".22{idx}" in clean_host:
+            return f"Node {idx}"
     return clean_host
 
 
@@ -1162,147 +1166,141 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
 
 
 def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
-    """Khởi tạo kết nối MongoDB với Fast-Path: Ưu tiên node phù hợp ngay từ đầu để tăng tốc"""
+    """
+    Khởi tạo kết nối MongoDB phân tán chuẩn xác theo đúng vai trò Primary / Secondary:
+    - Khi read_mode='primary': Luôn ưu tiên kết nối trực tiếp vào Node Primary (Node chính) của cụm.
+    - Khi read_mode='secondary_preferred': Ưu tiên kết nối vào Node Secondary (Node phụ), chỉ fallback về Primary nếu toàn bộ Secondary offline.
+    - Khi read_mode='nearest': Kết nối vào node gần nhất / nhanh nhất.
+    - Trả về đúng nhãn vai trò: Node chính (PRIMARY) hoặc Node phụ (SECONDARY), không bao giờ gán nhầm vai trò.
+    """
     rp_map = {
         "primary": ReadPreference.PRIMARY_PREFERRED,
         "secondary_preferred": ReadPreference.SECONDARY_PREFERRED,
         "nearest": ReadPreference.NEAREST
     }
-    rp = rp_map.get(read_mode, ReadPreference.SECONDARY_PREFERRED)
+    rp = rp_map.get(read_mode, ReadPreference.PRIMARY_PREFERRED)
 
-    raw_lan_hosts = list(CLUSTER_CONFIG["mongo_nodes"])
+    raw_lan_hosts = list(CLUSTER_CONFIG.get("mongo_nodes", []))
     if not raw_lan_hosts:
         raw_lan_hosts = ["127.0.0.1:27017"]
 
-    lan_hosts = [normalize_mongo_host(h) for h in raw_lan_hosts]
-
+    norm_nodes = [normalize_mongo_host(h) for h in raw_lan_hosts]
     active_pri = get_active_mongo_primary()
-    if active_pri:
-        norm_pri = normalize_mongo_host(active_pri)
-        if read_mode == "primary":
-            lan_hosts = [h for h in lan_hosts if is_same_mongo_host(h, norm_pri)] + [h for h in lan_hosts if not is_same_mongo_host(h, norm_pri)]
-        elif read_mode in ["secondary_preferred", "nearest"]:
-            secondaries = [h for h in lan_hosts if not is_same_mongo_host(h, norm_pri)]
-            lan_hosts = secondaries + [h for h in lan_hosts if is_same_mongo_host(h, norm_pri)]
 
-    online_lan_hosts = []
-    primary_client = None
-    primary_host = None
+    # Sắp xếp thứ tự ưu tiên thử kết nối theo read_mode
+    if read_mode == "primary":
+        if active_pri:
+            norm_pri = normalize_mongo_host(active_pri)
+            ordered_hosts = [h for h in norm_nodes if is_same_mongo_host(h, norm_pri)] + [h for h in norm_nodes if not is_same_mongo_host(h, norm_pri)]
+        else:
+            ordered_hosts = list(norm_nodes)
+    elif read_mode in ["secondary_preferred", "nearest"]:
+        if active_pri:
+            norm_pri = normalize_mongo_host(active_pri)
+            secondaries = [h for h in norm_nodes if not is_same_mongo_host(h, norm_pri)]
+            ordered_hosts = secondaries + [h for h in norm_nodes if is_same_mongo_host(h, norm_pri)]
+        else:
+            ordered_hosts = list(norm_nodes)
+    else:
+        ordered_hosts = list(norm_nodes)
 
-    for h in lan_hosts:
+    def _make_meta(host_str: str, is_primary: bool):
+        role_str = "PRIMARY" if is_primary else "SECONDARY"
+        role_vn = "Node chính" if is_primary else "Node phụ"
+        node_lbl = get_node_label(host_str, "mongo")
+        return {
+            "host": host_str,
+            "role": role_str,
+            "role_vn": role_vn,
+            "node_name": node_lbl
+        }
+
+    online_secondaries = []
+    found_primary = None
+
+    for h in ordered_hosts:
         h_mg, p_mg = (h.split(":") if ":" in h else (h, 27017))
-        if not is_port_open(h_mg, int(p_mg), timeout=1.2, retries=2):
+        p_int = int(p_mg)
+        if not is_port_open(h_mg, p_int, timeout=0.4, retries=1):
             continue
         try:
             c = MongoClient(
-                f"mongodb://{h_mg}:{p_mg}/?directConnection=true&w=1",
+                f"mongodb://{h_mg}:{p_int}/?directConnection=true&w=1",
                 read_preference=rp,
-                serverSelectionTimeoutMS=2000,
-                connectTimeoutMS=2000,
-                socketTimeoutMS=3000
+                serverSelectionTimeoutMS=1000,
+                connectTimeoutMS=1000,
+                socketTimeoutMS=2000
             )
             hello = c.admin.command("hello")
             is_prim = bool(hello.get("isWritablePrimary") or hello.get("ismaster"))
             is_sec = bool(hello.get("secondary"))
-            if not is_prim and not is_sec:
-                c.close()
-                continue
-            online_lan_hosts.append((c, h, hello))
+            rep_prim = hello.get("primary")
+            if rep_prim:
+                set_active_mongo_primary(rep_prim)
+
             if is_prim:
-                if primary_client is None:
-                    primary_client, primary_host = c, h
+                set_active_mongo_primary(h)
                 if read_mode == "primary":
-                    break
-            elif read_mode in ["secondary_preferred", "nearest"] and is_sec:
-                # Đã tìm thấy secondary phù hợp để đọc, dừng sớm để tiết kiệm thời gian
-                break
+                    if with_meta:
+                        return c, _make_meta(h, True)
+                    return c, h
+                else:
+                    found_primary = (c, h)
+            elif is_sec:
+                if read_mode in ["secondary_preferred", "nearest"]:
+                    if with_meta:
+                        return c, _make_meta(h, False)
+                    return c, h
+                else:
+                    online_secondaries.append((c, h))
+            else:
+                c.close()
         except Exception:
             continue
 
-    if primary_client:
-        set_active_mongo_primary(primary_host)
-    else:
-        # Nếu đang cần primary mà chưa có, thực hiện cứu Quorum / bầu chọn tức thì (có cooldown an toàn 15s)
-        if online_lan_hosts:
-            global _LAST_AUTO_MONGO_RECOVERY
-            now_rec = time.time()
-            if (now_rec - _LAST_AUTO_MONGO_RECOVERY) > 15.0:
-                _LAST_AUTO_MONGO_RECOVERY = now_rec
-                try:
-                    cfg_mongo_list = CLUSTER_CONFIG.get("mongo_nodes", [])
-                    pref_target = None
-                    for cn in cfg_mongo_list:
-                        if any(is_same_mongo_host(h, cn) for _, h, _ in online_lan_hosts):
-                            pref_target = cn
-                            break
-                    # Chỉ dùng force=False trong nền để không tự ý reconfig force gây crash fassert(51121)
-                    rec_res = ensure_mongo_primary_priority(force=False, target_primary=pref_target)
-                    if rec_res.get("primary"):
-                        set_active_mongo_primary(rec_res["primary"])
-                except Exception as e:
-                    print(f"[MONGO_PRIMARY_RECOVERY] {e}")
+    # Nếu read_mode == 'primary' mà chưa tìm thấy primary trong ordered_hosts:
+    if read_mode == "primary":
+        # Thử kết nối trực tiếp vào reported primary nếu có
+        curr_p = get_active_mongo_primary()
+        if curr_p and not any(is_same_mongo_host(h, curr_p) for h in ordered_hosts):
+            try:
+                h_p, p_p = (curr_p.split(":") if ":" in curr_p else (curr_p, 27017))
+                c_p = MongoClient(f"mongodb://{h_p}:{p_p}/?directConnection=true&w=1", serverSelectionTimeoutMS=1000)
+                h_chk = c_p.admin.command("hello")
+                if h_chk.get("isWritablePrimary") or h_chk.get("ismaster"):
+                    set_active_mongo_primary(curr_p)
+                    if with_meta:
+                        return c_p, _make_meta(curr_p, True)
+                    return c_p, curr_p
+                c_p.close()
+            except Exception:
+                pass
 
-            for c_cand, h_cand, _ in online_lan_hosts:
-                try:
-                    h_c = c_cand.admin.command("hello")
-                    if h_c.get("isWritablePrimary") or h_c.get("ismaster"):
-                        primary_client, primary_host = c_cand, h_cand
-                        break
-                except Exception:
-                    pass
+        if online_secondaries:
+            try:
+                rescue_cand = online_secondaries[0][1]
+                rec_res = ensure_mongo_primary_priority(force=True, target_primary=rescue_cand)
+                if rec_res.get("primary"):
+                    set_active_mongo_primary(rec_res["primary"])
+                    c_resc = MongoClient(f"mongodb://{rec_res['primary']}/?directConnection=true&w=1", serverSelectionTimeoutMS=1000)
+                    if with_meta:
+                        return c_resc, _make_meta(rec_res["primary"], True)
+                    return c_resc, rec_res["primary"]
+            except Exception:
+                pass
+            c_fb, h_fb = online_secondaries[0]
+            for c_other, _ in online_secondaries[1:]:
+                try: c_other.close()
+                except: pass
+            if with_meta:
+                return c_fb, _make_meta(h_fb, False)
+            return c_fb, h_fb
 
-    if not primary_client and online_lan_hosts:
-        # Chờ election hoàn tất nếu đang cần primary
-        if read_mode == "primary":
-            t_poll = time.time()
-            while time.time() - t_poll < 2.5:
-                time.sleep(0.3)
-                for c_cand, h_cand, _ in online_lan_hosts:
-                    try:
-                        h_c = c_cand.admin.command("hello")
-                        if h_c.get("isWritablePrimary") or h_c.get("ismaster"):
-                            primary_client, primary_host = c_cand, h_cand
-                            break
-                    except Exception:
-                        pass
-                if primary_client:
-                    break
-
-        if not primary_client:
-            primary_client, primary_host = online_lan_hosts[0][0], online_lan_hosts[0][1]
-
-    def _ret(client_obj, host_str, role_str):
-        for c_item, h_item, _ in online_lan_hosts:
-            if c_item is not client_obj:
-                try:
-                    c_item.close()
-                except Exception:
-                    pass
+    if found_primary:
+        c_p, h_p = found_primary
         if with_meta:
-            role_vn = "Node chính" if role_str == "PRIMARY" else ("Node phụ" if role_str == "SECONDARY" else role_str)
-            node_lbl = get_node_label(host_str, "mongo")
-            return client_obj, {
-                "host": host_str,
-                "role": role_str,
-                "role_vn": role_vn,
-                "node_name": node_lbl
-            }
-        return client_obj, host_str
-
-    if online_lan_hosts:
-        if read_mode == "primary":
-            if primary_client and primary_host:
-                return _ret(primary_client, primary_host, "PRIMARY")
-            return _ret(online_lan_hosts[0][0], online_lan_hosts[0][1], "PRIMARY")
-        else:
-            # Ưu tiên secondary, fallback primary nếu chỉ còn 1 node
-            if len(online_lan_hosts) >= 2:
-                for c, h, hello in online_lan_hosts:
-                    if not is_same_mongo_host(h, primary_host) and hello.get("secondary"):
-                        return _ret(c, h, "SECONDARY")
-            if primary_client and primary_host:
-                return _ret(primary_client, primary_host, "PRIMARY")
-            return _ret(online_lan_hosts[0][0], online_lan_hosts[0][1], "PRIMARY")
+            return c_p, _make_meta(h_p, True)
+        return c_p, h_p
 
     cfg_hosts_str = ", ".join(CLUSTER_CONFIG.get("mongo_nodes", [])) or "trống"
     raise HTTPException(
@@ -2934,7 +2932,7 @@ def get_product_reviews_list(
     product_id: int = Query(1, ge=1),
     page: int = Query(1, ge=1),
     limit: int = Query(5, ge=3, le=50),
-    read_mode: str = Query("secondary_preferred"),
+    read_mode: str = Query("primary"),
     rating: Optional[int] = Query(None, ge=1, le=5),
     sort_by: Optional[str] = Query("newest")
 ):
@@ -2948,7 +2946,7 @@ def get_product_reviews_list(
 
         base_filter = {"product_id": product_id}
         query_filter = {"product_id": product_id}
-        if rating is not None and rating >= 1 and rating <= 5:
+        if rating is not None and isinstance(rating, int) and 1 <= rating <= 5:
             query_filter["rating"] = rating
 
         total_items = col.count_documents(query_filter)
