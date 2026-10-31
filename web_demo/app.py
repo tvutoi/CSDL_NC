@@ -1414,7 +1414,7 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
     if mode == "primary":
         raise HTTPException(
             status_code=503,
-            detail="Cụm MySQL Group Replication hiện đang ở chế độ Chỉ đọc để bảo toàn dữ liệu và chống phân mảnh (Split-Brain Prevention) do thiếu Quorum (> 50% node trực tuyến). Không có Node chính nào được cấp quyền Ghi."
+            detail="Cụm tự động chuyển Chỉ đọc để chống phân mảnh dữ liệu (Split-Brain) khi thiếu đa số node."
         )
     if last_err:
         raise HTTPException(status_code=503, detail=f"Không thể kết nối tới cụm MySQL ({cfg_hosts_str}): {last_err}")
@@ -2621,7 +2621,7 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
     if len(online_sql) < 3:
         raise HTTPException(
             status_code=503,
-            detail="Cụm MySQL Group Replication hiện đang ở chế độ Chỉ đọc để bảo toàn dữ liệu và chống phân mảnh (Split-Brain Prevention) do thiếu Quorum (> 50% node trực tuyến). Không cho phép đặt hàng khi mất kết nối đa số."
+            detail="Cụm tự động chuyển Chỉ đọc để chống phân mảnh dữ liệu (Split-Brain) khi thiếu đa số node."
         )
 
     conn, mysql_meta = get_mysql_connection(mode="primary")
@@ -2896,7 +2896,7 @@ def add_review(req: ReviewRequest, x_idempotency_key: Optional[str] = Header(Non
         if any(k in err_msg.lower() for k in ["not primary", "notwritableprimary", "replstatechange", "node phụ", "secondary"]):
             raise HTTPException(
                 status_code=503,
-                detail="Cụm MongoDB hiện đang ở chế độ Chỉ đọc để bảo toàn dữ liệu và chống phân mảnh (Split-Brain Prevention) do thiếu Quorum (> 50% node trực tuyến). Vui lòng kết nối đủ node mạng hoặc sử dụng tính năng Cứu Quorum trong tab Quản trị HA."
+                detail="Cụm tự động chuyển Chỉ đọc để chống phân mảnh dữ liệu (Split-Brain) khi thiếu đa số node."
             )
         raise HTTPException(status_code=500, detail=f"Lỗi ghi MongoDB: {err_msg}")
 
