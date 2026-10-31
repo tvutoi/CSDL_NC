@@ -3749,9 +3749,25 @@
             nodeLbl = "Node 4";
           else nodeLbl = "";
         }
+        function isSameNodeHost(h1, h2) {
+          if (!h1 || !h2) return false;
+          h1 = String(h1).trim().toLowerCase().replace("localhost", "127.0.0.1");
+          h2 = String(h2).trim().toLowerCase().replace("localhost", "127.0.0.1");
+          if (h1 === h2) return true;
+          const [ip1, p1] = h1.split(":");
+          const [ip2, p2] = h2.split(":");
+          if (ip1 !== ip2) return false;
+          if (ip1 === "127.0.0.1") {
+            return (p1 || "") === (p2 || "");
+          }
+          if (!p1 || !p2) return true;
+          return p1 === p2;
+        }
+
         const role = String(node.role_vn || node.role || "").toUpperCase();
         let roleText = "Node phụ";
         let roleClass = "text-success fw-medium";
+
         if (
           role === "PRIMARY" ||
           role === "NODE CHÍNH" ||
@@ -3759,6 +3775,13 @@
         ) {
           roleText = "Node chính";
           roleClass = "text-primary fw-bold";
+        } else if (
+          role === "SECONDARY" ||
+          role === "NODE PHỤ" ||
+          role === "NODE PHU"
+        ) {
+          roleText = "Node phụ";
+          roleClass = "text-success fw-medium";
         } else if (
           role === "OFFLINE" ||
           role === "MẤT KẾT NỐI" ||
@@ -3768,24 +3791,17 @@
           roleText = "Mất kết nối";
           roleClass = "text-danger fw-medium";
         } else {
-          roleText = "Node phụ";
-          roleClass = "text-success fw-medium";
-        }
-
-        // Đồng bộ vai trò theo trạng thái Node chính được hiển thị tại Cụm máy chủ
-        if (dbType === "mongo" && window._lastActiveMongoPrimary) {
-          const pHost = window._lastActiveMongoPrimary.split(":")[0];
-          const currHost = host.split(":")[0];
-          if (pHost && currHost && pHost === currHost) {
+          // Chỉ suy luận vai trò khi object node hoàn toàn không có thuộc tính role từ backend
+          const targetPrimary =
+            dbType === "mongo"
+              ? window._lastActiveMongoPrimary
+              : window._lastActiveMysqlPrimary;
+          if (targetPrimary && isSameNodeHost(targetPrimary, host)) {
             roleText = "Node chính";
             roleClass = "text-primary fw-bold";
-          }
-        } else if (dbType === "mysql" && window._lastActiveMysqlPrimary) {
-          const pHost = window._lastActiveMysqlPrimary.split(":")[0];
-          const currHost = host.split(":")[0];
-          if (pHost && currHost && pHost === currHost) {
-            roleText = "Node chính";
-            roleClass = "text-primary fw-bold";
+          } else {
+            roleText = "Node phụ";
+            roleClass = "text-success fw-medium";
           }
         }
         if (nodeLbl) {
