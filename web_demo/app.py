@@ -2238,35 +2238,46 @@ def get_cluster_status(request: Request):
         mysql_results = [f.result() for f in f_mysql]
         mongo_results = [f.result() for f in f_mongo]
 
-    # BẦU CHỌN VÀ GIỮ VỮNG NODE CHÍNH (PRIMARY) THEO CHUẨN NON-PREEMPTIVE HA:
-    # 1. Nếu cụm MySQL Group Replication thực sự đang chạy và báo group_primary_uuid qua Paxos Quorum
-    group_primary_uuid = next((n["_primary_uuid"] for n in mysql_results if n.get("_primary_uuid")), None)
+    # BẦU CHỌN VÀ GIỮ VỮNG NODE CHÍNH (PRIMARY) THEO CHUẨN NON-PREEMPTIVE HA (CHO MYSQL):
+    # 1. NGUYÊN TẮC CỐT LÕI (ƯU TIÊN SỐ 1):
+    # Nếu Node Primary hiện tại (curr_active) VẪN ĐANG ONLINE và hoạt động bình thường:
+    # BẮT BUỘC TIẾP TỤC GIỮ VỮNG QUYỀN PRIMARY CHO NODE ĐÓ!
+    # Node cũ vừa khởi động lại / mở mạng lại (như Node 4) TUYỆT ĐỐI KHÔNG ĐƯỢC CƯỚP QUYỀN PRIMARY!
+    curr_active = get_active_mysql_primary()
     primary_node = None
-    if group_primary_uuid:
-        primary_node = next((n for n in mysql_results if n["state"] == "ONLINE" and n.get("_uuid") == group_primary_uuid), None)
+    if curr_active:
+        matched_curr = next((n for n in mysql_results if n["state"] == "ONLINE" and is_same_mysql_host(n["host"], curr_active)), None)
+        if matched_curr:
+            primary_node = matched_curr
 
-    # 2. Nếu không có group_primary_uuid (Group Replication chưa kết nối / chạy mô phỏng / local lab):
+    # 2. CHỈ KHI CHƯA CÓ PRIMARY HOẶC PRIMARY HIỆN TẠI ĐÃ CHẾT (OFFLINE):
+    # Mới tiến hành xét bầu chọn Primary mới:
     if not primary_node:
-        curr_active = get_active_mysql_primary()
-        # NGUYÊN TẮC HA (NON-PREEMPTIVE FAILOVER):
-        # Nếu Node Primary hiện tại (ví dụ: Node 2) VẪN ĐANG ONLINE và hoạt động bình thường,
-        # thì Node đó BẮT BUỘC TIẾP TỤC GIỮ QUYỀN PRIMARY!
-        # Node cũ vừa khởi động lại (Node 1) TUYỆT ĐỐI KHÔNG ĐƯỢC CƯỚP QUYỀN PRIMARY!
-        if curr_active:
-            primary_node = next((n for n in mysql_results if n["state"] == "ONLINE" and is_same_mysql_host(n["host"], curr_active)), None)
+        # 2A. Nếu cụm MySQL Group Replication có sự đồng thuận từ đa số node online:
+        uuid_votes = {}
+        for n in mysql_results:
+            p_uuid = n.get("_primary_uuid")
+            if p_uuid and n["state"] == "ONLINE":
+                uuid_votes[p_uuid] = uuid_votes.get(p_uuid, 0) + 1
+        if uuid_votes:
+            top_uuid, vote_cnt = max(uuid_votes.items(), key=lambda x: x[1])
+            online_count = len([n for n in mysql_results if n["state"] == "ONLINE"])
+            if vote_cnt >= max(2, online_count // 2):
+                primary_node = next((n for n in mysql_results if n["state"] == "ONLINE" and n.get("_uuid") == top_uuid), None)
 
-    # 3. Chỉ khi Node Primary hiện tại bị chết (OFFLINE) hoặc cụm mới khởi động chưa có Primary:
-    # Mới tiến hành Failover bầu Node mới!
+    # 2B. Nếu vẫn chưa có Primary: Ưu tiên node đang có quyền ghi (read_only = 0)
     if not primary_node:
         pri_cand = [n for n in mysql_results if n["state"] == "ONLINE" and n.get("_ro") == 0]
         if pri_cand:
             primary_node = pri_cand[0]
-        else:
-            online_cand = [n for n in mysql_results if n["state"] == "ONLINE"]
-            if online_cand:
-                primary_node = online_cand[0]
 
-    # 4. Áp dụng vai trò và chuẩn hóa quyền ghi read_only cho toàn bộ cụm:
+    # 2C. Nếu tất cả đều read_only = 1: Bầu node online đầu tiên theo thứ tự cấu hình
+    if not primary_node:
+        online_cand = [n for n in mysql_results if n["state"] == "ONLINE"]
+        if online_cand:
+            primary_node = online_cand[0]
+
+    # 3. Áp dụng vai trò và chuẩn hóa quyền ghi read_only cho toàn bộ cụm:
     # Tối ưu hóa tốc độ phản hồi: Gọi _ensure_mysql_writable / _ensure_mysql_read_only trong thread nền không chặn luồng HTTP
     if primary_node:
         set_active_mysql_primary(primary_node["host"])
@@ -2296,41 +2307,38 @@ def get_cluster_status(request: Request):
 
     online_m = [m for m in mongo_results if m["health"] == 1]
     if online_m:
-        # BẦU CHỌN VÀ HIỂN THỊ ĐỒNG NHẤT THEO CHUẨN MONGODB REPLICA SET CONSENSUS:
-        # 1. Thu thập địa chỉ "primary" được các node trong Replica Set báo cáo qua hello command.
-        # Bất kỳ node nào (kể cả Secondary) cũng báo cáo chính xác Primary thực tế của cụm.
-        reported_prim_votes = {}
-        for m in online_m:
-            rp = m.get("_reported_primary")
-            if rp:
-                norm_rp = normalize_mongo_host(rp)
-                reported_prim_votes[norm_rp] = reported_prim_votes.get(norm_rp, 0) + 1
-
+        # BẦU CHỌN VÀ GIỮ VỮNG NODE CHÍNH THEO CHUẨN NON-PREEMPTIVE HA (CHO MONGODB):
+        # 1. NGUYÊN TẮC CỐT LÕI (ƯU TIÊN SỐ 1):
+        # Nếu Primary hiện tại (curr_mg_active) VẪN ĐANG ONLINE và khỏe mạnh:
+        # BẮT BUỘC TIẾP TỤC GIỮ VỮNG QUYỀN PRIMARY CHO NODE ĐÓ!
+        # Node cũ vừa khởi động lại / mở mạng lại TUYỆT ĐỐI KHÔNG ĐƯỢC CƯỚP QUYỀN PRIMARY!
+        curr_mg_active = get_active_mongo_primary()
         authoritative_primary_node = None
+        if curr_mg_active:
+            matched_curr = next((m for m in online_m if is_same_mongo_host(m["host"], curr_mg_active)), None)
+            if matched_curr:
+                authoritative_primary_node = matched_curr
 
-        # ƯU TIÊN SỐ 1 (Trực tiếp & Tuyệt đối): Bất kỳ node nào đang ONLINE mà lệnh hello của chính nó xác nhận isWritablePrimary == True:
-        direct_primaries = [m for m in online_m if m.get("_is_prim")]
-        if direct_primaries:
-            curr_mg_active = get_active_mongo_primary()
-            authoritative_primary_node = next((m for m in direct_primaries if is_same_mongo_host(m["host"], curr_mg_active)), direct_primaries[0])
-        elif reported_prim_votes:
-            # ƯU TIÊN SỐ 2: Sự đồng thuận từ các node khác báo cáo primary
-            sorted_voted = sorted(reported_prim_votes.items(), key=lambda x: x[1], reverse=True)
-            for top_host, vote_cnt in sorted_voted:
-                matched = next((m for m in online_m if is_same_mongo_host(m["host"], top_host)), None)
-                if matched:
-                    authoritative_primary_node = matched
-                    break
-
-        # NGUYÊN TẮC HA (NON-PREEMPTIVE FAILOVER CHO MONGODB):
-        # Nếu Primary hiện tại (ví dụ: Node 2) vẫn đang ONLINE, Node đó BẮT BUỘC TIẾP TỤC LÀM PRIMARY!
-        # Node cũ vừa khởi động lại (Node 1) TUYỆT ĐỐI KHÔNG ĐƯỢC CƯỚP QUYỀN PRIMARY!
+        # 2. CHỈ KHI CHƯA CÓ PRIMARY HOẶC PRIMARY HIỆN TẠI ĐÃ CHẾT (OFFLINE):
+        # Mới tiến hành xét bầu chọn Primary mới:
         if not authoritative_primary_node:
-            curr_mg_active = get_active_mongo_primary()
-            if curr_mg_active:
-                matched_curr = next((m for m in online_m if is_same_mongo_host(m["host"], curr_mg_active)), None)
-                if matched_curr:
-                    authoritative_primary_node = matched_curr
+            reported_prim_votes = {}
+            for m in online_m:
+                rp = m.get("_reported_primary")
+                if rp:
+                    norm_rp = normalize_mongo_host(rp)
+                    reported_prim_votes[norm_rp] = reported_prim_votes.get(norm_rp, 0) + 1
+
+            direct_primaries = [m for m in online_m if m.get("_is_prim")]
+            if direct_primaries:
+                authoritative_primary_node = direct_primaries[0]
+            elif reported_prim_votes:
+                sorted_voted = sorted(reported_prim_votes.items(), key=lambda x: x[1], reverse=True)
+                for top_host, vote_cnt in sorted_voted:
+                    matched = next((m for m in online_m if is_same_mongo_host(m["host"], top_host)), None)
+                    if matched:
+                        authoritative_primary_node = matched
+                        break
 
         # CHỈ KHI PRIMARY HIỆN TẠI THỰC SỰ CHẾT (OFFLINE):
         # Mới tiến hành Failover bầu Node mới tự nhiên qua replSetStepUp:
