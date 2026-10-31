@@ -946,54 +946,91 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
             if top_cand in online_nodes:
                 active_primary = top_cand
 
-        # 2. NGUYÊN TẮC CỐT LÕI: NẾU ĐÃ CÓ NODE CHÍNH (PRIMARY) ĐANG HOẠT ĐỘNG:
-        # TUYỆT ĐỐI KHÔNG BẦU LẠI, KHÔNG GỌI replSetReconfig, KHÔNG CAN THIỆP!
+        # 2. NGUYÊN TẮC CỐT LÕI (NON-PREEMPTIVE HA): NẾU ĐÃ CÓ NODE CHÍNH (PRIMARY) ĐANG HOẠT ĐỘNG:
+        # TUYỆT ĐỐI KHÔNG BẦU LẠI, KHÔNG GỌI replSetReconfig ép buộc (force=True), KHÔNG CAN THIỆP PHÁ VỠ QUORUM!
         # Giữ nguyên cấu hình hiện tại để đảm bảo tính ổn định tuyệt đối, chống chập chờn,
         # chống rớt về Secondary và chống crash/stop service mongod.
-        # CHỈ can thiệp khi:
-        # - Hoặc người dùng chủ động yêu cầu đổi sang Node khác (force=True và target_primary khác active_primary)
-        # - Hoặc Node chính thực sự bị chết (OFFLINE) - khi đó active_primary sẽ là None.
-        if active_primary and not (force and target_primary and not is_same_mongo_host(target_primary, active_primary)):
-            set_active_mongo_primary(active_primary)
-
-            # KIỂM TRA VÀ TỰ ĐỘNG PHỤC HỒI (SELF-HEAL) QUYỀN BIỂU QUYẾT CHO CÁC MEMBER VỪA ONLINE LẠI:
-            # Nếu cụm có >= 3 node online, tất cả các node online đều phải có votes = 1 và priority > 0
-            if len(online_nodes) >= 3:
+        if active_primary:
+            # A. Người dùng chủ động yêu cầu chuyển giao Node chính (Manual Switch):
+            if force and target_primary and not is_same_mongo_host(target_primary, active_primary):
                 try:
-                    c_act = MongoClient(f"mongodb://{active_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=1200)
+                    c_act = MongoClient(f"mongodb://{active_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=2000)
                     cfg_act = c_act.admin.command("replSetGetConfig")["config"]
-                    needs_heal = False
-                    priority_ladder = [1.5, 1.2, 1.0, 0.8]
-                    sec_i = 0
-                    for idx, m in enumerate(cfg_act.get("members", [])):
+                    cfg_act["version"] += 1
+                    for m in cfg_act.get("members", []):
                         m_h = m.get("host", "")
-                        cfg_h = norm_mongo_nodes[idx] if idx < len(norm_mongo_nodes) else m_h
-                        is_p = is_same_mongo_host(m_h, active_primary) or is_same_mongo_host(cfg_h, active_primary)
-                        is_member_on = is_p or any(is_same_mongo_host(m_h, on_h) or is_same_mongo_host(cfg_h, on_h) for on_h in online_nodes)
-                        if is_member_on and (m.get("votes", 1) == 0 or m.get("priority", 1.0) == 0.0):
-                            needs_heal = True
-                        if is_p:
-                            m["votes"] = 1
+                        if is_same_mongo_host(m_h, target_primary):
                             m["priority"] = 2.0
-                        elif is_member_on:
                             m["votes"] = 1
-                            m["priority"] = priority_ladder[min(sec_i, len(priority_ladder)-1)]
-                            sec_i += 1
                         else:
-                            m["votes"] = 0
-                            m["priority"] = 0.0
-                    if needs_heal:
-                        cfg_act["version"] += 1
-                        c_act.admin.command("replSetReconfig", cfg_act)
+                            m["priority"] = 1.0
+                            m["votes"] = 1
+                    c_act.admin.command("replSetReconfig", cfg_act)
+                    try:
+                        c_act.admin.command("replSetStepDown", 60)
+                    except Exception:
+                        pass
                     c_act.close()
+
+                    try:
+                        c_tgt = MongoClient(f"mongodb://{target_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=2000)
+                        c_tgt.admin.command("replSetStepUp")
+                        c_tgt.close()
+                    except Exception:
+                        pass
+
+                    set_active_mongo_primary(target_primary)
+                    return {
+                        "status": "SWITCHED",
+                        "primary": target_primary,
+                        "online_nodes": online_nodes,
+                        "message": f"Đã chuyển giao an toàn Node chính sang {target_primary}"
+                    }
                 except Exception:
                     pass
+
+            # B. Node chính hiện tại đang hoạt động bình thường -> DUY TRÌ & TỰ ĐỘNG PHỤC HỒI (SELF-HEAL) QUYỀN BIỂU QUYẾT CHO CÁC MEMBER VỪA GIA NHẬP LẠI:
+            set_active_mongo_primary(active_primary)
+            try:
+                c_act = MongoClient(f"mongodb://{active_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=1500)
+                cfg_act = c_act.admin.command("replSetGetConfig")["config"]
+                needs_heal = False
+                for idx, m in enumerate(cfg_act.get("members", [])):
+                    m_h = m.get("host", "")
+                    cfg_h = norm_mongo_nodes[idx] if idx < len(norm_mongo_nodes) else m_h
+                    is_p = is_same_mongo_host(m_h, active_primary) or is_same_mongo_host(cfg_h, active_primary)
+                    is_member_on = is_p or any(is_same_mongo_host(m_h, on_h) or is_same_mongo_host(cfg_h, on_h) for on_h in online_nodes)
+                    
+                    if is_p:
+                        # Primary hiện tại luôn giữ priority = 2.0, votes = 1
+                        if m.get("priority") != 2.0 or m.get("votes") != 1:
+                            needs_heal = True
+                        m["votes"] = 1
+                        m["priority"] = 2.0
+                    elif is_member_on:
+                        # Node online khác (kể cả Node 1 vừa bật lại) nhận priority = 1.0 < 2.0 để KHÔNG cướp quyền Primary
+                        if m.get("priority") != 1.0 or m.get("votes") != 1:
+                            needs_heal = True
+                        m["votes"] = 1
+                        m["priority"] = 1.0
+                    elif len(online_nodes) >= 3:
+                        # Cụm đủ Quorum (>= 3 node): Bảo toàn votes=1 cho toàn bộ để khi node bật lại sẵn sàng tham gia
+                        if m.get("priority") != 1.0 or m.get("votes") != 1:
+                            needs_heal = True
+                        m["votes"] = 1
+                        m["priority"] = 1.0
+                if needs_heal:
+                    cfg_act["version"] += 1
+                    c_act.admin.command("replSetReconfig", cfg_act)
+                c_act.close()
+            except Exception:
+                pass
 
             return {
                 "status": "ALREADY_PRIMARY",
                 "primary": active_primary,
                 "online_nodes": online_nodes,
-                "message": f"Node chính {active_primary} đang hoạt động ổn định"
+                "message": f"Node chính {active_primary} đang hoạt động ổn định (Non-Preemptive HA)"
             }
 
         if not online_nodes:
@@ -1002,9 +1039,8 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
         # 3. Chọn node ứng viên làm PRIMARY:
         # Thứ tự ưu tiên nghiêm ngặt để bảo đảm tính ổn định và chống split-brain:
         # 1. target_primary (nếu được yêu cầu rõ ràng qua API)
-        # 2. Node đầu tiên trong cấu hình CLUSTER_CONFIG["mongo_nodes"] (Node 1) nếu online
-        # 3. active_mongo_primary đã cấu hình trước đó nếu online
-        # 4. Node có thứ tự ưu tiên cao nhất theo CLUSTER_CONFIG["mongo_nodes"]
+        # 2. Node từng làm Primary trước đó nếu vẫn còn online (Non-Preemptive HA)
+        # 3. Node có thứ tự ưu tiên trong cấu hình CLUSTER_CONFIG["mongo_nodes"]
         chosen_primary = None
         if target_primary:
             tgt_norm = normalize_mongo_host(target_primary)
@@ -1012,12 +1048,17 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                 chosen_primary = tgt_norm
 
         if not chosen_primary:
+            prev_p = get_active_mongo_primary()
+            if prev_p and any(is_same_mongo_host(on_h, prev_p) for on_h in online_nodes):
+                chosen_primary = next(on_h for on_h in online_nodes if is_same_mongo_host(on_h, prev_p))
+
+        if not chosen_primary:
             for nh in norm_mongo_nodes:
                 if nh in online_nodes:
                     chosen_primary = nh
                     break
 
-        if not chosen_primary:
+        if not chosen_primary and online_nodes:
             chosen_primary = online_nodes[0]
 
         # 4. Thực hiện Quorum Rescue / Bầu chọn trên chosen_primary
@@ -1071,10 +1112,12 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                     if is_cand:
                         v = 1
                         p = 2.0
-                    elif is_on and len(online_nodes) >= 3:
+                    elif is_on:
                         v = 1
-                        p = priority_ladder[min(sec_idx, len(priority_ladder)-1)]
-                        sec_idx += 1
+                        p = 1.0
+                    elif len(online_nodes) >= 3:
+                        v = 1
+                        p = 1.0
                     else:
                         v = 0
                         p = 0.0
@@ -1101,10 +1144,10 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                     is_on = (nh in online_nodes)
                     if is_cand:
                         v, p = 1, 2.0
-                    elif is_on and len(online_nodes) >= 3:
-                        v = 1
-                        p = priority_ladder[min(sec_idx, len(priority_ladder)-1)]
-                        sec_idx += 1
+                    elif is_on:
+                        v, p = 1, 1.0
+                    elif len(online_nodes) >= 3:
+                        v, p = 1, 1.0
                     else:
                         v, p = 0, 0.0
                     new_members.append({
@@ -1279,7 +1322,7 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
         if online_secondaries:
             try:
                 rescue_cand = online_secondaries[0][1]
-                rec_res = ensure_mongo_primary_priority(force=True, target_primary=rescue_cand)
+                rec_res = ensure_mongo_primary_priority(force=False, target_primary=rescue_cand)
                 if rec_res.get("primary"):
                     set_active_mongo_primary(rec_res["primary"])
                     c_resc = MongoClient(f"mongodb://{rec_res['primary']}/?directConnection=true&w=1", serverSelectionTimeoutMS=1000)
@@ -2156,9 +2199,8 @@ def get_cluster_status(request: Request):
         idx, cfg_host = idx_host
         h_mg, p_mg = (cfg_host.split(":") if ":" in cfg_host else (cfg_host, 27017))
         p_mg = int(p_mg)
-        # Thăm dò TCP thuần túy và đo độ trễ mạng chuẩn xác
-        # Khi tắt node, phản hồi OFFLINE ngay lập tức để chuyển giao Primary trong < 300ms
-        is_alive, tcp_ping = measure_tcp_ping(h_mg, p_mg, timeout=0.8)
+        # Thăm dò TCP thuần túy và đo độ trễ mạng chuẩn xác (timeout 1.5s phù hợp mạng LAN wifi)
+        is_alive, tcp_ping = measure_tcp_ping(h_mg, p_mg, timeout=1.5)
         if not is_alive:
             return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": "OFFLINE", "health": 0,
@@ -2168,8 +2210,8 @@ def get_cluster_status(request: Request):
             m_single = MongoClient(
                 f"mongodb://{h_mg}:{p_mg}/?directConnection=true", 
                 read_preference=ReadPreference.SECONDARY_PREFERRED, 
-                serverSelectionTimeoutMS=800, 
-                connectTimeoutMS=800
+                serverSelectionTimeoutMS=1500, 
+                connectTimeoutMS=1500
             )
             hello_res = m_single.admin.command("hello")
             set_name = hello_res.get("setName")
@@ -2280,22 +2322,34 @@ def get_cluster_status(request: Request):
                     authoritative_primary_node = matched
                     break
 
-        # FAST FAILOVER TỨC THÌ (< 300ms) KHI MẤT PRIMARY:
-        # Nếu chưa tìm thấy Primary (do Node chính cũ vừa bị tắt), ngay lập tức kích hoạt replSetStepUp trên ứng viên
-        # để đắc cử Primary ngay trong chu kỳ hiện tại, TUYỆT ĐỐI KHÔNG để cả 4 node bị hiển thị là Node phụ!
+        # NGUYÊN TẮC HA (NON-PREEMPTIVE FAILOVER CHO MONGODB):
+        # Nếu Primary hiện tại (ví dụ: Node 2) vẫn đang ONLINE, Node đó BẮT BUỘC TIẾP TỤC LÀM PRIMARY!
+        # Node cũ vừa khởi động lại (Node 1) TUYỆT ĐỐI KHÔNG ĐƯỢC CƯỚP QUYỀN PRIMARY!
+        if not authoritative_primary_node:
+            curr_mg_active = get_active_mongo_primary()
+            if curr_mg_active:
+                matched_curr = next((m for m in online_m if is_same_mongo_host(m["host"], curr_mg_active)), None)
+                if matched_curr:
+                    authoritative_primary_node = matched_curr
+
+        # CHỈ KHI PRIMARY HIỆN TẠI THỰC SỰ CHẾT (OFFLINE):
+        # Mới tiến hành Failover bầu Node mới tự nhiên qua replSetStepUp:
         if not authoritative_primary_node and online_m:
-            cfg_mongo_list = CLUSTER_CONFIG.get("mongo_nodes", [])
             cand_to_step = None
-            for cn in cfg_mongo_list:
-                cand_to_step = next((m for m in online_m if is_same_mongo_host(m["host"], cn)), None)
-                if cand_to_step:
-                    break
+            curr_known = get_active_mongo_primary()
+            if curr_known:
+                cand_to_step = next((m for m in online_m if is_same_mongo_host(m["host"], curr_known)), None)
+            if not cand_to_step:
+                cfg_mongo_list = CLUSTER_CONFIG.get("mongo_nodes", [])
+                for cn in cfg_mongo_list:
+                    cand_to_step = next((m for m in online_m if is_same_mongo_host(m["host"], cn)), None)
+                    if cand_to_step:
+                        break
             if not cand_to_step:
                 cand_to_step = online_m[0]
 
-            stepped_up = False
             try:
-                c_step = MongoClient(f"mongodb://{cand_to_step['host']}/?directConnection=true", serverSelectionTimeoutMS=800)
+                c_step = MongoClient(f"mongodb://{cand_to_step['host']}/?directConnection=true", serverSelectionTimeoutMS=1200)
                 res_step = c_step.admin.command("replSetStepUp")
                 if res_step.get("ok"):
                     h_step = c_step.admin.command("hello")
@@ -2303,22 +2357,11 @@ def get_cluster_status(request: Request):
                         cand_to_step["state"] = "PRIMARY"
                         cand_to_step["_is_prim"] = True
                         authoritative_primary_node = cand_to_step
-                        stepped_up = True
                 c_step.close()
             except Exception:
-                stepped_up = False
-
-            if not stepped_up:
-                try:
-                    rescue_res = ensure_mongo_primary_priority(force=True, target_primary=cand_to_step["host"])
-                    if rescue_res.get("primary"):
-                        matched_prim = next((m for m in online_m if is_same_mongo_host(m["host"], rescue_res["primary"])), None)
-                        if matched_prim:
-                            matched_prim["state"] = "PRIMARY"
-                            matched_prim["_is_prim"] = True
-                            authoritative_primary_node = matched_prim
-                except Exception as e:
-                    print(f"[FAST_FAILOVER_ERROR] {e}")
+                pass
+            # TUYỆT ĐỐI KHÔNG GỌI ensure_mongo_primary_priority(force=True) ở đây!
+            # Vì polling đọc trạng thái không được tự ý ép buộc Quorum gây split-brain và crash service.
 
         # Áp dụng vai trò hiển thị:
         if authoritative_primary_node:
