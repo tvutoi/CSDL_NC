@@ -1946,63 +1946,6 @@
 
       <!-- tab 3 -->
         <div class="tab-pane fade" id="tab-cluster" role="tabpanel">
-          <!-- MỤC: ĐIỀU PHỐI CHUYỂN GIAO NODE CHÍNH (FAILOVER & HA MANAGEMENT) -->
-          <div class="panel-box mb-3 border shadow-sm">
-            <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2 py-2" style="min-height: 44px; background: #f8fafc;">
-              <div class="d-flex align-items-center gap-2">
-                <i class="bi bi-diagram-3-fill text-primary fs-5"></i>
-                <span class="fw-bold fs-6 text-dark">Quản trị Chuyển giao Node chính (Failover & HA Management)</span>
-              </div>
-              <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-2.5 py-1 small" title="Cơ chế sẵn sàng cao không cướp quyền (Non-Preemptive HA): Khi node cũ hòa mạng lại sẽ không giật quyền Node chính, đảm bảo cụm luôn ổn định">
-                  <i class="bi bi-shield-check me-1"></i>Sẵn sàng cao &middot; Không cướp quyền
-                </span>
-              </div>
-            </div>
-            <div class="panel-body p-3">
-              <div class="row g-3">
-                <div class="col-12 col-md-6">
-                  <div class="p-3 bg-light border rounded-2 h-100">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                      <span class="fw-bold text-dark"><i class="bi bi-database me-1 text-primary"></i>Điều phối Cụm MySQL (Group Replication)</span>
-                      <span id="tab-mysql-ha-status" class="badge bg-light text-secondary border">Single-Primary</span>
-                    </div>
-                    <p class="small text-muted mb-2" style="font-size: 12.5px;">
-                      Nguyên tắc Non-Preemptive Single-Primary: Cho phép chuyển giao Node chính chủ động giữa các node trực tuyến khi cụm đủ Quorum. Khi kết nối lại, node cũ tự động làm Node phụ để tránh cướp quyền.
-                    </p>
-                    <div class="d-flex align-items-center gap-2 mt-2">
-                      <select id="select-switch-mysql-primary" class="form-select form-select-sm" style="max-width: 220px;">
-                        <option value="">-- Chọn Node chuyển Primary --</option>
-                      </select>
-                      <button class="btn btn-sm btn-outline-primary fw-medium" onclick="triggerMysqlSwitchPrimary(document.getElementById('select-switch-mysql-primary').value)">
-                        <i class="bi bi-arrow-left-right me-1"></i>Chuyển Primary
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-12 col-md-6">
-                  <div class="p-3 bg-light border rounded-2 h-100">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                      <span class="fw-bold text-dark"><i class="bi bi-hdd-network me-1 text-success"></i>Điều phối Cụm MongoDB (Replica Set)</span>
-                      <span id="tab-mongo-ha-status" class="badge bg-light text-secondary border">Safe Raft</span>
-                    </div>
-                    <p class="small text-muted mb-2" style="font-size: 12.5px;">
-                      Nguyên tắc Safe Raft & Non-Preemptive: Cho phép chuyển giao Node chính chủ động giữa các node trực tuyến khi cụm đủ Quorum. Khi thiếu Quorum, cụm tự động khóa Chỉ đọc để chống Split-Brain.
-                    </p>
-                    <div class="d-flex align-items-center gap-2 mt-2">
-                      <select id="select-switch-mongo-primary" class="form-select form-select-sm" style="max-width: 220px;">
-                        <option value="">-- Chọn Node chuyển Primary --</option>
-                      </select>
-                      <button class="btn btn-sm btn-outline-success fw-medium" onclick="triggerMongoSwitchPrimary(document.getElementById('select-switch-mongo-primary').value)">
-                        <i class="bi bi-arrow-left-right me-1"></i>Chuyển Primary
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <div class="panel-box mb-3">
             <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2" style="min-height: 48px;">
               <div class="fw-bold">Đối chiếu số bản ghi</div>
@@ -3723,75 +3666,6 @@
           if (thEl && data.mysql && data.mysql[i]) {
             thEl.innerText = `Node ${i + 1} (${data.mysql[i].host})`;
           }
-        }
-
-        // Điền danh sách chọn Node cho bộ điều phối HA
-        const selMysql = document.getElementById("select-switch-mysql-primary");
-        if (selMysql && data.mysql) {
-          const currentVal = selMysql.value;
-          selMysql.innerHTML = '<option value="">-- Chọn Node chuyển Primary --</option>' +
-            data.mysql.filter(n => n.state && n.state.indexOf("ONLINE") !== -1).map(n => `<option value="${n.host}">${n.node_name} (${n.host}) ${n.role === 'PRIMARY' ? '★ Đang là Primary' : ''}</option>`).join('');
-          if (currentVal) selMysql.value = currentVal;
-        }
-
-        const selMongo = document.getElementById("select-switch-mongo-primary");
-        if (selMongo && data.mongodb) {
-          const currentVal = selMongo.value;
-          selMongo.innerHTML = '<option value="">-- Chọn Node chuyển Primary --</option>' +
-            data.mongodb.filter(n => n.health === 1 && n.state !== 'OFFLINE').map(n => `<option value="${n.host}">${n.node_name} (${n.host}) ${n.state === 'PRIMARY' ? '★ Đang là Primary' : ''}</option>`).join('');
-          if (currentVal) selMongo.value = currentVal;
-        }
-      }
-
-      // HÀM ĐIỀU PHỐI CHUYỂN GIAO NODE CHÍNH MONGODB
-      async function triggerMongoSwitchPrimary(targetNode) {
-        if (!targetNode) {
-          showToastNotification("Vui lòng chọn một Node online để chuyển quyền Primary!", "warning");
-          return;
-        }
-        if (!confirm(`Bạn có chắc chắn muốn chuyển giao Node chính MongoDB sang ${targetNode} không?`)) return;
-        try {
-          showToastNotification("Đang chuyển giao Node chính MongoDB...", "info");
-          const res = await fetch("/api/cluster/mongo/elect-primary", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ target_node: targetNode })
-          });
-          const data = await res.json();
-          if (data.status === "SUCCESS" || data.status === "ALREADY_PRIMARY" || data.status === "ELECTED_NATURALLY" || data.status === "SWITCHED") {
-            showToastNotification(`✓ ${data.message || "Đã chuyển Node chính thành công!"}`, "success");
-            await fetchClusterStatus();
-          } else {
-            showToastNotification(data.message || "Không thể thực hiện chuyển Primary", "warning");
-          }
-        } catch (err) {
-          showToastNotification("Lỗi điều phối MongoDB: " + err.message, "danger");
-        }
-      }
-      window.triggerMongoRescueModal = triggerMongoSwitchPrimary;
-
-      async function triggerMysqlSwitchPrimary(targetNode) {
-        if (!targetNode) {
-          showToastNotification("Vui lòng chọn một Node online để chuyển quyền Primary!", "warning");
-          return;
-        }
-        if (!confirm(`Bạn có chắc chắn muốn chuyển giao Node chính MySQL sang ${targetNode} không?`)) return;
-        try {
-          showToastNotification("Đang chuyển giao Node chính MySQL...", "info");
-          const res = await fetch("/api/cluster/mysql/elect-primary", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ target_node: targetNode })
-          });
-          const data = await res.json();
-          if (data.status === "SUCCESS") {
-            showToastNotification(`✓ ${data.message}`, "success");
-            await fetchClusterStatus();
-          } else {
-            showToastNotification(data.message || "Không thể chuyển giao MySQL", "warning");
-          }
-        } catch (err) {
-          showToastNotification("Lỗi chuyển giao MySQL: " + err.message, "danger");
         }
       }
 
