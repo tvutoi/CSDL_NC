@@ -1442,13 +1442,33 @@
         <!-- tab 5 -->
         <div class="tab-pane fade" id="tab-catalog" role="tabpanel">
           <div class="panel-box">
-            <div class="panel-header">
-              <span>Danh mục hàng hóa</span>
-              <span
-                class="text-muted fw-normal small tech-detail"
-                id="polyglot-route-info"
-                >Đang tải...</span
-              >
+            <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div>
+                <span>Danh mục hàng hóa</span>
+                <span
+                  class="text-muted fw-normal small tech-detail ms-2"
+                  id="polyglot-route-info"
+                  >Đang tải...</span
+                >
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-success py-1 px-3 fw-medium"
+                  id="btn-seed-large-catalog"
+                  onclick="triggerSeedLargeData(this)"
+                  title="Nạp dữ liệu lớn tự động: 212k dòng MySQL + 100k documents MongoDB">
+                  <i class="bi bi-database-fill-add me-1"></i>Nạp dữ liệu lớn
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-info py-1 px-3 fw-medium"
+                  id="btn-bulk-import-catalog"
+                  onclick="triggerBulkImportDemo(this)"
+                  title="Cập nhật hàng loạt 500 sản phẩm, phát tán Paxos GTID nguyên khối">
+                  <i class="bi bi-box-arrow-in-down me-1"></i>Nhập lô 500 SP
+                </button>
+              </div>
             </div>
             <div class="panel-body">
               <div class="row g-2 mb-3 align-items-end">
@@ -2516,6 +2536,22 @@
                   title="Tự động tìm kiếm các bản ghi bị lệch và nạp bù 2 chiều vào các Node còn thiếu">
                   <i class="bi bi-arrow-repeat me-1" id="icon-data-sync"></i
                   >Đồng bộ bù dữ liệu
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-success py-1 px-3 fw-medium"
+                  id="btn-seed-large"
+                  onclick="triggerSeedLargeData(this)"
+                  title="Nạp dữ liệu lớn tự động: 212k dòng MySQL + 100k documents MongoDB">
+                  <i class="bi bi-database-fill-add me-1"></i>Nạp dữ liệu lớn
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-info py-1 px-3 fw-medium"
+                  id="btn-bulk-import-demo"
+                  onclick="triggerBulkImportDemo(this)"
+                  title="Cập nhật hàng loạt 500 sản phẩm, phát tán Paxos GTID nguyên khối">
+                  <i class="bi bi-box-arrow-in-down me-1"></i>Nhập lô 500 SP
                 </button>
               </div>
             </div>
@@ -4072,8 +4108,13 @@
       function openImageLightbox(src) {
         const modalEl = document.getElementById("imageLightboxModal");
         const imgEl = document.getElementById("lightbox-modal-img");
-        if (!modalEl || !imgEl || !src) return;
-        imgEl.src = src;
+        if (!modalEl || !imgEl || !src || typeof src !== "string") return;
+        const cleanSrc = src.trim();
+        if (/^(javascript|vbscript|data:(?!image\/))/i.test(cleanSrc)) {
+          console.warn("Blocked potentially unsafe lightbox URL scheme:", cleanSrc);
+          return;
+        }
+        imgEl.src = cleanSrc;
         if (window.bootstrap) {
           const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
           modal.show();
@@ -4088,6 +4129,16 @@
           starsHtml += `<span style="color: ${color}; font-size: 15px; line-height: 1;">★</span>`;
         }
         return `<span class="d-inline-flex align-items-center me-2" style="gap: 1.5px;">${starsHtml}</span>`;
+      }
+
+      function escapeHtml(str) {
+        if (str === null || str === undefined) return "";
+        return String(str)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
       }
 
       function formatRelativeTime(dateStr) {
@@ -5222,62 +5273,9 @@
 
       // Xuất file JSON nhật ký kiểm toán cho DBA/Quản trị viên
       function exportAuditLogsJSON() {
-        const qModal = (
-          document.getElementById("sync-search-input")?.value || ""
-        )
-          .toLowerCase()
-          .trim();
-        let list = cachedSyncLogs;
-        if (currentModalFilter && currentModalFilter !== "ALL") {
-          list = list.filter((l) => l.db_type === currentModalFilter);
-        }
-        if (currentModalStatusFilter && currentModalStatusFilter !== "ALL") {
-          if (currentModalStatusFilter === "SUCCESS") {
-            list = list.filter(
-              (l) => l.status === "SUCCESS" || l.status === "COMPLETED",
-            );
-          } else if (currentModalStatusFilter === "RECONCILE") {
-            list = list.filter(
-              (l) =>
-                l.action === "RECONCILE_SYNC" ||
-                (l.title && l.title.includes("bù")),
-            );
-          } else if (currentModalStatusFilter === "PARTIAL") {
-            list = list.filter(
-              (l) => l.status === "PARTIAL" || l.status === "LAGGING",
-            );
-          } else if (currentModalStatusFilter === "ERROR") {
-            list = list.filter(
-              (l) => l.status === "FAILED" || l.status === "ERROR",
-            );
-          }
-        }
-        if (qModal) {
-          list = list.filter(
-            (l) =>
-              (l.title && l.title.toLowerCase().includes(qModal)) ||
-              (l.summary && l.summary.toLowerCase().includes(qModal)) ||
-              (l.log_id && l.log_id.toLowerCase().includes(qModal)) ||
-              (l.data_payload &&
-                l.data_payload.toLowerCase().includes(qModal)) ||
-              (l.affected_tables &&
-                l.affected_tables.toLowerCase().includes(qModal)),
-          );
-        }
-        const dataStr =
-          "data:text/json;charset=utf-8," +
-          encodeURIComponent(JSON.stringify(list, null, 2));
-        const dlAnchor = document.createElement("a");
-        dlAnchor.setAttribute("href", dataStr);
-        dlAnchor.setAttribute(
-          "download",
-          `cluster_audit_logs_${new Date().toISOString().slice(0, 10)}.json`,
-        );
-        document.body.appendChild(dlAnchor);
-        dlAnchor.click();
-        dlAnchor.remove();
+        window.location.href = "/api/cluster/sync-logs/export";
         showToastNotification(
-          `✓ Đã xuất ${list.length} bản ghi nhật ký đồng bộ ra tệp JSON!`,
+          "Đang tải xuống tệp nhật ký kiểm toán sync_audit_logs.json từ hệ thống.",
           "success",
         );
       }
@@ -6169,6 +6167,77 @@
         return triggerReconciliation();
       }
 
+      // Kích hoạt nạp dữ liệu lớn tự động vào MySQL và MongoDB
+      async function triggerSeedLargeData(btn) {
+        if (!confirm("Xác nhận nạp dữ liệu lớn (212.000 dòng MySQL + 100.000 documents MongoDB)?")) {
+          return;
+        }
+        const originalHtml = btn ? btn.innerHTML : "";
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang nạp dữ liệu...';
+        }
+        try {
+          const res = await fetch("/api/database/seed-large?scale=standard", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" }
+          });
+          if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`Mã lỗi ${res.status}: ${errText.slice(0, 100)}`);
+          }
+          const data = await res.json();
+          showToastNotification(
+            `Đã nạp thành công ${data.mysql_rows_seeded.toLocaleString()} dòng MySQL và ${data.mongodb_docs_seeded.toLocaleString()} docs MongoDB trong ${data.elapsed_seconds} giây.`,
+            "success"
+          );
+          if (typeof fetchClusterStatus === "function") await fetchClusterStatus();
+          if (typeof loadSyncLogs === "function") await loadSyncLogs(false);
+          if (typeof loadProducts === "function") loadProducts(1);
+        } catch (err) {
+          showToastNotification("Lỗi nạp dữ liệu lớn: " + err.message, "danger");
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+          }
+        }
+      }
+
+      // Kích hoạt cập nhật hàng loạt 500 sản phẩm (minh họa Paxos GTID)
+      async function triggerBulkImportDemo(btn) {
+        const originalHtml = btn ? btn.innerHTML : "";
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang cập nhật...';
+        }
+        try {
+          const res = await fetch("/api/products/bulk-import-demo?count=500", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" }
+          });
+          if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`Mã lỗi ${res.status}: ${errText.slice(0, 100)}`);
+          }
+          const data = await res.json();
+          showToastNotification(
+            `Cập nhật thành công 500 sản phẩm (${data.elapsed_ms}ms, GTID: ${data.gtid_range}).`,
+            "success"
+          );
+          if (typeof fetchClusterStatus === "function") await fetchClusterStatus();
+          if (typeof loadSyncLogs === "function") await loadSyncLogs(false);
+          if (typeof loadProducts === "function") loadProducts(1);
+        } catch (err) {
+          showToastNotification("Lỗi cập nhật hàng loạt: " + err.message, "danger");
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+          }
+        }
+      }
+
       let currentCatalogPage = 1;
 
       const CATEGORY_NAMES_VN = {
@@ -6960,30 +7029,38 @@
                 r.user_name ||
                 (r.user_id ? `Khách hàng #${r.user_id}` : "Khách hàng");
               const avatarLetter = getAvatarLetter(authorName);
+              const authorNameSafe = escapeHtml(authorName);
+              const avatarLetterSafe = escapeHtml(avatarLetter);
+              const timeFullSafe = escapeHtml(timeInfo.full);
+              const timeRelSafe = escapeHtml(timeInfo.relative);
+              const titleSafe = escapeHtml(r.title || "Nhận xét sản phẩm");
+              const commentSafe = escapeHtml(r.comment || "");
+              const pkgSafe = escapeHtml(attr.packaging || "Nguyên hộp");
+              const delivSafe = escapeHtml(attr.delivery_speed || "Đúng hẹn");
               const imgHtml =
                 r.images && r.images.length > 0 && r.images[0]
                   ? `<div class="ms-3 flex-shrink-0">
-                       <img src="${r.images[0]}" alt="Ảnh thực tế" class="review-thumb-img" onclick="openImageLightbox('${r.images[0]}')" title="Bấm để phóng to" onerror="this.parentElement.remove()" />
+                       <img src="${escapeHtml(r.images[0])}" data-lightbox-url="${escapeHtml(r.images[0])}" alt="Ảnh thực tế" class="review-thumb-img" onclick="openImageLightbox(this.dataset.lightboxUrl)" title="Bấm để phóng to" onerror="this.parentElement.remove()" />
                      </div>`
                   : "";
 
               return `
             <div class="review-item-card d-flex align-items-start justify-content-between">
               <div class="d-flex align-items-start gap-3 flex-grow-1">
-                <div class="review-avatar-circle" title="${authorName}">${avatarLetter}</div>
+                <div class="review-avatar-circle" title="${authorNameSafe}">${avatarLetterSafe}</div>
                 <div class="flex-grow-1">
                   <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-                    <span class="fw-semibold text-dark" style="font-size: 14px;">${authorName}</span>
-                    <span class="text-secondary small" title="${timeInfo.full}" style="font-size: 12px; cursor: default;">${timeInfo.relative}</span>
+                    <span class="fw-semibold text-dark" style="font-size: 14px;">${authorNameSafe}</span>
+                    <span class="text-secondary small" title="${timeFullSafe}" style="font-size: 12px; cursor: default;">${timeRelSafe}</span>
                   </div>
                   <div class="d-flex align-items-center flex-wrap mb-1.5">
                     ${starsHtml}
-                    <span class="fw-semibold text-dark" style="font-size: 15px;">${r.title || "Nhận xét sản phẩm"}</span>
+                    <span class="fw-semibold text-dark" style="font-size: 15px;">${titleSafe}</span>
                   </div>
-                  <div class="text-dark" style="font-size: 13.5px; line-height: 1.55;">${r.comment || ""}</div>
+                  <div class="text-dark" style="font-size: 13.5px; line-height: 1.55;">${commentSafe}</div>
                   <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
-                    <span class="badge bg-light text-secondary border fw-normal" style="font-size: 11.5px; padding: 4px 8px;">Đóng gói: ${attr.packaging || "Nguyên hộp"}</span>
-                    <span class="badge bg-light text-secondary border fw-normal" style="font-size: 11.5px; padding: 4px 8px;">Vận chuyển: ${attr.delivery_speed || "Đúng hẹn"}</span>
+                    <span class="badge bg-light text-secondary border fw-normal" style="font-size: 11.5px; padding: 4px 8px;">Đóng gói: ${pkgSafe}</span>
+                    <span class="badge bg-light text-secondary border fw-normal" style="font-size: 11.5px; padding: 4px 8px;">Vận chuyển: ${delivSafe}</span>
                   </div>
                 </div>
               </div>

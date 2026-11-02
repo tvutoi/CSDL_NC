@@ -1630,6 +1630,19 @@ def deduplicate_sync_logs():
     return {"status": "SUCCESS", "removed": removed, "total": len(SYNC_AUDIT_LOGS)}
 
 
+@app.get("/api/cluster/sync-logs/export")
+def export_sync_logs():
+    """Xuất toàn bộ nhật ký kiểm toán đồng bộ dữ liệu thành tệp JSON tải về."""
+    logs = sync_log_store.load_sync_logs_safe()
+    content = json.dumps(logs, ensure_ascii=False, indent=2, default=sync_log_store._json_serializer)
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=sync_audit_logs.json"}
+    )
+
+
+
 def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
     """
     Tự động đối chiếu và bù dữ liệu 2 chiều giữa tất cả các Node MySQL đang ONLINE:
@@ -2443,47 +2456,50 @@ def get_polyglot_products(
     # query mysql
     t_mysql_0 = time.perf_counter()
     conn, mysql_meta = get_mysql_connection(mode=read_mode)
-    cur = conn.cursor(dictionary=True)
+    try:
+        cur = conn.cursor(dictionary=True)
+        try:
+            where_clauses = ["1=1"]
+            filter_params = []
+            if category and category != "ALL":
+                where_clauses.append("p.category = %s")
+                filter_params.append(category)
+            if keyword:
+                where_clauses.append("(p.product_name LIKE %s OR p.sku LIKE %s OR p.brand LIKE %s)")
+                kw = f"%{keyword}%"
+                filter_params.extend([kw, kw, kw])
 
-    where_clauses = ["1=1"]
-    filter_params = []
-    if category and category != "ALL":
-        where_clauses.append("p.category = %s")
-        filter_params.append(category)
-    if keyword:
-        where_clauses.append("(p.product_name LIKE %s OR p.sku LIKE %s OR p.brand LIKE %s)")
-        kw = f"%{keyword}%"
-        filter_params.extend([kw, kw, kw])
+            where_sql = " AND ".join(where_clauses)
 
-    where_sql = " AND ".join(where_clauses)
+            count_sql = f"SELECT COUNT(*) AS total FROM products p WHERE {where_sql}"
+            cur.execute(count_sql, tuple(filter_params))
+            total_items = int(cur.fetchone()["total"] or 0)
+            total_pages = max(1, (total_items + limit - 1) // limit)
+            if page > total_pages:
+                page = total_pages
+            offset = (page - 1) * limit
 
-    count_sql = f"SELECT COUNT(*) AS total FROM products p WHERE {where_sql}"
-    cur.execute(count_sql, tuple(filter_params))
-    total_items = int(cur.fetchone()["total"] or 0)
-    total_pages = max(1, (total_items + limit - 1) // limit)
-    if page > total_pages:
-        page = total_pages
-    offset = (page - 1) * limit
-
-    sql_query = f"""
-        SELECT 
-            p.product_id, p.sku, p.product_name, p.category, p.brand,
-            p.price, p.stock_quantity, p.status,
-            COUNT(DISTINCT oi.order_id) AS total_orders_sold,
-            COALESCE(SUM(oi.quantity), 0) AS total_units_sold,
-            COALESCE(SUM(oi.quantity * oi.unit_price), 0) AS total_revenue
-        FROM products p
-        LEFT JOIN order_items oi ON p.product_id = oi.product_id
-        WHERE {where_sql}
-        GROUP BY p.product_id
-        ORDER BY p.product_id ASC
-        LIMIT %s OFFSET %s
-    """
-    query_params = list(filter_params) + [limit, offset]
-    cur.execute(sql_query, tuple(query_params))
-    products = cur.fetchall()
-    cur.close()
-    conn.close()
+            sql_query = f"""
+                SELECT 
+                    p.product_id, p.sku, p.product_name, p.category, p.brand,
+                    p.price, p.stock_quantity, p.status,
+                    COUNT(DISTINCT oi.order_id) AS total_orders_sold,
+                    COALESCE(SUM(oi.quantity), 0) AS total_units_sold,
+                    COALESCE(SUM(oi.quantity * oi.unit_price), 0) AS total_revenue
+                FROM products p
+                LEFT JOIN order_items oi ON p.product_id = oi.product_id
+                WHERE {where_sql}
+                GROUP BY p.product_id
+                ORDER BY p.product_id ASC
+                LIMIT %s OFFSET %s
+            """
+            query_params = list(filter_params) + [limit, offset]
+            cur.execute(sql_query, tuple(query_params))
+            products = cur.fetchall()
+        finally:
+            cur.close()
+    finally:
+        conn.close()
     mysql_ms = round((time.perf_counter() - t_mysql_0) * 1000, 2)
 
     # aggregate mongo reviews
@@ -2497,48 +2513,49 @@ def get_polyglot_products(
     if product_ids:
         try:
             m_client, mongo_meta = get_mongo_client(read_mode, with_meta=True)
-            mongo_node_used = mongo_meta["host"]
-            mongo_role_used = mongo_meta["role"]
-            cluster_pri = get_active_mongo_primary()
-            if (cluster_pri and is_same_mongo_host(mongo_node_used, cluster_pri)) or (read_mode == "primary"):
-                mongo_role_used = "PRIMARY"
-                mongo_meta["role"] = "PRIMARY"
-                mongo_meta["role_vn"] = "Node chính" 
-            mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
+            try:
+                mongo_node_used = mongo_meta["host"]
+                mongo_role_used = mongo_meta["role"]
+                cluster_pri = get_active_mongo_primary()
+                if (cluster_pri and is_same_mongo_host(mongo_node_used, cluster_pri)) or (read_mode == "primary"):
+                    mongo_role_used = "PRIMARY"
+                    mongo_meta["role"] = "PRIMARY"
+                    mongo_meta["role_vn"] = "Node chính" 
+                mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
 
-            pipeline_rev = [
-                {"$match": {"product_id": {"$in": product_ids}}},
-                {"$sort": {"created_at": -1}},
-                {"$group": {
-                    "_id": "$product_id",
-                    "avg_rating": {"$avg": "$rating"},
-                    "review_count": {"$sum": 1},
-                    "five_star": {"$sum": {"$cond": [{"$eq": ["$rating", 5]}, 1, 0]}},
-                    "recent_reviews": {"$push": {
-                        "rating": "$rating",
-                        "title": "$title",
-                        "comment": "$comment",
-                        "images": "$images",
-                        "attributes": "$sentiment_attributes"
+                pipeline_rev = [
+                    {"$match": {"product_id": {"$in": product_ids}}},
+                    {"$sort": {"created_at": -1}},
+                    {"$group": {
+                        "_id": "$product_id",
+                        "avg_rating": {"$avg": "$rating"},
+                        "review_count": {"$sum": 1},
+                        "five_star": {"$sum": {"$cond": [{"$eq": ["$rating", 5]}, 1, 0]}},
+                        "recent_reviews": {"$push": {
+                            "rating": "$rating",
+                            "title": "$title",
+                            "comment": "$comment",
+                            "images": "$images",
+                            "attributes": "$sentiment_attributes"
+                        }}
                     }}
-                }}
-            ]
-            for doc in mdb["product_reviews"].aggregate(pipeline_rev):
-                reviews_map[doc["_id"]] = {
-                    "avg_rating": round(doc["avg_rating"], 2),
-                    "review_count": doc["review_count"],
-                    "five_star": doc["five_star"],
-                    "recent_reviews": doc["recent_reviews"][:3]
-                }
+                ]
+                for doc in mdb["product_reviews"].aggregate(pipeline_rev):
+                    reviews_map[doc["_id"]] = {
+                        "avg_rating": round(doc["avg_rating"], 2),
+                        "review_count": doc["review_count"],
+                        "five_star": doc["five_star"],
+                        "recent_reviews": doc["recent_reviews"][:3]
+                    }
 
-            pipeline_logs = [
-                {"$match": {"product_id": {"$in": product_ids}}},
-                {"$group": {"_id": "$product_id", "view_count": {"$sum": 1}}}
-            ]
-            for doc in mdb["user_activity_logs"].aggregate(pipeline_logs):
-                views_map[doc["_id"]] = doc["view_count"]
-
-            m_client.close()
+                pipeline_logs = [
+                    {"$match": {"product_id": {"$in": product_ids}}},
+                    {"$group": {"_id": "$product_id", "view_count": {"$sum": 1}}}
+                ]
+                for doc in mdb["user_activity_logs"].aggregate(pipeline_logs):
+                    views_map[doc["_id"]] = doc["view_count"]
+            finally:
+                m_client.close()
         except Exception:
             pass
 
@@ -2607,7 +2624,7 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
     - Đồng thời ghi nhận log sự kiện sang MongoDB.
     - Chống xử lý trùng lặp qua Header X-Idempotency-Key.
     """
-    if x_idempotency_key:
+    if x_idempotency_key and isinstance(x_idempotency_key, str) and x_idempotency_key.strip():
         with _IDEMPOTENCY_LOCK:
             if x_idempotency_key in _IDEMPOTENCY_CACHE:
                 return _IDEMPOTENCY_CACHE[x_idempotency_key]
@@ -2670,6 +2687,8 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
             h_sec, p_sec = (sec_host.split(":") if ":" in sec_host else (sec_host, 3306))
             if not is_port_open(h_sec, int(p_sec), timeout=0.35, retries=1):
                 continue
+            s_conn = None
+            s_cur = None
             try:
                 s_conn = mysql.connector.connect(
                     host=h_sec,
@@ -2684,46 +2703,93 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
                     connection_timeout=3.5
                 )
                 s_cur = s_conn.cursor()
-                s_cur.execute("SET GLOBAL super_read_only = OFF")
-                s_cur.execute("SET GLOBAL read_only = OFF")
-                s_cur.execute("SELECT COUNT(*) FROM orders WHERE order_id = %s", (order_id,))
-                if s_cur.fetchone()[0] == 0:
-                    s_cur.execute("UPDATE products SET stock_quantity = stock_quantity - %s WHERE product_id = %s", (req.quantity, req.product_id))
-                    s_cur.execute(
-                        "INSERT INTO orders (order_id, user_id, total_amount, status, shipping_region) VALUES (%s, %s, %s, 'COMPLETED', 'MIEN_NAM')",
-                        (order_id, req.user_id, total)
-                    )
-                    s_cur.execute(
-                        "INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES (%s, %s, %s, %s)",
-                        (order_id, req.product_id, req.quantity, prod["price"])
-                    )
-                    s_cur.execute(
-                        "INSERT INTO payments (order_id, amount, payment_method, transaction_status) VALUES (%s, %s, %s, 'SUCCESS')",
-                        (order_id, total, req.payment_method)
-                    )
-                s_cur.execute("SET GLOBAL read_only = ON")
-                s_cur.execute("SET GLOBAL super_read_only = ON")
-                s_cur.close()
-                s_conn.close()
+                try:
+                    s_cur.execute("SET GLOBAL super_read_only = OFF")
+                    s_cur.execute("SET GLOBAL read_only = OFF")
+                    s_cur.execute("SELECT COUNT(*) FROM orders WHERE order_id = %s", (order_id,))
+                    if s_cur.fetchone()[0] == 0:
+                        s_cur.execute("UPDATE products SET stock_quantity = stock_quantity - %s WHERE product_id = %s", (req.quantity, req.product_id))
+                        s_cur.execute(
+                            "INSERT INTO orders (order_id, user_id, total_amount, status, shipping_region) VALUES (%s, %s, %s, 'COMPLETED', 'MIEN_NAM')",
+                            (order_id, req.user_id, total)
+                        )
+                        s_cur.execute(
+                            "INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES (%s, %s, %s, %s)",
+                            (order_id, req.product_id, req.quantity, prod["price"])
+                        )
+                        s_cur.execute(
+                            "INSERT INTO payments (order_id, amount, payment_method, transaction_status) VALUES (%s, %s, %s, 'SUCCESS')",
+                            (order_id, total, req.payment_method)
+                        )
+                finally:
+                    try:
+                        s_cur.execute("SET GLOBAL read_only = ON")
+                        s_cur.execute("SET GLOBAL super_read_only = ON")
+                    except Exception:
+                        pass
             except Exception:
                 pass
+            finally:
+                if s_cur is not None:
+                    try:
+                        s_cur.close()
+                    except Exception:
+                        pass
+                if s_conn is not None:
+                    try:
+                        s_conn.close()
+                    except Exception:
+                        pass
 
-        # log activity vao mongo
+        # log activity vao mongo (Dual-Write with fallback logging)
+        mongo_sync_ok = True
+        mongo_sync_err = None
         try:
             m_client, _ = get_mongo_client("primary")
-            m_client[CLUSTER_CONFIG["mongo_db"]]["user_activity_logs"].with_options(
-                write_concern=WriteConcern(w=1, wtimeout=3000)
-            ).insert_one({
-                "user_id": req.user_id,
-                "product_id": req.product_id,
-                "action": "CHECKOUT_ORDER_SUCCESS",
-                "order_id": order_id,
-                "amount": total,
-                "created_at": datetime.utcnow()
-            })
-            m_client.close()
-        except Exception:
-            pass
+            try:
+                m_client[CLUSTER_CONFIG["mongo_db"]]["user_activity_logs"].with_options(
+                    write_concern=WriteConcern(w=1, wtimeout=3000)
+                ).insert_one({
+                    "user_id": req.user_id,
+                    "product_id": req.product_id,
+                    "action": "CHECKOUT_ORDER_SUCCESS",
+                    "order_id": order_id,
+                    "amount": total,
+                    "created_at": datetime.utcnow()
+                })
+            finally:
+                m_client.close()
+        except Exception as mex:
+            mongo_sync_ok = False
+            mongo_sync_err = mex
+            print(f"[DUAL_WRITE_ERROR] Ghi MongoDB user_activity_logs thất bại sau khi MySQL đã commit đơn hàng #{order_id}: {mex}")
+            try:
+                record_sync_log(
+                    db_type="MONGO_RS",
+                    action="DUAL_WRITE_FALLBACK",
+                    title=f"Lỗi Dual-Write đơn hàng #{order_id}",
+                    summary=f"MySQL commit thành công nhưng ghi MongoDB thất bại · Cần bù log hành vi KH {req.user_id}",
+                    data_payload=f"Đơn hàng #{order_id} đã ghi MySQL. Lỗi ghi MongoDB: {str(mex)}",
+                    affected_tables="user_activity_logs (0/1)",
+                    source_node=mysql_meta.get("host", "MySQL-Primary"),
+                    target_nodes=[],
+                    mechanism="Dual-Write Fallback / Eventual Consistency Compensation",
+                    detail=f"Cảnh báo bất đồng bộ Dual-Write: MySQL ACID commit thành công (đơn #{order_id}), nhưng MongoReplicaSet ghi user_activity_logs thất bại ({str(mex)}). Hệ thống ghi nhận fallback status để kiểm toán và bù trừ.",
+                    latency_ms=0.0,
+                    status="DESYNC_FALLBACK",
+                    status_text="Lệch đồng bộ (Cần nạp bù)",
+                    ma_nhom_giao_dich=f"DH-{order_id}-DESYNC",
+                    gtid_hoac_optime="N/A",
+                    so_ban_ghi=1,
+                    chi_tiet=[{
+                        "bang": "user_activity_logs",
+                        "so_ban_ghi": 0,
+                        "mau_ban_ghi": [{"order_id": order_id, "user_id": req.user_id, "error": str(mex)}],
+                        "ghi_chu": "Lỗi Dual-Write: Đã ghi nhận fallback status vào audit log để hệ thống kiểm toán truy vết."
+                    }]
+                )
+            except Exception as audit_ex:
+                print(f"[SYNC_LOG_ERROR] Không thể ghi audit log fallback: {audit_ex}")
 
         sync_entry = None
         try:
@@ -2800,10 +2866,11 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
             "total": total,
             "executed_on_node": mysql_meta,
             "latency_ms": tx_ms,
-            "sync_log": sync_entry
+            "sync_log": sync_entry,
+            "dual_write_status": "SYNCED" if mongo_sync_ok else "DESYNC_FALLBACK"
         }
         invalidate_node_counts_cache()
-        if x_idempotency_key:
+        if x_idempotency_key and isinstance(x_idempotency_key, str) and x_idempotency_key.strip():
             with _IDEMPOTENCY_LOCK:
                 _IDEMPOTENCY_CACHE[x_idempotency_key] = res_data
         return res_data
@@ -2835,7 +2902,7 @@ def add_review(req: ReviewRequest, x_idempotency_key: Optional[str] = Header(Non
     Ghi đánh giá phi cấu trúc có thuộc tính động và hình ảnh vào MongoDB Replica Set.
     Chống xử lý trùng lặp qua Header X-Idempotency-Key.
     """
-    if x_idempotency_key:
+    if x_idempotency_key and isinstance(x_idempotency_key, str) and x_idempotency_key.strip():
         with _IDEMPOTENCY_LOCK:
             if x_idempotency_key in _IDEMPOTENCY_CACHE:
                 return _IDEMPOTENCY_CACHE[x_idempotency_key]
@@ -2858,14 +2925,19 @@ def add_review(req: ReviewRequest, x_idempotency_key: Optional[str] = Header(Non
     }
 
     try:
-        conn_u = get_mysql_connection("primary")
-        with conn_u.cursor(dictionary=True) as cur_u:
-            cur_u.execute("SELECT full_name FROM users WHERE user_id = %s", (req.user_id,))
-            urow = cur_u.fetchone()
-            if urow and urow.get("full_name"):
-                doc["user_name"] = re.sub(r"\s*#[0-9]+", "", urow["full_name"]).strip()
-                doc["author_name"] = doc["user_name"]
-        conn_u.close()
+        conn_u, meta_u = get_mysql_connection("primary")
+        try:
+            with conn_u.cursor(dictionary=True) as cur_u:
+                cur_u.execute("SELECT full_name FROM users WHERE user_id = %s", (req.user_id,))
+                urow = cur_u.fetchone()
+                if urow and urow.get("full_name"):
+                    doc["user_name"] = re.sub(r"\s*#[0-9]+", "", urow["full_name"]).strip()
+                    doc["author_name"] = doc["user_name"]
+                else:
+                    doc["user_name"] = f"Khách hàng #{req.user_id}"
+                    doc["author_name"] = doc["user_name"]
+        finally:
+            conn_u.close()
     except Exception:
         doc["user_name"] = f"Khách hàng #{req.user_id}"
         doc["author_name"] = doc["user_name"]
@@ -2877,11 +2949,13 @@ def add_review(req: ReviewRequest, x_idempotency_key: Optional[str] = Header(Non
     for attempt in range(2):
         try:
             m_client, active_host = get_mongo_client("primary")
-            mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
-            col = mdb["product_reviews"].with_options(write_concern=WriteConcern(w=1, wtimeout=3000))
-            res = col.insert_one(doc)
-            m_client.close()
-            break
+            try:
+                mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
+                col = mdb["product_reviews"].with_options(write_concern=WriteConcern(w=1, wtimeout=3000))
+                res = col.insert_one(doc)
+                break
+            finally:
+                m_client.close()
         except Exception as e:
             last_err = e
             err_str = str(e).lower()
@@ -2965,7 +3039,7 @@ def add_review(req: ReviewRequest, x_idempotency_key: Optional[str] = Header(Non
         "sync_log": sync_entry
     }
     invalidate_node_counts_cache()
-    if x_idempotency_key:
+    if x_idempotency_key and isinstance(x_idempotency_key, str) and x_idempotency_key.strip():
         with _IDEMPOTENCY_LOCK:
             _IDEMPOTENCY_CACHE[x_idempotency_key] = res_data
     return res_data
@@ -2981,6 +3055,7 @@ def get_product_reviews_list(
     sort_by: Optional[str] = Query("newest")
 ):
     t0 = time.perf_counter()
+    m_client = None
     try:
         m_client, mongo_meta = get_mongo_client(read_mode, with_meta=True)
         active_host = mongo_meta["host"]
@@ -3045,7 +3120,6 @@ def get_product_reviews_list(
                 "attributes": doc.get("sentiment_attributes", {}),
                 "created_at": created_str
             })
-        m_client.close()
         elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
         return {
             "product_id": product_id,
@@ -3067,6 +3141,9 @@ def get_product_reviews_list(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi đọc nhận xét từ MongoDB: {str(e)}")
+    finally:
+        if m_client is not None:
+            m_client.close()
 
 
 @app.get("/api/products/options")
@@ -3075,30 +3152,34 @@ def get_products_options(
     limit: int = Query(2000, ge=10, le=5000)
 ):
     conn, meta = get_mysql_connection(mode="secondary_preferred")
-    cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT COUNT(*) AS total FROM products")
-    total_count = int(cur.fetchone()["total"] or 0)
+    try:
+        cur = conn.cursor(dictionary=True)
+        try:
+            cur.execute("SELECT COUNT(*) AS total FROM products")
+            total_count = int(cur.fetchone()["total"] or 0)
 
-    where_sql = "1=1"
-    params = []
-    if q and q.strip():
-        kw = q.strip()
-        like_kw = f"%{kw}%"
-        where_sql = "(CAST(product_id AS CHAR) LIKE %s OR sku LIKE %s OR product_name LIKE %s OR brand LIKE %s OR category LIKE %s)"
-        params.extend([like_kw, like_kw, like_kw, like_kw, like_kw])
+            where_sql = "1=1"
+            params = []
+            if q and q.strip():
+                kw = q.strip()
+                like_kw = f"%{kw}%"
+                where_sql = "(CAST(product_id AS CHAR) LIKE %s OR sku LIKE %s OR product_name LIKE %s OR brand LIKE %s OR category LIKE %s)"
+                params.extend([like_kw, like_kw, like_kw, like_kw, like_kw])
 
-    sql = f"""
-        SELECT product_id, sku, product_name, category, brand, price, stock_quantity
-        FROM products
-        WHERE {where_sql}
-        ORDER BY product_id ASC
-        LIMIT %s
-    """
-    params.append(limit)
-    cur.execute(sql, tuple(params))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+            sql = f"""
+                SELECT product_id, sku, product_name, category, brand, price, stock_quantity
+                FROM products
+                WHERE {where_sql}
+                ORDER BY product_id ASC
+                LIMIT %s
+            """
+            params.append(limit)
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall()
+        finally:
+            cur.close()
+    finally:
+        conn.close()
     for r in rows:
         r["price"] = float(r["price"])
         r["stock_quantity"] = int(r["stock_quantity"])
@@ -3116,30 +3197,34 @@ def get_users_list(
     limit: int = Query(10000, ge=5, le=10000)
 ):
     conn, meta = get_mysql_connection(mode="secondary_preferred")
-    cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT COUNT(*) AS total FROM users")
-    total_count = int(cur.fetchone()["total"] or 0)
+    try:
+        cur = conn.cursor(dictionary=True)
+        try:
+            cur.execute("SELECT COUNT(*) AS total FROM users")
+            total_count = int(cur.fetchone()["total"] or 0)
 
-    where_sql = "1=1"
-    params = []
-    if q and q.strip():
-        kw = q.strip()
-        like_kw = f"%{kw}%"
-        where_sql = "(CAST(user_id AS CHAR) LIKE %s OR full_name LIKE %s OR username LIKE %s OR phone LIKE %s OR city LIKE %s OR email LIKE %s)"
-        params.extend([like_kw, like_kw, like_kw, like_kw, like_kw, like_kw])
+            where_sql = "1=1"
+            params = []
+            if q and q.strip():
+                kw = q.strip()
+                like_kw = f"%{kw}%"
+                where_sql = "(CAST(user_id AS CHAR) LIKE %s OR full_name LIKE %s OR username LIKE %s OR phone LIKE %s OR city LIKE %s OR email LIKE %s)"
+                params.extend([like_kw, like_kw, like_kw, like_kw, like_kw, like_kw])
 
-    sql = f"""
-        SELECT user_id, username, full_name, email, phone, city
-        FROM users
-        WHERE {where_sql}
-        ORDER BY user_id ASC
-        LIMIT %s
-    """
-    params.append(limit)
-    cur.execute(sql, tuple(params))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+            sql = f"""
+                SELECT user_id, username, full_name, email, phone, city
+                FROM users
+                WHERE {where_sql}
+                ORDER BY user_id ASC
+                LIMIT %s
+            """
+            params.append(limit)
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall()
+        finally:
+            cur.close()
+    finally:
+        conn.close()
     for r in rows:
         if r.get("full_name"):
             r["full_name"] = re.sub(r"\s*#[0-9]+", "", r["full_name"]).strip()
@@ -3164,122 +3249,125 @@ def get_recent_orders(
 ):
     t0 = time.perf_counter()
     conn, meta = get_mysql_connection(mode=read_mode)
-    cur = conn.cursor(dictionary=True, buffered=True)
+    try:
+        cur = conn.cursor(dictionary=True, buffered=True)
+        try:
+            where_clauses = ["1=1"]
+            params = []
 
-    where_clauses = ["1=1"]
-    params = []
+            if region and isinstance(region, str) and region != "ALL":
+                where_clauses.append("o.shipping_region = %s")
+                params.append(region)
 
-    if region and isinstance(region, str) and region != "ALL":
-        where_clauses.append("o.shipping_region = %s")
-        params.append(region)
+            if payment_method and isinstance(payment_method, str) and payment_method != "ALL":
+                where_clauses.append("pay.payment_method = %s")
+                params.append(payment_method)
 
-    if payment_method and isinstance(payment_method, str) and payment_method != "ALL":
-        where_clauses.append("pay.payment_method = %s")
-        params.append(payment_method)
+            if status and isinstance(status, str) and status != "ALL":
+                where_clauses.append("o.status = %s")
+                params.append(status)
 
-    if status and isinstance(status, str) and status != "ALL":
-        where_clauses.append("o.status = %s")
-        params.append(status)
+            if filter_group and isinstance(filter_group, str) and filter_group != "ALL":
+                if filter_group.startswith("REGION:"):
+                    where_clauses.append("o.shipping_region = %s")
+                    params.append(filter_group.split(":", 1)[1])
+                elif filter_group.startswith("PAY:"):
+                    where_clauses.append("pay.payment_method = %s")
+                    params.append(filter_group.split(":", 1)[1])
+                elif filter_group.startswith("STATUS:"):
+                    where_clauses.append("o.status = %s")
+                    params.append(filter_group.split(":", 1)[1])
 
-    if filter_group and isinstance(filter_group, str) and filter_group != "ALL":
-        if filter_group.startswith("REGION:"):
-            where_clauses.append("o.shipping_region = %s")
-            params.append(filter_group.split(":", 1)[1])
-        elif filter_group.startswith("PAY:"):
-            where_clauses.append("pay.payment_method = %s")
-            params.append(filter_group.split(":", 1)[1])
-        elif filter_group.startswith("STATUS:"):
-            where_clauses.append("o.status = %s")
-            params.append(filter_group.split(":", 1)[1])
+            if keyword and isinstance(keyword, str) and keyword.strip():
+                kw_raw = keyword.strip().lstrip("#")
+                kw_like = f"%{kw_raw}%"
+                where_clauses.append(
+                    "(CAST(o.order_id AS CHAR) LIKE %s OR u.full_name LIKE %s OR u.city LIKE %s OR p.product_name LIKE %s OR p.sku LIKE %s)"
+                )
+                params.extend([kw_like, kw_like, kw_like, kw_like, kw_like])
 
-    if keyword and isinstance(keyword, str) and keyword.strip():
-        kw_raw = keyword.strip().lstrip("#")
-        kw_like = f"%{kw_raw}%"
-        where_clauses.append(
-            "(CAST(o.order_id AS CHAR) LIKE %s OR u.full_name LIKE %s OR u.city LIKE %s OR p.product_name LIKE %s OR p.sku LIKE %s)"
-        )
-        params.extend([kw_like, kw_like, kw_like, kw_like, kw_like])
+            where_sql = " AND ".join(where_clauses)
 
-    where_sql = " AND ".join(where_clauses)
+            if len(where_clauses) == 1:
+                cur.execute("SELECT COUNT(*) AS total FROM orders")
+            else:
+                count_sql = f"""
+                    SELECT COUNT(DISTINCT o.order_id) AS total
+                    FROM orders o
+                    LEFT JOIN users u ON o.user_id = u.user_id
+                    LEFT JOIN order_items oi ON o.order_id = oi.order_id
+                    LEFT JOIN products p ON oi.product_id = p.product_id
+                    LEFT JOIN payments pay ON o.order_id = pay.order_id
+                    WHERE {where_sql}
+                """
+                cur.execute(count_sql, tuple(params))
 
-    if len(where_clauses) == 1:
-        cur.execute("SELECT COUNT(*) AS total FROM orders")
-    else:
-        count_sql = f"""
-            SELECT COUNT(DISTINCT o.order_id) AS total
-            FROM orders o
-            LEFT JOIN users u ON o.user_id = u.user_id
-            LEFT JOIN order_items oi ON o.order_id = oi.order_id
-            LEFT JOIN products p ON oi.product_id = p.product_id
-            LEFT JOIN payments pay ON o.order_id = pay.order_id
-            WHERE {where_sql}
-        """
-        cur.execute(count_sql, tuple(params))
+            total_items = int(cur.fetchone()["total"] or 0)
+            total_pages = max(1, (total_items + limit - 1) // limit)
+            if page > total_pages:
+                page = total_pages
+            offset = (page - 1) * limit
 
-    total_items = int(cur.fetchone()["total"] or 0)
-    total_pages = max(1, (total_items + limit - 1) // limit)
-    if page > total_pages:
-        page = total_pages
-    offset = (page - 1) * limit
-
-    has_joined_filter = bool(keyword or payment_method or (filter_group and filter_group.startswith("PAY:")))
-    if not has_joined_filter:
-        query_sql = f"""
-            SELECT 
-                o.order_id, o.user_id,
-                MAX(u.full_name) AS full_name,
-                MAX(u.city) AS city,
-                COALESCE(NULLIF(SUM(oi.quantity * oi.unit_price), 0), o.total_amount) AS total_amount,
-                o.status, o.shipping_region, o.created_at,
-                COUNT(DISTINCT oi.item_id) AS total_items_count,
-                COALESCE(SUM(oi.quantity), 1) AS total_quantity,
-                SUBSTRING_INDEX(GROUP_CONCAT(p.product_name ORDER BY oi.item_id SEPARATOR '|||'), '|||', 1) AS first_product_name,
-                GROUP_CONCAT(CONCAT(p.product_name, ' (x', oi.quantity, ')') ORDER BY oi.item_id SEPARATOR '; ') AS items_detail,
-                MAX(pay.payment_method) AS payment_method,
-                MAX(pay.transaction_status) AS transaction_status
-            FROM (
-                SELECT * FROM orders o
-                WHERE {where_sql}
-                ORDER BY o.order_id DESC
-                LIMIT %s OFFSET %s
-            ) o
-            LEFT JOIN users u ON o.user_id = u.user_id
-            LEFT JOIN order_items oi ON o.order_id = oi.order_id
-            LEFT JOIN products p ON oi.product_id = p.product_id
-            LEFT JOIN payments pay ON o.order_id = pay.order_id
-            GROUP BY o.order_id, o.user_id, o.total_amount, o.status, o.shipping_region, o.created_at
-            ORDER BY o.order_id DESC
-        """
-        query_params = list(params) + [limit, offset]
-    else:
-        query_sql = f"""
-            SELECT 
-                o.order_id, o.user_id,
-                MAX(u.full_name) AS full_name,
-                MAX(u.city) AS city,
-                COALESCE(NULLIF(SUM(oi.quantity * oi.unit_price), 0), o.total_amount) AS total_amount,
-                o.status, o.shipping_region, o.created_at,
-                COUNT(DISTINCT oi.item_id) AS total_items_count,
-                COALESCE(SUM(oi.quantity), 1) AS total_quantity,
-                SUBSTRING_INDEX(GROUP_CONCAT(p.product_name ORDER BY oi.item_id SEPARATOR '|||'), '|||', 1) AS first_product_name,
-                GROUP_CONCAT(CONCAT(p.product_name, ' (x', oi.quantity, ')') ORDER BY oi.item_id SEPARATOR '; ') AS items_detail,
-                MAX(pay.payment_method) AS payment_method,
-                MAX(pay.transaction_status) AS transaction_status
-            FROM orders o
-            LEFT JOIN users u ON o.user_id = u.user_id
-            LEFT JOIN order_items oi ON o.order_id = oi.order_id
-            LEFT JOIN products p ON oi.product_id = p.product_id
-            LEFT JOIN payments pay ON o.order_id = pay.order_id
-            WHERE {where_sql}
-            GROUP BY o.order_id, o.user_id, o.total_amount, o.status, o.shipping_region, o.created_at
-            ORDER BY o.order_id DESC
-            LIMIT %s OFFSET %s
-        """
-        query_params = list(params) + [limit, offset]
-    cur.execute(query_sql, tuple(query_params))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+            has_joined_filter = bool(keyword or payment_method or (filter_group and filter_group.startswith("PAY:")))
+            if not has_joined_filter:
+                query_sql = f"""
+                    SELECT 
+                        o.order_id, o.user_id,
+                        MAX(u.full_name) AS full_name,
+                        MAX(u.city) AS city,
+                        COALESCE(NULLIF(SUM(oi.quantity * oi.unit_price), 0), o.total_amount) AS total_amount,
+                        o.status, o.shipping_region, o.created_at,
+                        COUNT(DISTINCT oi.item_id) AS total_items_count,
+                        COALESCE(SUM(oi.quantity), 1) AS total_quantity,
+                        SUBSTRING_INDEX(GROUP_CONCAT(p.product_name ORDER BY oi.item_id SEPARATOR '|||'), '|||', 1) AS first_product_name,
+                        GROUP_CONCAT(CONCAT(p.product_name, ' (x', oi.quantity, ')') ORDER BY oi.item_id SEPARATOR '; ') AS items_detail,
+                        MAX(pay.payment_method) AS payment_method,
+                        MAX(pay.transaction_status) AS transaction_status
+                    FROM (
+                        SELECT * FROM orders o
+                        WHERE {where_sql}
+                        ORDER BY o.order_id DESC
+                        LIMIT %s OFFSET %s
+                    ) o
+                    LEFT JOIN users u ON o.user_id = u.user_id
+                    LEFT JOIN order_items oi ON o.order_id = oi.order_id
+                    LEFT JOIN products p ON oi.product_id = p.product_id
+                    LEFT JOIN payments pay ON o.order_id = pay.order_id
+                    GROUP BY o.order_id, o.user_id, o.total_amount, o.status, o.shipping_region, o.created_at
+                    ORDER BY o.order_id DESC
+                """
+                query_params = list(params) + [limit, offset]
+            else:
+                query_sql = f"""
+                    SELECT 
+                        o.order_id, o.user_id,
+                        MAX(u.full_name) AS full_name,
+                        MAX(u.city) AS city,
+                        COALESCE(NULLIF(SUM(oi.quantity * oi.unit_price), 0), o.total_amount) AS total_amount,
+                        o.status, o.shipping_region, o.created_at,
+                        COUNT(DISTINCT oi.item_id) AS total_items_count,
+                        COALESCE(SUM(oi.quantity), 1) AS total_quantity,
+                        SUBSTRING_INDEX(GROUP_CONCAT(p.product_name ORDER BY oi.item_id SEPARATOR '|||'), '|||', 1) AS first_product_name,
+                        GROUP_CONCAT(CONCAT(p.product_name, ' (x', oi.quantity, ')') ORDER BY oi.item_id SEPARATOR '; ') AS items_detail,
+                        MAX(pay.payment_method) AS payment_method,
+                        MAX(pay.transaction_status) AS transaction_status
+                    FROM orders o
+                    LEFT JOIN users u ON o.user_id = u.user_id
+                    LEFT JOIN order_items oi ON o.order_id = oi.order_id
+                    LEFT JOIN products p ON oi.product_id = p.product_id
+                    LEFT JOIN payments pay ON o.order_id = pay.order_id
+                    WHERE {where_sql}
+                    GROUP BY o.order_id, o.user_id, o.total_amount, o.status, o.shipping_region, o.created_at
+                    ORDER BY o.order_id DESC
+                    LIMIT %s OFFSET %s
+                """
+                query_params = list(params) + [limit, offset]
+            cur.execute(query_sql, tuple(query_params))
+            rows = cur.fetchall()
+        finally:
+            cur.close()
+    finally:
+        conn.close()
 
     for r in rows:
         r["total_amount"] = float(r["total_amount"] or 0)
@@ -3322,33 +3410,35 @@ def get_recent_orders(
 def get_order_detail(order_id: int, read_mode: Optional[str] = Query(None)):
     mode = read_mode if read_mode in ["primary", "secondary_preferred", "round_robin"] else "secondary_preferred"
     conn, meta = get_mysql_connection(mode=mode)
-    cur = conn.cursor(dictionary=True, buffered=True)
-    cur.execute("""
-        SELECT o.order_id, o.user_id, u.full_name, u.email, u.phone, u.city,
-               o.total_amount, o.status, o.shipping_region, o.created_at,
-               pay.payment_method, pay.transaction_status, pay.payment_id
-        FROM orders o
-        LEFT JOIN users u ON o.user_id = u.user_id
-        LEFT JOIN payments pay ON o.order_id = pay.order_id
-        WHERE o.order_id = %s
-    """, (order_id,))
-    order = cur.fetchone()
-    if not order:
-        cur.close()
-        conn.close()
-        raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
+    try:
+        cur = conn.cursor(dictionary=True, buffered=True)
+        try:
+            cur.execute("""
+                SELECT o.order_id, o.user_id, u.full_name, u.email, u.phone, u.city,
+                       o.total_amount, o.status, o.shipping_region, o.created_at,
+                       pay.payment_method, pay.transaction_status, pay.payment_id
+                FROM orders o
+                LEFT JOIN users u ON o.user_id = u.user_id
+                LEFT JOIN payments pay ON o.order_id = pay.order_id
+                WHERE o.order_id = %s
+            """, (order_id,))
+            order = cur.fetchone()
+            if not order:
+                raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
 
-    cur.execute("""
-        SELECT oi.item_id, oi.product_id, p.sku, p.product_name, p.category,
-               oi.quantity, oi.unit_price, (oi.quantity * oi.unit_price) AS line_total
-        FROM order_items oi
-        LEFT JOIN products p ON oi.product_id = p.product_id
-        WHERE oi.order_id = %s
-        ORDER BY oi.item_id ASC
-    """, (order_id,))
-    items = cur.fetchall()
-    cur.close()
-    conn.close()
+            cur.execute("""
+                SELECT oi.item_id, oi.product_id, p.sku, p.product_name, p.category,
+                       oi.quantity, oi.unit_price, (oi.quantity * oi.unit_price) AS line_total
+                FROM order_items oi
+                LEFT JOIN products p ON oi.product_id = p.product_id
+                WHERE oi.order_id = %s
+                ORDER BY oi.item_id ASC
+            """, (order_id,))
+            items = cur.fetchall()
+        finally:
+            cur.close()
+    finally:
+        conn.close()
 
     if order.get("full_name"):
         order["full_name"] = re.sub(r"\s*#[0-9]+", "", order["full_name"]).strip()
@@ -3384,21 +3474,25 @@ def run_benchmark(iterations: int = Query(50, ge=5, le=100)):
     # 1. single node query
     local_times = []
     conn, primary_meta = get_mysql_connection(mode="primary")
-    cur = conn.cursor(dictionary=True)
-    for i in range(iterations):
-        pid = (i % 100) + 1
-        t0 = time.perf_counter()
-        cur.execute("""
-            SELECT p.product_id, p.product_name, COUNT(oi.item_id) AS cnt, SUM(oi.quantity * oi.unit_price) AS rev
-            FROM products p
-            LEFT JOIN order_items oi ON p.product_id = oi.product_id
-            WHERE p.product_id BETWEEN %s AND %s
-            GROUP BY p.product_id
-        """, (pid, pid + 15))
-        cur.fetchall()
-        local_times.append((time.perf_counter() - t0) * 1000)
-    cur.close()
-    conn.close()
+    try:
+        cur = conn.cursor(dictionary=True)
+        try:
+            for i in range(iterations):
+                pid = (i % 100) + 1
+                t0 = time.perf_counter()
+                cur.execute("""
+                    SELECT p.product_id, p.product_name, COUNT(oi.item_id) AS cnt, SUM(oi.quantity * oi.unit_price) AS rev
+                    FROM products p
+                    LEFT JOIN order_items oi ON p.product_id = oi.product_id
+                    WHERE p.product_id BETWEEN %s AND %s
+                    GROUP BY p.product_id
+                """, (pid, pid + 15))
+                cur.fetchall()
+                local_times.append((time.perf_counter() - t0) * 1000)
+        finally:
+            cur.close()
+    finally:
+        conn.close()
 
     # 2. distributed query
     dist_times = []
@@ -3432,53 +3526,63 @@ def run_benchmark(iterations: int = Query(50, ge=5, le=100)):
         nodes_hit.add(p_meta["host"])
 
     pool_size = len(online_pools)
-    for i in range(iterations):
-        pid = (i % 100) + 1
-        c_dist, host_name = online_pools[i % pool_size]
-        cur_d = c_dist.cursor(dictionary=True)
-        t0 = time.perf_counter()
-        cur_d.execute("""
-            SELECT p.product_id, p.product_name, COUNT(oi.item_id) AS cnt, SUM(oi.quantity * oi.unit_price) AS rev
-            FROM products p
-            LEFT JOIN order_items oi ON p.product_id = oi.product_id
-            WHERE p.product_id BETWEEN %s AND %s
-            GROUP BY p.product_id
-        """, (pid, pid + 15))
-        cur_d.fetchall()
-        dist_times.append((time.perf_counter() - t0) * 1000)
-        cur_d.close()
-
-    for c, _ in online_pools:
-        try:
-            c.close()
-        except Exception:
-            pass
+    try:
+        for i in range(iterations):
+            pid = (i % 100) + 1
+            c_dist, host_name = online_pools[i % pool_size]
+            cur_d = c_dist.cursor(dictionary=True)
+            try:
+                t0 = time.perf_counter()
+                cur_d.execute("""
+                    SELECT p.product_id, p.product_name, COUNT(oi.item_id) AS cnt, SUM(oi.quantity * oi.unit_price) AS rev
+                    FROM products p
+                    LEFT JOIN order_items oi ON p.product_id = oi.product_id
+                    WHERE p.product_id BETWEEN %s AND %s
+                    GROUP BY p.product_id
+                """, (pid, pid + 15))
+                cur_d.fetchall()
+                dist_times.append((time.perf_counter() - t0) * 1000)
+            finally:
+                try:
+                    cur_d.close()
+                except Exception:
+                    pass
+    finally:
+        for c, _ in online_pools:
+            try:
+                c.close()
+            except Exception:
+                pass
 
     # 3. polyglot query
     poly_times = []
     m_client, _ = get_mongo_client("secondary_preferred")
-    mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
-    conn_p, _ = get_mysql_connection(mode="primary")
-    cur_p = conn_p.cursor(dictionary=True)
-
-    for i in range(iterations):
-        pid = (i % 100) + 1
-        id_list = list(range(pid, pid + 10))
-        t0 = time.perf_counter()
-        cur_p.execute(
-            "SELECT product_id, product_name, price, stock_quantity FROM products WHERE product_id BETWEEN %s AND %s",
-            (pid, pid + 10)
-        )
-        cur_p.fetchall()
-        list(mdb["product_reviews"].aggregate([
-            {"$match": {"product_id": {"$in": id_list}}},
-            {"$group": {"_id": "$product_id", "avg": {"$avg": "$rating"}, "cnt": {"$sum": 1}}}
-        ]))
-        poly_times.append((time.perf_counter() - t0) * 1000)
-
-    cur_p.close()
-    conn_p.close()
-    m_client.close()
+    try:
+        mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
+        conn_p, _ = get_mysql_connection(mode="primary")
+        try:
+            cur_p = conn_p.cursor(dictionary=True)
+            try:
+                for i in range(iterations):
+                    pid = (i % 100) + 1
+                    id_list = list(range(pid, pid + 10))
+                    t0 = time.perf_counter()
+                    cur_p.execute(
+                        "SELECT product_id, product_name, price, stock_quantity FROM products WHERE product_id BETWEEN %s AND %s",
+                        (pid, pid + 10)
+                    )
+                    cur_p.fetchall()
+                    list(mdb["product_reviews"].aggregate([
+                        {"$match": {"product_id": {"$in": id_list}}},
+                        {"$group": {"_id": "$product_id", "avg": {"$avg": "$rating"}, "cnt": {"$sum": 1}}}
+                    ]))
+                    poly_times.append((time.perf_counter() - t0) * 1000)
+            finally:
+                cur_p.close()
+        finally:
+            conn_p.close()
+    finally:
+        m_client.close()
 
     def calc_p95(arr):
         if not arr:
@@ -3552,87 +3656,92 @@ def seed_large_database_api(scale: str = Query("standard", description="standard
     sql_file = os.path.join(current_dir, "sql", "node1_mysql_seed_large_data.sql")
 
     conn, mysql_meta = get_mysql_connection(mode="primary")
-    cur = conn.cursor()
+    try:
+        cur = conn.cursor()
+        try:
+            with open(sql_file, "r", encoding="utf-8") as f:
+                sql_content = f.read()
 
-    with open(sql_file, "r", encoding="utf-8") as f:
-        sql_content = f.read()
-
-    statements = [s.strip() for s in sql_content.split(";") if s.strip()]
-    for stmt in statements:
-        if stmt.upper().startswith("SELECT 'USERS'"):
-            continue
-        cur.execute(stmt)
-    conn.commit()
-    cur.close()
-    conn.close()
+            statements = [s.strip() for s in sql_content.split(";") if s.strip()]
+            for stmt in statements:
+                if stmt.upper().startswith("SELECT 'USERS'"):
+                    continue
+                cur.execute(stmt)
+            conn.commit()
+        finally:
+            cur.close()
+    finally:
+        conn.close()
 
     m_client, mongo_host = get_mongo_client("primary")
-    mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
-    mdb["product_reviews"].drop()
-    mdb["user_activity_logs"].drop()
+    try:
+        mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
+        mdb["product_reviews"].drop()
+        mdb["user_activity_logs"].drop()
 
-    rev_total = 50000 if scale == "standard" else 10000
-    log_total = 50000 if scale == "standard" else 10000
-    batch_sz = 5000
+        rev_total = 50000 if scale == "standard" else 10000
+        log_total = 50000 if scale == "standard" else 10000
+        batch_sz = 5000
 
-    titles = [
-        "Chất lượng tuyệt vời, rất đáng tiền!",
-        "Giao hàng siêu nhanh, đóng gói kỹ",
-        "Sản phẩm dùng ổn trong tầm giá",
-        "Máy chạy mượt, pin trâu, màn hình sắc nét",
-        "Hàng chính hãng nguyên seal, rất hài lòng"
-    ]
-    comments = [
-        "Thiết bị hoạt động rất mát và ổn định. Shop tư vấn nhiệt tình.",
-        "Đóng gói 3 lớp chống sốc cực kỳ cẩn thận. Giao tới Cần Thơ chỉ mất 24h.",
-        "Hiệu năng xử lý đồ họa và đa nhiệm rất mượt. Sẽ tiếp tục ủng hộ.",
-        "Mức giá cạnh tranh, đầy đủ phụ kiện đi kèm và bảo hành chính hãng."
-    ]
+        titles = [
+            "Chất lượng tuyệt vời, rất đáng tiền!",
+            "Giao hàng siêu nhanh, đóng gói kỹ",
+            "Sản phẩm dùng ổn trong tầm giá",
+            "Máy chạy mượt, pin trâu, màn hình sắc nét",
+            "Hàng chính hãng nguyên seal, rất hài lòng"
+        ]
+        comments = [
+            "Thiết bị hoạt động rất mát và ổn định. Shop tư vấn nhiệt tình.",
+            "Đóng gói 3 lớp chống sốc cực kỳ cẩn thận. Giao tới Cần Thơ chỉ mất 24h.",
+            "Hiệu năng xử lý đồ họa và đa nhiệm rất mượt. Sẽ tiếp tục ủng hộ.",
+            "Mức giá cạnh tranh, đầy đủ phụ kiện đi kèm và bảo hành chính hãng."
+        ]
 
-    now = datetime.utcnow()
-    for b in range(rev_total // batch_sz):
-        batch_docs = []
-        base = b * batch_sz
-        for i in range(1, batch_sz + 1):
-            idx = base + i
-            batch_docs.append({
-                "product_id": ((idx - 1) % 2000) + 1,
-                "user_id": ((idx - 1) % 10000) + 1,
-                "rating": 3 if (idx % 10 == 0) else (4 if (idx % 4 == 0) else 5),
-                "title": titles[idx % len(titles)],
-                "comment": f"{comments[idx % len(comments)]} (Review #{idx})",
-                "images": [f"https://picsum.photos/seed/rev_{idx % 500}/400/300"],
-                "sentiment_attributes": {
-                    "packaging": "Nguyên seal, hộp cứng cáp",
-                    "delivery_speed": "Giao nhanh 24h",
-                    "verified_purchase": True,
-                    "helpful_votes": idx % 30
-                },
-                "created_at": now
-            })
-        mdb["product_reviews"].with_options(write_concern=WriteConcern(w=1)).insert_many(batch_docs, ordered=False)
+        now = datetime.utcnow()
+        for b in range(rev_total // batch_sz):
+            batch_docs = []
+            base = b * batch_sz
+            for i in range(1, batch_sz + 1):
+                idx = base + i
+                batch_docs.append({
+                    "product_id": ((idx - 1) % 2000) + 1,
+                    "user_id": ((idx - 1) % 10000) + 1,
+                    "rating": 3 if (idx % 10 == 0) else (4 if (idx % 4 == 0) else 5),
+                    "title": titles[idx % len(titles)],
+                    "comment": f"{comments[idx % len(comments)]} (Review #{idx})",
+                    "images": [f"https://picsum.photos/seed/rev_{idx % 500}/400/300"],
+                    "sentiment_attributes": {
+                        "packaging": "Nguyên seal, hộp cứng cáp",
+                        "delivery_speed": "Giao nhanh 24h",
+                        "verified_purchase": True,
+                        "helpful_votes": idx % 30
+                    },
+                    "created_at": now
+                })
+            mdb["product_reviews"].with_options(write_concern=WriteConcern(w=1)).insert_many(batch_docs, ordered=False)
 
-    mdb["product_reviews"].create_index([("product_id", 1), ("created_at", -1)])
-    mdb["product_reviews"].create_index([("user_id", 1)])
+        mdb["product_reviews"].create_index([("product_id", 1), ("created_at", -1)])
+        mdb["product_reviews"].create_index([("user_id", 1)])
 
-    actions = ["VIEW_PRODUCT", "ADD_TO_CART", "SEARCH_KEYWORD", "VIEW_REVIEWS"]
-    for b in range(log_total // batch_sz):
-        batch_logs = []
-        base = b * batch_sz
-        for i in range(1, batch_sz + 1):
-            idx = base + i
-            batch_logs.append({
-                "user_id": ((idx - 1) % 10000) + 1,
-                "product_id": ((idx - 1) % 2000) + 1,
-                "action": actions[idx % len(actions)],
-                "session_id": f"sess_{idx % 5000}",
-                "metadata": {"device": "Desktop Chrome", "duration_sec": (idx % 120) + 10},
-                "created_at": now
-            })
-        mdb["user_activity_logs"].with_options(write_concern=WriteConcern(w=1)).insert_many(batch_logs, ordered=False)
+        actions = ["VIEW_PRODUCT", "ADD_TO_CART", "SEARCH_KEYWORD", "VIEW_REVIEWS"]
+        for b in range(log_total // batch_sz):
+            batch_logs = []
+            base = b * batch_sz
+            for i in range(1, batch_sz + 1):
+                idx = base + i
+                batch_logs.append({
+                    "user_id": ((idx - 1) % 10000) + 1,
+                    "product_id": ((idx - 1) % 2000) + 1,
+                    "action": actions[idx % len(actions)],
+                    "session_id": f"sess_{idx % 5000}",
+                    "metadata": {"device": "Desktop Chrome", "duration_sec": (idx % 120) + 10},
+                    "created_at": now
+                })
+            mdb["user_activity_logs"].with_options(write_concern=WriteConcern(w=1)).insert_many(batch_logs, ordered=False)
 
-    mdb["user_activity_logs"].create_index([("product_id", 1), ("action", 1)])
-    m_client.close()
+        mdb["user_activity_logs"].create_index([("product_id", 1), ("action", 1)])
+    finally:
+        m_client.close()
 
     elapsed_sec = round(time.perf_counter() - t0, 2)
 
@@ -3678,43 +3787,46 @@ def bulk_import_demo_api(count: int = Query(500, ge=10, le=2000)):
     """
     t0 = time.perf_counter()
     conn, mysql_meta = get_mysql_connection(mode="primary")
-    cur = conn.cursor(dictionary=True)
-
-    gtid_start = ""
     try:
-        cur.execute("SELECT @@GLOBAL.gtid_executed AS gtid")
-        row = cur.fetchone()
-        gtid_start = (row.get("gtid") or "").split(",")[-1].strip()
-    except Exception:
-        pass
+        cur = conn.cursor(dictionary=True)
+        try:
+            gtid_start = ""
+            try:
+                cur.execute("SELECT @@GLOBAL.gtid_executed AS gtid")
+                row = cur.fetchone()
+                gtid_start = (row.get("gtid") or "").split(",")[-1].strip()
+            except Exception:
+                pass
 
-    cur.execute("SELECT product_id, product_name, stock_quantity FROM products LIMIT %s", (count,))
-    prods = cur.fetchall()
-    actual_count = len(prods)
-    sample_rows = []
+            cur.execute("SELECT product_id, product_name, stock_quantity FROM products LIMIT %s", (count,))
+            prods = cur.fetchall()
+            actual_count = len(prods)
+            sample_rows = []
 
-    for i, p in enumerate(prods):
-        cur.execute("UPDATE products SET stock_quantity = stock_quantity + 1 WHERE product_id = %s", (p["product_id"],))
-        if i < 5:
-            sample_rows.append({
-                "product_id": p["product_id"],
-                "product_name": p["product_name"],
-                "action": "UPDATE stock (+1)",
-                "old_stock": p["stock_quantity"],
-                "new_stock": p["stock_quantity"] + 1
-            })
-    conn.commit()
-    t_commit_perf = time.perf_counter()
+            for i, p in enumerate(prods):
+                cur.execute("UPDATE products SET stock_quantity = stock_quantity + 1 WHERE product_id = %s", (p["product_id"],))
+                if i < 5:
+                    sample_rows.append({
+                        "product_id": p["product_id"],
+                        "product_name": p["product_name"],
+                        "action": "UPDATE stock (+1)",
+                        "old_stock": p["stock_quantity"],
+                        "new_stock": p["stock_quantity"] + 1
+                    })
+            conn.commit()
+            t_commit_perf = time.perf_counter()
 
-    gtid_end = ""
-    try:
-        cur.execute("SELECT @@GLOBAL.gtid_executed AS gtid")
-        row = cur.fetchone()
-        gtid_end = (row.get("gtid") or "").split(",")[-1].strip()
-    except Exception:
-        pass
-    cur.close()
-    conn.close()
+            gtid_end = ""
+            try:
+                cur.execute("SELECT @@GLOBAL.gtid_executed AS gtid")
+                row = cur.fetchone()
+                gtid_end = (row.get("gtid") or "").split(",")[-1].strip()
+            except Exception:
+                pass
+        finally:
+            cur.close()
+    finally:
+        conn.close()
 
     gtid_range = f"{gtid_start} -> {gtid_end}" if gtid_start and gtid_end else (gtid_end or f"GTID-BULK-{int(time.time())}")
     meas_bulk_host = mysql_meta.get("host") or get_active_mysql_primary() or "localhost"
