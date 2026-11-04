@@ -1645,385 +1645,134 @@ def export_sync_logs():
 
 def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
     """
-    Tự động đối chiếu và bù dữ liệu 2 chiều giữa tất cả các Node MySQL đang ONLINE:
-    - Thu thập toàn bộ bản ghi orders, order_items, payments từ TẤT CẢ các Node.
-    - Tìm tập hợp đầy đủ nhất (Full Set).
-    - Tự động nạp bù an toàn vào bất kỳ Node nào đang bị thiếu (hỗ trợ cả Primary lẫn Secondary).
-    - Vô hiệu hóa foreign_key_checks, unique_checks và sql_log_bin tạm thời trong phiên nạp bù để tránh xung đột GTID/FK.
-    - Đảm bảo tính nhất quán dữ liệu 100% tự động mà không gây lỗi hoặc treo hệ thống.
+    Kiểm tra và kích hoạt cơ chế tự bù dữ liệu chuẩn (Distributed Recovery) của MySQL Group Replication:
+    - Tuyệt đối KHÔNG can thiệp chèn dữ liệu thô (INSERT IGNORE) hoặc ép tắt read_only từ Python.
+    - Truy vấn trực tiếp `performance_schema.replication_group_members` trên từng Node.
+    - Nếu phát hiện Node có Group Replication đang OFFLINE:
+        * Tự động gửi lệnh `START GROUP_REPLICATION;` để Node kết nối vào cụm.
+        * Kênh Distributed Recovery (`group_replication_recovery`) của MySQL sẽ tự động kéo Binary Log
+          từ Node Donor/Primary và replay đầy đủ toàn bộ giao dịch thiếu theo mã GTID chuẩn.
+    - Nếu toàn bộ các Node trong cụm đều đang tắt hoặc cần Bootstrap:
+        * Hỗ trợ bootstrap Node Primary được chỉ định (`group_replication_bootstrap_group = ON`).
     """
     t0 = time.perf_counter()
-    online_conns = {}
-    total_synced_rows = 0
-    synced_details = []
+    pwd = CLUSTER_CONFIG.get("mysql_password", "root")
+    recovered_nodes = []
+    already_online_nodes = []
+    failed_nodes = []
 
-    try:
-        def _connect_mysql_node(host):
+    # 1. Quét trạng thái hiện tại của Group Replication trên toàn bộ các node
+    node_statuses = {}
+    for host in CLUSTER_CONFIG["mysql_nodes"]:
+        h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
+        p_int = int(p_int)
+        if not is_port_open(h_str, p_int, timeout=0.35, retries=1):
+            node_statuses[host] = {"tcp": False, "state": "UNREACHABLE", "role": "UNREACHABLE"}
+            continue
+        try:
+            conn = mysql.connector.connect(
+                host=h_str, port=p_int,
+                user=CLUSTER_CONFIG["mysql_user"],
+                password=pwd,
+                connection_timeout=1.5
+            )
+            cur = conn.cursor(dictionary=True)
+            cur.execute("""
+                SELECT MEMBER_STATE, MEMBER_ROLE 
+                FROM performance_schema.replication_group_members 
+                WHERE MEMBER_ID = @@server_uuid OR MEMBER_HOST = %s
+            """, (h_str,))
+            row = cur.fetchone()
+            st = (row.get("MEMBER_STATE") if row else "OFFLINE") or "OFFLINE"
+            ro = (row.get("MEMBER_ROLE") if row else "") or ""
+            node_statuses[host] = {"tcp": True, "state": st.upper(), "role": ro.upper(), "conn": conn, "cur": cur}
+        except Exception as e:
+            node_statuses[host] = {"tcp": True, "state": "OFFLINE", "role": "ERROR", "err": str(e)}
+
+    # 2. Kiểm tra xem đã có node nào là PRIMARY / ONLINE trong cụm chưa
+    online_members = [h for h, info in node_statuses.items() if info.get("state") == "ONLINE"]
+    primary_member = next((h for h, info in node_statuses.items() if info.get("role") == "PRIMARY" and info.get("state") == "ONLINE"), None)
+
+    # 3. Kích hoạt Native Recovery cho các node đang OFFLINE
+    for host, info in node_statuses.items():
+        st = info.get("state")
+        lbl = get_node_label(host, "mysql")
+        if st == "ONLINE":
+            already_online_nodes.append(f"{lbl} ({host})")
+            if "conn" in info:
+                try:
+                    info["cur"].close()
+                    info["conn"].close()
+                except Exception:
+                    pass
+            continue
+        if st in ["OFFLINE", "ERROR"]:
             h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
             p_int = int(p_int)
-            if not is_port_open(h_str, p_int, timeout=0.35, retries=1):
-                return host, None
             try:
-                conn = mysql.connector.connect(
-                    host=h_str, port=p_int,
-                    user=CLUSTER_CONFIG["mysql_user"],
-                    password=CLUSTER_CONFIG["mysql_password"],
-                    database=CLUSTER_CONFIG["mysql_db"],
-                    autocommit=True,
-                    connection_timeout=2.0
-                )
-                cur = conn.cursor(dictionary=False)
-                try:
-                    cur.execute("SELECT @@global.read_only AS ro, @@global.super_read_only AS sro")
-                    meta = cur.fetchone()
-                    ro = meta[0] if meta else 0
-                    sro = meta[1] if meta else 0
-                except Exception:
-                    ro, sro = 0, 0
-                return host, {"conn": conn, "cur": cur, "ro": ro, "sro": sro}
-            except Exception as e:
-                logger.warning(f"[RECONCILE] Không thể kết nối tới {host}: {e}")
-                return host, None
+                c = info.get("conn")
+                if not c or not c.is_connected():
+                    c = mysql.connector.connect(
+                        host=h_str, port=p_int,
+                        user=CLUSTER_CONFIG["mysql_user"],
+                        password=pwd,
+                        connection_timeout=2.0
+                    )
+                cur = c.cursor()
 
-        with ThreadPoolExecutor(max_workers=max(1, len(CLUSTER_CONFIG["mysql_nodes"]))) as ex:
-            conn_res = list(ex.map(_connect_mysql_node, CLUSTER_CONFIG["mysql_nodes"]))
-
-        for h, c_data in conn_res:
-            if c_data:
-                online_conns[h] = c_data
-
-        if len(online_conns) <= 1:
-            return {"total_synced_rows": 0, "synced_nodes": [], "elapsed_ms": 0.0}
-
-        # Kiem tra nhanh: neu count va max(order_id) cua tat ca cac node dong nhat thi hoan toan dong bo
-        node_sigs = {}
-        try:
-            quick_diff = False
-            first_sig = None
-            for host, item in online_conns.items():
-                cur = item["cur"]
-                cur.execute("SELECT COUNT(*), COALESCE(MAX(order_id), 0) FROM orders")
-                oc, omax = cur.fetchone()
-                cur.execute("SELECT COUNT(*) FROM order_items")
-                ic = cur.fetchone()[0]
-                cur.execute("SELECT COUNT(*) FROM payments")
-                pc = cur.fetchone()[0]
-                sig = (oc, omax, ic, pc)
-                node_sigs[host] = sig
-                if first_sig is None:
-                    first_sig = sig
-                elif first_sig != sig:
-                    quick_diff = True
-            if not quick_diff and first_sig is not None:
-                for h, item in online_conns.items():
+                # Nếu cụm chưa có node nào ONLINE và đây là Primary được cấu hình -> Bootstrap
+                is_configured_primary = is_same_mysql_host(host, CLUSTER_CONFIG.get("active_mysql_primary") or CLUSTER_CONFIG["mysql_nodes"][0])
+                if not online_members and is_configured_primary:
                     try:
-                        item["cur"].close()
-                        item["conn"].close()
-                    except Exception:
-                        pass
-                return {"total_synced_rows": 0, "synced_nodes": [], "elapsed_ms": round((time.perf_counter() - t0) * 1000, 1)}
-        except Exception:
-            pass
-
-        # 1. Thu thap ID cac bang orders, order_items, payments tren tung node (song song)
-        min_omax = min(s[1] for s in node_sigs.values()) if node_sigs else 0
-        diff_count = max(s[0] for s in node_sigs.values()) - min(s[0] for s in node_sigs.values()) if node_sigs else 0
-        safe_min_order_id = max(0, min_omax - max(500, diff_count * 2))
-
-        all_orders_by_node = {}
-        all_items_by_node = {}
-        all_payments_by_node = {}
-
-        def _fetch_node_ids(host_item):
-            h, itm = host_item
-            c = itm["conn"]
-            cur = c.cursor()
-            try:
-                cur.execute("SELECT order_id FROM orders WHERE order_id >= %s", (safe_min_order_id,))
-                oids = set(r[0] for r in cur.fetchall())
-            except Exception as e:
-                logger.warning(f"[RECONCILE] Lỗi đọc order_id từ {h}: {e}")
-                oids = set()
-            try:
-                cur.execute("SELECT item_id FROM order_items WHERE order_id >= %s", (safe_min_order_id,))
-                iids = set(r[0] for r in cur.fetchall())
-            except Exception as e:
-                logger.warning(f"[RECONCILE] Lỗi đọc item_id từ {h}: {e}")
-                iids = set()
-            try:
-                cur.execute("SELECT payment_id FROM payments WHERE order_id >= %s", (safe_min_order_id,))
-                pids = set(r[0] for r in cur.fetchall())
-            except Exception as e:
-                logger.warning(f"[RECONCILE] Lỗi đọc payment_id từ {h}: {e}")
-                pids = set()
-            try:
+                        cur.execute("SET GLOBAL group_replication_bootstrap_group = ON;")
+                        cur.execute("START GROUP_REPLICATION;")
+                        cur.execute("SET GLOBAL group_replication_bootstrap_group = OFF;")
+                        online_members.append(host)
+                        recovered_nodes.append(f"{lbl} [Bootstrapped Primary]")
+                    except Exception as b_err:
+                        failed_nodes.append(f"{lbl} ({b_err})")
+                else:
+                    # Node gia nhập nhóm bình thường để tự động kích hoạt Distributed Recovery
+                    try:
+                        cur.execute("START GROUP_REPLICATION;")
+                        recovered_nodes.append(f"{lbl} [Distributed Recovery Started]")
+                    except Exception as s_err:
+                        failed_nodes.append(f"{lbl} ({s_err})")
                 cur.close()
-            except Exception:
-                pass
-            return h, oids, iids, pids
-
-        with ThreadPoolExecutor(max_workers=max(1, len(online_conns))) as ex:
-            id_results = list(ex.map(_fetch_node_ids, list(online_conns.items())))
-
-        for h, oids, iids, pids in id_results:
-            all_orders_by_node[h] = oids
-            all_items_by_node[h] = iids
-            all_payments_by_node[h] = pids
-
-        all_known_orders = set.union(*all_orders_by_node.values()) if all_orders_by_node else set()
-        missing_orders_by_node = {h: all_known_orders - oids for h, oids in all_orders_by_node.items() if (all_known_orders - oids)}
-
-        all_known_items = set.union(*all_items_by_node.values()) if all_items_by_node else set()
-        missing_items_by_node = {h: all_known_items - iids for h, iids in all_items_by_node.items() if (all_known_items - iids)}
-
-        all_known_payments = set.union(*all_payments_by_node.values()) if all_payments_by_node else set()
-        missing_payments_by_node = {h: all_known_payments - pids for h, pids in all_payments_by_node.items() if (all_known_payments - pids)}
-
-        needed_order_ids = set.union(*missing_orders_by_node.values()) if missing_orders_by_node else set()
-        needed_item_ids = set.union(*missing_items_by_node.values()) if missing_items_by_node else set()
-        needed_payment_ids = set.union(*missing_payments_by_node.values()) if missing_payments_by_node else set()
-
-        if not needed_order_ids and not needed_item_ids and not needed_payment_ids:
-            return {"total_synced_rows": 0, "synced_nodes": [], "elapsed_ms": round((time.perf_counter() - t0) * 1000, 1)}
-
-        # 2. Thu thập dữ liệu đầy đủ từ các node online có sẵn dữ liệu
-        orders_pool = {}
-        items_pool = {}
-        payments_pool = {}
-
-        if needed_order_ids:
-            needed_list = list(needed_order_ids)
-            for host, item in online_conns.items():
-                conn = item["conn"]
-                dict_cur = conn.cursor(dictionary=True)
-                unfetched = [oid for oid in needed_list if oid not in orders_pool]
-                if not unfetched:
-                    dict_cur.close()
-                    break
-                for ch_start in range(0, len(unfetched), 300):
-                    chunk = unfetched[ch_start:ch_start + 300]
-                    ids_str = ",".join(str(i) for i in chunk)
-                    try:
-                        dict_cur.execute(f"SELECT * FROM orders WHERE order_id IN ({ids_str})")
-                        for row in dict_cur.fetchall():
-                            orders_pool[row["order_id"]] = row
-                    except Exception as e:
-                        logger.warning(f"[RECONCILE] Lỗi tải orders từ {host}: {e}")
-                dict_cur.close()
-
-        if needed_item_ids:
-            needed_list = list(needed_item_ids)
-            for host, item in online_conns.items():
-                conn = item["conn"]
-                dict_cur = conn.cursor(dictionary=True)
-                unfetched = [iid for iid in needed_list if iid not in items_pool]
-                if not unfetched:
-                    dict_cur.close()
-                    break
-                for ch_start in range(0, len(unfetched), 300):
-                    chunk = unfetched[ch_start:ch_start + 300]
-                    ids_str = ",".join(str(i) for i in chunk)
-                    try:
-                        dict_cur.execute(f"SELECT * FROM order_items WHERE item_id IN ({ids_str})")
-                        for row in dict_cur.fetchall():
-                            items_pool[row["item_id"]] = row
-                    except Exception as e:
-                        logger.warning(f"[RECONCILE] Lỗi tải order_items từ {host}: {e}")
-                dict_cur.close()
-
-        if needed_payment_ids:
-            needed_list = list(needed_payment_ids)
-            for host, item in online_conns.items():
-                conn = item["conn"]
-                dict_cur = conn.cursor(dictionary=True)
-                unfetched = [pid for pid in needed_list if pid not in payments_pool]
-                if not unfetched:
-                    dict_cur.close()
-                    break
-                for ch_start in range(0, len(unfetched), 300):
-                    chunk = unfetched[ch_start:ch_start + 300]
-                    ids_str = ",".join(str(i) for i in chunk)
-                    try:
-                        dict_cur.execute(f"SELECT * FROM payments WHERE payment_id IN ({ids_str})")
-                        for row in dict_cur.fetchall():
-                            payments_pool[row["payment_id"]] = row
-                    except Exception as e:
-                        logger.warning(f"[RECONCILE] Lỗi tải payments từ {host}: {e}")
-                dict_cur.close()
-
-        # Nạp thêm items và payments tương ứng với các order bị thiếu
-        if orders_pool:
-            order_ids_list = list(orders_pool.keys())
-            for host, item in online_conns.items():
-                conn = item["conn"]
-                dict_cur = conn.cursor(dictionary=True)
-                for ch_start in range(0, len(order_ids_list), 300):
-                    chunk = order_ids_list[ch_start:ch_start + 300]
-                    ids_str = ",".join(str(i) for i in chunk)
-                    try:
-                        dict_cur.execute(f"SELECT * FROM order_items WHERE order_id IN ({ids_str})")
-                        for r in dict_cur.fetchall():
-                            items_pool[r["item_id"]] = r
-                    except Exception:
-                        pass
-                    try:
-                        dict_cur.execute(f"SELECT * FROM payments WHERE order_id IN ({ids_str})")
-                        for r in dict_cur.fetchall():
-                            payments_pool[r["payment_id"]] = r
-                    except Exception:
-                        pass
-                dict_cur.close()
-
-        # 3. Nạp bù an toàn vào các Node đang bị thiếu
-        nodes_needing_sync = set(missing_orders_by_node.keys()) | set(missing_items_by_node.keys()) | set(missing_payments_by_node.keys())
-
-        for host in nodes_needing_sync:
-            if host not in online_conns:
-                continue
-            item = online_conns[host]
-            conn = item["conn"]
-            cur = item["cur"]
-            target_synced_this_node = 0
-
-            # Nới lỏng quyền ghi tạm thời nếu là Node Secondary
-            try:
-                cur.execute("SET GLOBAL super_read_only = OFF")
-                cur.execute("SET GLOBAL read_only = OFF")
-            except Exception:
-                pass
-
-            try:
-                cur.execute("SET SESSION foreign_key_checks = 0")
-                cur.execute("SET SESSION unique_checks = 0")
-                cur.execute("SET SESSION sql_log_bin = 0")
-            except Exception:
-                pass
-
-            try:
-                # 3.1 Nạp bảng orders trước (bảng cha)
-                missing_o = missing_orders_by_node.get(host, set())
-                for oid in missing_o:
-                    o = orders_pool.get(oid)
-                    if not o:
-                        continue
-                    try:
-                        cur.execute(
-                            "INSERT IGNORE INTO orders (order_id, user_id, total_amount, status, shipping_region, created_at) "
-                            "VALUES (%s, %s, %s, %s, %s, %s)",
-                            (o["order_id"], o["user_id"], o["total_amount"], o.get("status", "COMPLETED"), o.get("shipping_region", "MIEN_NAM"), o.get("created_at"))
-                        )
-                        total_synced_rows += 1
-                        target_synced_this_node += 1
-                    except Exception as e:
-                        logger.warning(f"[RECONCILE] Lỗi nạp order {oid} vào {host}: {e}")
-
-                # 3.2 Nạp bảng order_items (bảng con)
-                missing_i = set(missing_items_by_node.get(host, set()))
-                for it in items_pool.values():
-                    if it.get("order_id") in missing_o:
-                        missing_i.add(it["item_id"])
-
-                for iid in missing_i:
-                    it = items_pool.get(iid)
-                    if not it:
-                        continue
-                    try:
-                        cur.execute(
-                            "INSERT IGNORE INTO order_items (item_id, order_id, product_id, quantity, unit_price) "
-                            "VALUES (%s, %s, %s, %s, %s)",
-                            (it["item_id"], it["order_id"], it["product_id"], it["quantity"], it["unit_price"])
-                        )
-                        total_synced_rows += 1
-                        target_synced_this_node += 1
-                    except Exception as e:
-                        logger.warning(f"[RECONCILE] Lỗi nạp order_item {iid} vào {host}: {e}")
-
-                # 3.3 Nạp bảng payments (bảng con)
-                missing_p = set(missing_payments_by_node.get(host, set()))
-                for py in payments_pool.values():
-                    if py.get("order_id") in missing_o:
-                        missing_p.add(py["payment_id"])
-
-                for pid in missing_p:
-                    py = payments_pool.get(pid)
-                    if not py:
-                        continue
-                    try:
-                        cur.execute(
-                            "INSERT IGNORE INTO payments (payment_id, order_id, amount, payment_method, transaction_status, created_at) "
-                            "VALUES (%s, %s, %s, %s, %s, %s)",
-                            (py["payment_id"], py["order_id"], py["amount"], py.get("payment_method", "E-WALLET"), py.get("transaction_status", "SUCCESS"), py.get("created_at"))
-                        )
-                        total_synced_rows += 1
-                        target_synced_this_node += 1
-                    except Exception as e:
-                        logger.warning(f"[RECONCILE] Lỗi nạp payment {pid} vào {host}: {e}")
-
-                if target_synced_this_node > 0:
-                    lbl = get_node_label(host, "mysql")
-                    synced_details.append(f"{lbl} (+{target_synced_this_node})")
-
-                try:
-                    conn.commit()
-                except Exception:
-                    pass
-
-            finally:
-                try:
-                    cur.execute("SET SESSION foreign_key_checks = 1")
-                    cur.execute("SET SESSION unique_checks = 1")
-                    cur.execute("SET SESSION sql_log_bin = 1")
-                except Exception:
-                    pass
-
-                if item.get("ro") == 1:
-                    try:
-                        cur.execute("SET GLOBAL read_only = ON")
-                        cur.execute("SET GLOBAL super_read_only = ON")
-                    except Exception:
-                        pass
-
-    except Exception as e:
-        logger.error(f"[RECONCILE_FATAL] {e}", exc_info=True)
-    finally:
-        for item in online_conns.values():
-            try:
-                item["cur"].close()
-                item["conn"].close()
-            except Exception:
-                pass
+                c.close()
+            except Exception as conn_err:
+                failed_nodes.append(f"{lbl} ({conn_err})")
 
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
 
-    # Xóa cache cluster status ngay lập tức để giao diện hiển thị dữ liệu khớp 100%
-    if total_synced_rows > 0:
-        invalidate_node_counts_cache()
-        with _STATUS_CACHE_LOCK:
-            _LAST_STATUS_RESPONSE = None
-            _LAST_STATUS_TIME = 0.0
-
-    if total_synced_rows > 0 and log_sync:
+    # Ghi nhận log phục hồi chuẩn của MySQL Group Replication
+    if recovered_nodes and log_sync:
         try:
             mysql_p, mysql_secs, _, _ = detect_active_primaries()
             record_sync_log(
                 db_type="MYSQL_GR",
                 action="RECONCILE_SYNC",
-                title="Đồng bộ bù dữ liệu tự động",
-                summary=f"Đối chiếu toàn cụm | Tự động bù {total_synced_rows} bản ghi thiếu giữa các Node",
-                data_payload=f"Thao tác: Đối chiếu & bù dữ liệu 2 chiều | Các Node nhận: {', '.join(synced_details)} | Số bản ghi: {total_synced_rows} dòng",
-                affected_tables="orders, order_items, payments",
-                source_node=mysql_p,
-                target_nodes=mysql_secs,
-                mechanism="Bi-directional Consistency Reconciler",
-                detail=f"Hệ thống phát hiện chênh lệch bản ghi và đã tự động nạp bù thành công {total_synced_rows} dòng vào các node thiếu.",
+                title="Kích hoạt MySQL Distributed Recovery",
+                summary=f"Cơ chế tự bù dữ liệu chuẩn MySQL Group Replication · {len(recovered_nodes)} node",
+                data_payload=f"Kích hoạt Distributed Recovery tự bù dữ liệu cho: {', '.join(recovered_nodes)}",
+                affected_tables="users, products, orders, order_items, payments (Native GTID Catch-up)",
+                source_node=mysql_p or (CLUSTER_CONFIG.get("active_mysql_primary") or "192.168.1.221"),
+                target_nodes=CLUSTER_CONFIG["mysql_nodes"],
+                mechanism="MySQL Group Replication Distributed Recovery (Native Binary Log / GTID Catch-up)",
+                detail="Hệ thống đã loại bỏ hoàn toàn can thiệp code và kích hoạt cơ chế tự bù dữ liệu chuẩn của MySQL Group Replication. Kênh group_replication_recovery tự động kéo và áp dụng các transaction thiếu từ Donor theo đúng chuẩn GTID.",
                 latency_ms=elapsed_ms
             )
         except Exception:
             pass
 
+    invalidate_node_counts_cache()
     return {
-        "total_synced_rows": total_synced_rows,
-        "synced_nodes": synced_details,
+        "status": "SUCCESS" if not failed_nodes else ("PARTIAL" if recovered_nodes else "ERROR"),
+        "total_synced_rows": 0,
+        "synced_nodes": recovered_nodes or already_online_nodes,
+        "recovered_nodes": recovered_nodes,
+        "already_online_nodes": already_online_nodes,
+        "failed_nodes": failed_nodes,
         "elapsed_ms": elapsed_ms
     }
 
@@ -2032,23 +1781,31 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
 def manual_sync_cluster_data():
     try:
         res = reconcile_mysql_cluster_data(log_sync=True)
-        if res["total_synced_rows"] > 0:
-            nodes_str = f" ({', '.join(res['synced_nodes'])})" if res["synced_nodes"] else ""
-            msg = f"Đã kiểm tra và nạp bù thành công {res['total_synced_rows']} bản ghi thiếu{nodes_str}!"
+        rec = res.get("recovered_nodes", [])
+        onl = res.get("already_online_nodes", [])
+        fl = res.get("failed_nodes", [])
+
+        if rec:
+            msg = f"✓ Đã kích hoạt cơ chế tự bù dữ liệu (Distributed Recovery) của MySQL Group Replication cho: {', '.join(rec)}!"
+        elif onl and not fl:
+            msg = f"✓ Toàn bộ {len(onl)} Node MySQL Group Replication đang ONLINE và tự động đồng bộ dữ liệu chuẩn qua GTID!"
+        elif fl:
+            msg = f"⚠ Không thể khởi động Group Replication trên: {', '.join(fl)}. Vui lòng kiểm tra cổng 33061 và IP card mạng."
         else:
-            msg = "✓ Dữ liệu trên toàn bộ các Node đang trực tuyến đã hoàn toàn đồng bộ 100%!"
+            msg = "Đã kiểm tra trạng thái cụm MySQL Group Replication."
+
         return {
-            "status": "SUCCESS",
+            "status": "SUCCESS" if not fl else "WARNING",
             "message": msg,
-            "total_synced_rows": res["total_synced_rows"],
-            "synced_nodes": res["synced_nodes"],
-            "elapsed_ms": res["elapsed_ms"]
+            "total_synced_rows": 0,
+            "synced_nodes": res.get("synced_nodes", []),
+            "elapsed_ms": res.get("elapsed_ms", 0.0)
         }
     except Exception as e:
         logger.error(f"[MANUAL_SYNC_DATA_ERROR] {e}", exc_info=True)
         return {
             "status": "ERROR",
-            "message": f"Lỗi trong quá trình đối chiếu dữ liệu: {str(e)}",
+            "message": f"Lỗi khi kiểm tra MySQL Group Replication: {e}",
             "total_synced_rows": 0,
             "synced_nodes": [],
             "elapsed_ms": 0.0
@@ -2056,8 +1813,6 @@ def manual_sync_cluster_data():
 
 
 
-
-# monitor cluster
 @app.get("/api/cluster/status")
 def get_cluster_status(request: Request):
     """
@@ -2153,9 +1908,33 @@ def get_cluster_status(request: Request):
                 gtid_str = gtid_str.replace("22222222-2222-2222-2222-222222222222", "b8c1a93e-72df-4a61-9c88-4f271a359d02")
             gtid_short = (gtid_str[:42] + "...") if len(gtid_str) > 42 else gtid_str
 
+            # Truy vấn trực tiếp trạng thái chuẩn của Group Replication từ MySQL
+            gr_state = "OFFLINE"
+            gr_role = "SECONDARY"
+            try:
+                cur.execute("""
+                    SELECT MEMBER_STATE, MEMBER_ROLE 
+                    FROM performance_schema.replication_group_members 
+                    WHERE MEMBER_ID = %s OR MEMBER_HOST = %s
+                """, (sys_info.get("uuid"), h_str))
+                gr_member = cur.fetchone()
+                if gr_member:
+                    gr_state = (gr_member.get("MEMBER_STATE") or "OFFLINE").upper()
+                    gr_role = (gr_member.get("MEMBER_ROLE") or "").upper()
+            except Exception:
+                pass
+
+            final_state = gr_state if gr_state in ["ONLINE", "RECOVERING", "ERROR", "OFFLINE"] else "OFFLINE"
+            if final_state == "ONLINE":
+                final_role = gr_role if gr_role in ["PRIMARY", "SECONDARY"] else ("PRIMARY" if sys_info.get("ro") == 0 else "SECONDARY")
+            elif final_state == "RECOVERING":
+                final_role = "RECOVERING"
+            else:
+                final_role = "OFFLINE"
+
             res_item = {
                 "node_name": f"Node {idx}", "host": host, "server_id": sys_info.get("sid", "-"), "hostname": sys_info.get("hname", "-"),
-                "state": "ONLINE", "role": "SECONDARY", "ping_ms": tcp_ping, "gtid": gtid_short,
+                "state": final_state, "role": final_role, "ping_ms": tcp_ping, "gtid": gtid_short,
                 "counts": node_counts, "_uuid": sys_info.get("uuid"), "_primary_uuid": primary_uuid, "_ro": sys_info.get("ro", 1)
             }
             with _STATUS_CACHE_LOCK:
@@ -2223,60 +2002,37 @@ def get_cluster_status(request: Request):
     # Cụm MySQL Group Replication BẮT BUỘC RƠI VÀO CHẾ ĐỘ CHỈ ĐỌC (READ-ONLY)!
     # Toàn bộ node online phải là SECONDARY, tự động bật super_read_only = ON để chống Split-Brain.
     # Tuyệt đối KHÔNG tự ý phong Primary và KHÔNG mở quyền ghi!
-    if online_mysql_count < 3:
-        primary_node = None
-        set_active_mysql_primary(None)
+    # Tôn trọng cơ chế Single-Primary tự nhiên của MySQL Group Replication:
+    # MySQL Group Replication tự động quản lý cờ read_only và phân vai PRIMARY / SECONDARY.
+    # Code ứng dụng chỉ đọc thông tin chuẩn từ engine, KHÔNG tự ý ép buộc super_read_only gây xung đột.
+    recovering_mysql = [n for n in mysql_results if n["state"] == "RECOVERING"]
+    group_primary_uuid = next((n["_primary_uuid"] for n in online_mysql if n.get("_primary_uuid")), None)
+    primary_node = None
+    if group_primary_uuid:
+        primary_node = next((n for n in online_mysql if n.get("_uuid") == group_primary_uuid), None)
+    if not primary_node:
+        primary_node = next((n for n in online_mysql if n.get("role") == "PRIMARY"), None)
+    if not primary_node and online_mysql:
+        primary_node = next((n for n in online_mysql if n.get("_ro") == 0), online_mysql[0])
+
+    if primary_node:
+        set_active_mysql_primary(primary_node["host"])
         for n in mysql_results:
             if n["state"] == "ONLINE":
-                n["role"] = "SECONDARY"
-                if n.get("_ro") == 0:
-                    threading.Thread(target=_ensure_mysql_read_only, args=(n["host"],), daemon=True).start()
-                    n["_ro"] = 1
+                n["role"] = "PRIMARY" if is_same_mysql_host(n["host"], primary_node["host"]) else "SECONDARY"
+            elif n["state"] == "RECOVERING":
+                n["role"] = "RECOVERING"
             else:
-                n["role"] = "UNREACHABLE"
+                n["role"] = "OFFLINE"
     else:
-        curr_active = get_active_mysql_primary()
-        primary_node = None
-        if curr_active:
-            matched_curr = next((n for n in online_mysql if is_same_mysql_host(n["host"], curr_active)), None)
-            if matched_curr:
-                primary_node = matched_curr
-
-        if not primary_node:
-            uuid_votes = {}
-            for n in online_mysql:
-                p_uuid = n.get("_primary_uuid")
-                if p_uuid:
-                    uuid_votes[p_uuid] = uuid_votes.get(p_uuid, 0) + 1
-            if uuid_votes:
-                top_uuid, vote_cnt = max(uuid_votes.items(), key=lambda x: x[1])
-                if vote_cnt >= max(2, online_mysql_count // 2):
-                    primary_node = next((n for n in online_mysql if n.get("_uuid") == top_uuid), None)
-
-        if not primary_node:
-            pri_cand = [n for n in online_mysql if n.get("_ro") == 0]
-            if pri_cand:
-                primary_node = pri_cand[0]
-
-        if not primary_node and online_mysql:
-            primary_node = online_mysql[0]
-
-        if primary_node:
-            set_active_mysql_primary(primary_node["host"])
-            for n in mysql_results:
-                if is_same_mysql_host(n["host"], primary_node["host"]):
-                    n["role"] = "PRIMARY"
-                    if n.get("_ro") == 1:
-                        threading.Thread(target=_ensure_mysql_writable, args=(n["host"],), daemon=True).start()
-                        n["_ro"] = 0
-                else:
-                    n["role"] = "SECONDARY" if n["state"] == "ONLINE" else "UNREACHABLE"
-                    if n["state"] == "ONLINE" and n.get("_ro") == 0:
-                        threading.Thread(target=_ensure_mysql_read_only, args=(n["host"],), daemon=True).start()
-                        n["_ro"] = 1
-        else:
-            for n in mysql_results:
-                n["role"] = "SECONDARY" if n["state"] == "ONLINE" else "UNREACHABLE"
+        set_active_mysql_primary(None)
+        for n in mysql_results:
+            if n["state"] == "RECOVERING":
+                n["role"] = "RECOVERING"
+            elif n["state"] == "ONLINE":
+                n["role"] = "SECONDARY"
+            else:
+                n["role"] = "OFFLINE"
 
     for n in mysql_results:
         for k in ["_uuid", "_primary_uuid", "_ro"]:
@@ -2675,72 +2431,10 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
         conn.commit()
         tx_ms = round((time.perf_counter() - t0) * 1000, 2)
 
-        try:
-            cursor.execute("SELECT MEMBER_HOST FROM performance_schema.replication_group_members WHERE MEMBER_STATE = 'ONLINE'")
-            xcom_hosts = {r["MEMBER_HOST"] for r in cursor.fetchall() if r.get("MEMBER_HOST")}
-        except Exception:
-            xcom_hosts = set()
-
-        for sec_host in CLUSTER_CONFIG["mysql_nodes"]:
-            if sec_host == mysql_meta.get("host") or sec_host in xcom_hosts:
-                continue
-            h_sec, p_sec = (sec_host.split(":") if ":" in sec_host else (sec_host, 3306))
-            if not is_port_open(h_sec, int(p_sec), timeout=0.35, retries=1):
-                continue
-            s_conn = None
-            s_cur = None
-            try:
-                s_conn = mysql.connector.connect(
-                    host=h_sec,
-                    port=int(p_sec),
-                    user=CLUSTER_CONFIG["mysql_user"],
-                    password=CLUSTER_CONFIG["mysql_password"],
-                    database=CLUSTER_CONFIG["mysql_db"],
-                    charset="utf8mb4",
-                    use_unicode=True,
-                    collation="utf8mb4_unicode_ci",
-                    autocommit=True,
-                    connection_timeout=3.5
-                )
-                s_cur = s_conn.cursor()
-                try:
-                    s_cur.execute("SET GLOBAL super_read_only = OFF")
-                    s_cur.execute("SET GLOBAL read_only = OFF")
-                    s_cur.execute("SELECT COUNT(*) FROM orders WHERE order_id = %s", (order_id,))
-                    if s_cur.fetchone()[0] == 0:
-                        s_cur.execute("UPDATE products SET stock_quantity = stock_quantity - %s WHERE product_id = %s", (req.quantity, req.product_id))
-                        s_cur.execute(
-                            "INSERT INTO orders (order_id, user_id, total_amount, status, shipping_region) VALUES (%s, %s, %s, 'COMPLETED', 'MIEN_NAM')",
-                            (order_id, req.user_id, total)
-                        )
-                        s_cur.execute(
-                            "INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES (%s, %s, %s, %s)",
-                            (order_id, req.product_id, req.quantity, prod["price"])
-                        )
-                        s_cur.execute(
-                            "INSERT INTO payments (order_id, amount, payment_method, transaction_status) VALUES (%s, %s, %s, 'SUCCESS')",
-                            (order_id, total, req.payment_method)
-                        )
-                finally:
-                    try:
-                        s_cur.execute("SET GLOBAL read_only = ON")
-                        s_cur.execute("SET GLOBAL super_read_only = ON")
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-            finally:
-                if s_cur is not None:
-                    try:
-                        s_cur.close()
-                    except Exception:
-                        pass
-                if s_conn is not None:
-                    try:
-                        s_conn.close()
-                    except Exception:
-                        pass
-
+                # Cơ chế MySQL Group Replication (Single-Primary Mode) tự động nhân bản dữ liệu qua XCom/GTID.
+        # Giao dịch chỉ cần Commit tại Primary, các Node Secondary sẽ tự động nhận và áp dụng giao dịch.
+        # Node nào tạm thời ngắt kết nối sẽ tự động nhận bù qua kênh Distributed Recovery khi kết nối lại.
+        
         # log activity vao mongo (Dual-Write with fallback logging)
         mongo_sync_ok = True
         mongo_sync_err = None
