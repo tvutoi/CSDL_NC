@@ -234,3 +234,5 @@ web_demo/*.corrupt.*.json
 
 # Local diagnostic logs
 web_demo/log/
+
+*.bak

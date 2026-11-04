@@ -1900,15 +1900,12 @@ def get_cluster_status(request: Request):
                 except Exception:
                     pass
 
-            cur.close()
-            conn.close()
-
             gtid_str = sys_info.get("gtid") or "N/A"
             if "22222222-2222-2222-2222-222222222222" in gtid_str:
                 gtid_str = gtid_str.replace("22222222-2222-2222-2222-222222222222", "b8c1a93e-72df-4a61-9c88-4f271a359d02")
             gtid_short = (gtid_str[:42] + "...") if len(gtid_str) > 42 else gtid_str
 
-            # Truy vấn trực tiếp trạng thái chuẩn của Group Replication từ MySQL
+            # Truy vấn trực tiếp trạng thái chuẩn của Group Replication từ MySQL (khi kết nối còn mở)
             gr_state = "OFFLINE"
             gr_role = "SECONDARY"
             try:
@@ -1921,8 +1918,11 @@ def get_cluster_status(request: Request):
                 if gr_member:
                     gr_state = (gr_member.get("MEMBER_STATE") or "OFFLINE").upper()
                     gr_role = (gr_member.get("MEMBER_ROLE") or "").upper()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[GR_STATUS_SCAN] Lỗi đọc replication_group_members từ {host}: {e}")
+
+            cur.close()
+            conn.close()
 
             final_state = gr_state if gr_state in ["ONLINE", "RECOVERING", "ERROR", "OFFLINE"] else "OFFLINE"
             if final_state == "ONLINE":
