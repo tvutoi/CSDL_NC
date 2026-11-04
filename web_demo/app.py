@@ -1848,9 +1848,8 @@ def get_cluster_status(request: Request):
         h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
         p_int = int(p_int)
         
-        # 1. Thăm dò TCP thuần túy và đo độ trễ mạng chuẩn xác (1 round-trip TCP SYN-ACK)
-        # Timeout 0.4s siêu nhanh: khi tắt node chính, lập tức phát hiện trong vài mili-giây
-        is_alive, tcp_ping = measure_tcp_ping(h_str, p_int, timeout=0.4)
+        # 1. Thăm dò TCP thuần túy và đo độ trễ mạng chuẩn xác (timeout 1.5s phù hợp mạng LAN WiFi phòng lab)
+        is_alive, tcp_ping = measure_tcp_ping(h_str, p_int, timeout=1.5)
         if not is_alive:
             return {
                 "node_name": f"Node {idx}", "host": host, "server_id": "-", "hostname": "-",
@@ -1863,7 +1862,7 @@ def get_cluster_status(request: Request):
                 host=h_str, port=p_int,
                 user=CLUSTER_CONFIG["mysql_user"],
                 password=CLUSTER_CONFIG["mysql_password"],
-                connection_timeout=0.8
+                connection_timeout=2.0
             )
             cur = conn.cursor(dictionary=True)
             cur.execute("""
