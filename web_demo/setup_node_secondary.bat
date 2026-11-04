@@ -13,7 +13,7 @@ net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo [CANH BAO] Tap lenh can quyen Administrator de cau hinh Firewall.
     echo Dang yeu cau cap quyen Administrator...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd -ArgumentList '/c \"\"%~f0\"\"' -Verb RunAs"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd -ArgumentList '/k cd /d \"\"%~dp0\"\" ^&^& \"\"%~f0\"\"' -Verb RunAs"
     exit /b
 )
 
@@ -46,8 +46,7 @@ if %errorlevel% equ 0 (
 if "%MYSQL_BIN%"=="" (
     color 0c
     echo [LOI] Khong tim thay mysql.exe tren may nay! Vui long kiem tra lai cai dat MySQL.
-    pause
-    exit /b 1
+    goto end_script
 )
 
 echo.
@@ -64,44 +63,62 @@ echo [2/4] Kiem tra ket noi mang LAN den Node Chinh (!PRIMARY_IP!)...
 ping -n 2 !PRIMARY_IP! >nul 2>&1
 if %errorlevel% neq 0 (
     color 0e
-    echo [CANH BAO] Khong the ping den Node Chinh (!PRIMARY_IP!).
-    echo Kiem tra:
-    echo   1. Hai may da bat chung mang Wi-Fi chua?
-    echo   2. Tren Node Chinh da chay setup_node_primary.bat chua?
     echo.
-    set /p CONT="Ban co muon tiep tuc thu ket noi khong? (Y/N) [Mac dinh: Y]: "
-    if /i "!CONT!"=="N" exit /b 1
+    echo =====================================================================
+    echo [CANH BAO] KHONG THE PING DEN NODE CHINH (!PRIMARY_IP!)!
+    echo =====================================================================
+    echo Cac nguyen nhan pho bien:
+    echo   1. May nay va Node Chinh KHONG chung mot mang Wi-Fi / Router.
+    echo      (Kiem tra router co bat AP/Client Isolation ngan cac laptop nhin thay nhau).
+    echo   2. May Node Chinh chua chay setup_node_primary.bat de mo Firewall.
+    echo   3. Card mang cua may nay hoac Node Chinh bi thay doi IP.
+    echo.
+    echo Giai phap tot nhat: 1 ban phat Hotspot tu dien thoai hoac laptop va
+    echo ca 4 may cung ket noi vao Hotspot do!
+    echo =====================================================================
+    echo.
+    set "CONT=Y"
+    set /p CONT="Ban co muon thu ket noi MySQL den Node Chinh khong? (Y/N) [Mac dinh: Y]: "
+    if /i "!CONT!"=="N" goto end_script
 ) else (
     echo   - Ket noi mang LAN den !PRIMARY_IP! thanh cong.
 )
 
 echo.
-echo [3/4] Dang dong bo GTID va tham gia Group Replication...
-"%MYSQL_BIN%" -u root -p%MYSQL_PWD% -e "STOP GROUP_REPLICATION; SET GLOBAL group_replication_bootstrap_group = OFF; RESET REPLICA FOR CHANNEL 'group_replication_recovery'; RESET MASTER; START GROUP_REPLICATION;" >nul 2>&1
-
-if %errorlevel% neq 0 (
-    color 0c
-    echo [LOI] Lenh START GROUP_REPLICATION that bai!
-    echo Nguyen nhan pho bien: Sai mat khau MySQL root, hoac Node Chinh chua bootstrap xong.
-    pause
-    exit /b 1
+echo [3/4] Dang ket noi Node Chinh de lay tap GTID chuan...
+set "PRIMARY_GTID="
+for /f "usebackq tokens=*" %%g in (`"%MYSQL_BIN%" -h !PRIMARY_IP! -u root -p!MYSQL_PWD! -s -N -e "SELECT REPLACE(@@GLOBAL.gtid_executed, CHAR(10), '');" 2^>nul`) do (
+    set "PRIMARY_GTID=%%g"
 )
 
-echo Dang doi nhan dong bo du lieu tu Node Chinh (3 giay)...
-timeout /t 3 /nobreak >nul
+if not "!PRIMARY_GTID!"=="" (
+    echo   - Da doc thanh cong GTID goc tu Node Chinh:
+    echo     !PRIMARY_GTID:~0,60!...
+    echo   - Dang dong bo GTID sach tren Node nay...
+    "%MYSQL_BIN%" -u root -p!MYSQL_PWD! -e "STOP GROUP_REPLICATION; SET GLOBAL group_replication_bootstrap_group = OFF; RESET REPLICA FOR CHANNEL 'group_replication_recovery'; RESET MASTER; SET @@GLOBAL.gtid_purged = '!PRIMARY_GTID!'; START GROUP_REPLICATION;"
+) else (
+    echo   - [Luu y] Khong the doc truc tiep tu !PRIMARY_IP!:3306. Thu dong bo co ban...
+    "%MYSQL_BIN%" -u root -p!MYSQL_PWD! -e "STOP GROUP_REPLICATION; SET GLOBAL group_replication_bootstrap_group = OFF; RESET REPLICA FOR CHANNEL 'group_replication_recovery'; RESET MASTER; START GROUP_REPLICATION;"
+)
 
 echo.
-echo [4/4] Trang thai Member trong nhom:
+echo Dang doi dong bo trang thai thanh vien (4 giay)...
+timeout /t 4 /nobreak >nul
+
+echo.
+echo [4/4] Trang thai Member trong Replication Group:
 echo ---------------------------------------------------------------------
-"%MYSQL_BIN%" -u root -p%MYSQL_PWD% -t -e "SELECT MEMBER_HOST, MEMBER_PORT, MEMBER_STATE, MEMBER_ROLE FROM performance_schema.replication_group_members;"
+"%MYSQL_BIN%" -u root -p!MYSQL_PWD! -t -e "SELECT MEMBER_HOST, MEMBER_PORT, MEMBER_STATE, MEMBER_ROLE FROM performance_schema.replication_group_members;"
 
 echo.
 echo =====================================================================
-color 0a
-echo   [HOAN TAT] Node nay da gui yeu cau tham gia Group thanh cong!
-echo   Kiem tra cot MEMBER_STATE:
+echo   Kiem tra cot MEMBER_STATE o tren:
 echo     + ONLINE     : Da tham gia hoan tat va san sang nhan du lieu!
-echo     + RECOVERING : Dang keo du lieu tu dong tu Node Chinh.
+echo     + RECOVERING : Dang tu dong sao chep du lieu tu Node Chinh.
+echo     + OFFLINE    : Ket noi den Node Chinh bi chan (kiem tra Firewall/Mang).
 echo =====================================================================
 echo.
-pause
+
+:end_script
+echo Nhan phim bat ky de dong cua so nay...
+pause >nul

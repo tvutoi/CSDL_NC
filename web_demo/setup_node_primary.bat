@@ -13,7 +13,7 @@ net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo [CANH BAO] Tap lenh can quyen Administrator de cau hinh Firewall.
     echo Dang yeu cau cap quyen Administrator...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd -ArgumentList '/c \"\"%~f0\"\"' -Verb RunAs"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd -ArgumentList '/k cd /d \"\"%~dp0\"\" ^&^& \"\"%~f0\"\"' -Verb RunAs"
     exit /b
 )
 
@@ -42,8 +42,7 @@ if %errorlevel% equ 0 (
 if "%MYSQL_BIN%"=="" (
     color 0c
     echo [LOI] Khong tim thay mysql.exe! Vui long kiem tra lai cai dat MySQL.
-    pause
-    exit /b 1
+    goto end_script
 )
 
 echo.
@@ -57,19 +56,12 @@ echo   - Da mo thong port TCP 3306, 33061, 27017, 8000 va ICMP Ping.
 
 echo.
 echo [2/3] Dang khoi tao Group Replication tren Node Chinh (Bootstrap Group)...
-"%MYSQL_BIN%" -u root -p%MYSQL_PWD% -e "STOP GROUP_REPLICATION; SET GLOBAL group_replication_bootstrap_group = ON; START GROUP_REPLICATION; SET GLOBAL group_replication_bootstrap_group = OFF;" >nul 2>&1
-
-if %errorlevel% neq 0 (
-    color 0c
-    echo [LOI] Khong the bootstrap Group Replication! Kiem tra mat khau MySQL hoac trang thai MySQL Service.
-    pause
-    exit /b 1
-)
+"%MYSQL_BIN%" -u root -p!MYSQL_PWD! -e "STOP GROUP_REPLICATION; SET GLOBAL group_replication_bootstrap_group = ON; START GROUP_REPLICATION; SET GLOBAL group_replication_bootstrap_group = OFF;"
 
 echo.
 echo [3/3] Kiem tra trang thai Member hien tai:
 echo ---------------------------------------------------------------------
-"%MYSQL_BIN%" -u root -p%MYSQL_PWD% -t -e "SELECT MEMBER_HOST, MEMBER_PORT, MEMBER_STATE, MEMBER_ROLE, MEMBER_VERSION FROM performance_schema.replication_group_members;"
+"%MYSQL_BIN%" -u root -p!MYSQL_PWD! -t -e "SELECT MEMBER_HOST, MEMBER_PORT, MEMBER_STATE, MEMBER_ROLE, MEMBER_VERSION FROM performance_schema.replication_group_members;"
 
 echo.
 echo =====================================================================
@@ -78,4 +70,7 @@ echo   [HOAN TAT] Node chinh da ONLINE voi vai tro PRIMARY!
 echo   Bay gio hay chay file setup_node_secondary.bat tren cac Node phu.
 echo =====================================================================
 echo.
-pause
+
+:end_script
+echo Nhan phim bat ky de dong cua so nay...
+pause >nul
