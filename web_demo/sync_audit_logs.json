@@ -1,5 +1,492 @@
 [
   {
+    "id": "SYNC-175df6ef",
+    "thoi_diem": "2026-11-04 22:09:33.131",
+    "he_csdl": "MYSQL_GR",
+    "loai_su_kien": "CATCHUP_SYNC",
+    "ma_nhom_giao_dich": "CATCHUP-SYNC-293c8b59-Node 1",
+    "gtid_hoac_optime": "",
+    "node_nguon": "Node 1 (192.168.1.221)",
+    "node_dich": [
+      {
+        "node": "Node 1",
+        "host": "192.168.1.221",
+        "thoi_diem_ap_dung": "22:09:33.015",
+        "do_tre_ms": 15.0,
+        "trang_thai": "APPLIED"
+      }
+    ],
+    "trang_thai": "SYNCED",
+    "so_ban_ghi": 1,
+    "chi_tiet": [],
+    "log_id": "SYNC-175df6ef",
+    "time": "22:09:33",
+    "date": "04/11/2026",
+    "timestamp": "22:09:33",
+    "start_time": "22:09:33.015",
+    "end_time": "22:09:33.015",
+    "db_type": "MYSQL_GR",
+    "action": "CATCHUP_SYNC",
+    "title": "Đồng bộ bù GTID qua Node 1",
+    "summary": "Node 1 trực tuyến trở lại · Nhận bù GTID từ Node 1",
+    "data_payload": "Đồng bộ bù giao dịch #SYNC-293c8b59 (Kích hoạt MySQL Distributed Recovery) sang Node 1 (192.168.1.221)",
+    "affected_tables": "users, products, orders, order_items, payments (Native GTID Catch-up)",
+    "source_label": "Node 1",
+    "source_node": "192.168.1.221",
+    "target_display": "Node 1",
+    "target_nodes": [
+      "Node 1"
+    ],
+    "target_hosts": [
+      "192.168.1.221"
+    ],
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221",
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
+      }
+    ],
+    "mechanism": "MySQL Group Replication Recovery (GTID Catch-up)",
+    "detail": "Node 1 (192.168.1.221) đã trực tuyến trở lại, hoàn tất Group Replication Recovery từ Primary (Node 1 192.168.1.221) qua kênh Binary Log/GTID. Dữ liệu nhất quán 100%.",
+    "latency_ms": 15.0,
+    "status": "SYNCED",
+    "status_text": "Đã đồng bộ bù thành công"
+  },
+  {
+    "id": "SYNC-486f126d",
+    "thoi_diem": "2026-11-04 22:09:35.975",
+    "he_csdl": "MYSQL_GR",
+    "loai_su_kien": "CATCHUP_SYNC",
+    "ma_nhom_giao_dich": "CATCHUP-SYNC-293c8b59-Node 2",
+    "gtid_hoac_optime": "",
+    "node_nguon": "Node 1 (192.168.1.221)",
+    "node_dich": [
+      {
+        "node": "Node 2",
+        "host": "192.168.1.222",
+        "thoi_diem_ap_dung": "22:09:33.015",
+        "do_tre_ms": 15.0,
+        "trang_thai": "APPLIED"
+      }
+    ],
+    "trang_thai": "SYNCED",
+    "so_ban_ghi": 1,
+    "chi_tiet": [],
+    "log_id": "SYNC-486f126d",
+    "time": "22:09:35",
+    "date": "04/11/2026",
+    "timestamp": "22:09:35",
+    "start_time": "22:09:33.015",
+    "end_time": "22:09:33.015",
+    "db_type": "MYSQL_GR",
+    "action": "CATCHUP_SYNC",
+    "title": "Đồng bộ bù GTID qua Node 2",
+    "summary": "Node 2 trực tuyến trở lại · Nhận bù GTID từ Node 1",
+    "data_payload": "Đồng bộ bù giao dịch #SYNC-293c8b59 (Kích hoạt MySQL Distributed Recovery) sang Node 2 (192.168.1.222)",
+    "affected_tables": "users, products, orders, order_items, payments (Native GTID Catch-up)",
+    "source_label": "Node 1",
+    "source_node": "192.168.1.221",
+    "target_display": "Node 2",
+    "target_nodes": [
+      "Node 2"
+    ],
+    "target_hosts": [
+      "192.168.1.222"
+    ],
+    "target_statuses": [
+      {
+        "label": "Node 2",
+        "host": "192.168.1.222",
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
+      }
+    ],
+    "mechanism": "MySQL Group Replication Recovery (GTID Catch-up)",
+    "detail": "Node 2 (192.168.1.222) đã trực tuyến trở lại, hoàn tất Group Replication Recovery từ Primary (Node 1 192.168.1.221) qua kênh Binary Log/GTID. Dữ liệu nhất quán 100%.",
+    "latency_ms": 15.0,
+    "status": "SYNCED",
+    "status_text": "Đã đồng bộ bù thành công"
+  },
+  {
+    "id": "SYNC-1abf81d8",
+    "thoi_diem": "2026-11-04 22:09:36.756",
+    "he_csdl": "MYSQL_GR",
+    "loai_su_kien": "CATCHUP_SYNC",
+    "ma_nhom_giao_dich": "CATCHUP-SYNC-293c8b59-Node 3",
+    "gtid_hoac_optime": "",
+    "node_nguon": "Node 1 (192.168.1.221)",
+    "node_dich": [
+      {
+        "node": "Node 3",
+        "host": "192.168.1.223",
+        "thoi_diem_ap_dung": "22:09:33.015",
+        "do_tre_ms": 15.0,
+        "trang_thai": "APPLIED"
+      }
+    ],
+    "trang_thai": "SYNCED",
+    "so_ban_ghi": 1,
+    "chi_tiet": [],
+    "log_id": "SYNC-1abf81d8",
+    "time": "22:09:36",
+    "date": "04/11/2026",
+    "timestamp": "22:09:36",
+    "start_time": "22:09:33.015",
+    "end_time": "22:09:33.015",
+    "db_type": "MYSQL_GR",
+    "action": "CATCHUP_SYNC",
+    "title": "Đồng bộ bù GTID qua Node 3",
+    "summary": "Node 3 trực tuyến trở lại · Nhận bù GTID từ Node 1",
+    "data_payload": "Đồng bộ bù giao dịch #SYNC-293c8b59 (Kích hoạt MySQL Distributed Recovery) sang Node 3 (192.168.1.223)",
+    "affected_tables": "users, products, orders, order_items, payments (Native GTID Catch-up)",
+    "source_label": "Node 1",
+    "source_node": "192.168.1.221",
+    "target_display": "Node 3",
+    "target_nodes": [
+      "Node 3"
+    ],
+    "target_hosts": [
+      "192.168.1.223"
+    ],
+    "target_statuses": [
+      {
+        "label": "Node 3",
+        "host": "192.168.1.223",
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
+      }
+    ],
+    "mechanism": "MySQL Group Replication Recovery (GTID Catch-up)",
+    "detail": "Node 3 (192.168.1.223) đã trực tuyến trở lại, hoàn tất Group Replication Recovery từ Primary (Node 1 192.168.1.221) qua kênh Binary Log/GTID. Dữ liệu nhất quán 100%.",
+    "latency_ms": 15.0,
+    "status": "SYNCED",
+    "status_text": "Đã đồng bộ bù thành công"
+  },
+  {
+    "id": "SYNC-a37e4bff",
+    "thoi_diem": "2026-11-04 22:09:37.978",
+    "he_csdl": "MYSQL_GR",
+    "loai_su_kien": "CATCHUP_SYNC",
+    "ma_nhom_giao_dich": "CATCHUP-SYNC-293c8b59-Node 4",
+    "gtid_hoac_optime": "",
+    "node_nguon": "Node 1 (192.168.1.221)",
+    "node_dich": [
+      {
+        "node": "Node 4",
+        "host": "192.168.1.224",
+        "thoi_diem_ap_dung": "22:09:33.015",
+        "do_tre_ms": 15.0,
+        "trang_thai": "APPLIED"
+      }
+    ],
+    "trang_thai": "SYNCED",
+    "so_ban_ghi": 1,
+    "chi_tiet": [],
+    "log_id": "SYNC-a37e4bff",
+    "time": "22:09:37",
+    "date": "04/11/2026",
+    "timestamp": "22:09:37",
+    "start_time": "22:09:33.015",
+    "end_time": "22:09:33.015",
+    "db_type": "MYSQL_GR",
+    "action": "CATCHUP_SYNC",
+    "title": "Đồng bộ bù GTID qua Node 4",
+    "summary": "Node 4 trực tuyến trở lại · Nhận bù GTID từ Node 1",
+    "data_payload": "Đồng bộ bù giao dịch #SYNC-293c8b59 (Kích hoạt MySQL Distributed Recovery) sang Node 4 (192.168.1.224)",
+    "affected_tables": "users, products, orders, order_items, payments (Native GTID Catch-up)",
+    "source_label": "Node 1",
+    "source_node": "192.168.1.221",
+    "target_display": "Node 4",
+    "target_nodes": [
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.224"
+    ],
+    "target_statuses": [
+      {
+        "label": "Node 4",
+        "host": "192.168.1.224",
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
+      }
+    ],
+    "mechanism": "MySQL Group Replication Recovery (GTID Catch-up)",
+    "detail": "Node 4 (192.168.1.224) đã trực tuyến trở lại, hoàn tất Group Replication Recovery từ Primary (Node 1 192.168.1.221) qua kênh Binary Log/GTID. Dữ liệu nhất quán 100%.",
+    "latency_ms": 15.0,
+    "status": "SYNCED",
+    "status_text": "Đã đồng bộ bù thành công"
+  },
+  {
+    "id": "SYNC-293c8b59",
+    "thoi_diem": "2026-11-04 22:09:29.235",
+    "he_csdl": "MYSQL_GR",
+    "loai_su_kien": "RECONCILE_SYNC",
+    "ma_nhom_giao_dich": "TX-14aecaa8",
+    "gtid_hoac_optime": "",
+    "node_nguon": "Node 1 (192.168.1.221)",
+    "node_dich": [
+      {
+        "node": "Node 1",
+        "host": "192.168.1.221",
+        "thoi_diem_ap_dung": "22:09:33.015",
+        "do_tre_ms": 15.0,
+        "trang_thai": "APPLIED"
+      },
+      {
+        "node": "Node 2",
+        "host": "192.168.1.222",
+        "thoi_diem_ap_dung": "22:09:33.015",
+        "do_tre_ms": 15.0,
+        "trang_thai": "APPLIED"
+      },
+      {
+        "node": "Node 3",
+        "host": "192.168.1.223",
+        "thoi_diem_ap_dung": "22:09:33.015",
+        "do_tre_ms": 15.0,
+        "trang_thai": "APPLIED"
+      },
+      {
+        "node": "Node 4",
+        "host": "192.168.1.224",
+        "thoi_diem_ap_dung": "22:09:33.015",
+        "do_tre_ms": 15.0,
+        "trang_thai": "APPLIED"
+      }
+    ],
+    "trang_thai": "SYNCED",
+    "so_ban_ghi": 1,
+    "chi_tiet": [],
+    "log_id": "SYNC-293c8b59",
+    "time": "22:09:29",
+    "date": "04/11/2026",
+    "timestamp": "22:09:29",
+    "start_time": "22:09:29.235",
+    "end_time": "22:09:29.235",
+    "db_type": "MYSQL_GR",
+    "action": "RECONCILE_SYNC",
+    "title": "Kích hoạt MySQL Distributed Recovery",
+    "summary": "Cơ chế tự bù dữ liệu chuẩn MySQL Group Replication · 1 node",
+    "data_payload": "Kích hoạt Distributed Recovery tự bù dữ liệu cho: Node 4 [Distributed Recovery Started]",
+    "affected_tables": "users, products, orders, order_items, payments (Native GTID Catch-up)",
+    "source_label": "Node 1",
+    "source_node": "192.168.1.221",
+    "target_display": "Node 1, Node 2, Node 3, Node 4",
+    "target_nodes": [
+      "Node 1",
+      "Node 2",
+      "Node 3",
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.221",
+      "192.168.1.222",
+      "192.168.1.223",
+      "192.168.1.224"
+    ],
+    "target_statuses": [
+      {
+        "label": "Node 1",
+        "host": "192.168.1.221",
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
+      },
+      {
+        "label": "Node 2",
+        "host": "192.168.1.222",
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
+      },
+      {
+        "label": "Node 3",
+        "host": "192.168.1.223",
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
+      },
+      {
+        "label": "Node 4",
+        "host": "192.168.1.224",
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
+      }
+    ],
+    "mechanism": "MySQL Group Replication Distributed Recovery (Native Binary Log / GTID Catch-up)",
+    "detail": "Giao dịch đã đồng bộ thành công tới Node 1, Node 2, Node 4. Các Node ngoại tuyến (Node 3) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
+    "latency_ms": 19702.6,
+    "status": "SYNCED",
+    "status_text": "Đã đồng bộ 4/4 node phụ (Node 1 đã nhận bù)",
+    "online_count": 3,
+    "total_targets": 4
+  },
+  {
+    "id": "SYNC-2124fb13",
+    "thoi_diem": "2026-11-04 21:11:54.162",
+    "he_csdl": "MYSQL_GR",
+    "loai_su_kien": "CATCHUP_SYNC",
+    "ma_nhom_giao_dich": "CATCHUP-SYNC-fac20e19-Node 3",
+    "gtid_hoac_optime": "",
+    "node_nguon": "Node 1 (192.168.1.221)",
+    "node_dich": [
+      {
+        "node": "Node 3",
+        "host": "192.168.1.223",
+        "thoi_diem_ap_dung": "21:11:53.808",
+        "do_tre_ms": 15.0,
+        "trang_thai": "APPLIED"
+      }
+    ],
+    "trang_thai": "SYNCED",
+    "so_ban_ghi": 1,
+    "chi_tiet": [],
+    "log_id": "SYNC-2124fb13",
+    "time": "21:11:54",
+    "date": "04/11/2026",
+    "timestamp": "21:11:54",
+    "start_time": "21:11:53.808",
+    "end_time": "21:11:53.808",
+    "db_type": "MYSQL_GR",
+    "action": "CATCHUP_SYNC",
+    "title": "Đồng bộ bù GTID qua Node 3",
+    "summary": "Node 3 trực tuyến trở lại · Nhận bù GTID từ Node 1",
+    "data_payload": "Đồng bộ bù giao dịch #SYNC-fac20e19 (Kích hoạt MySQL Distributed Recovery) sang Node 3 (192.168.1.223)",
+    "affected_tables": "users, products, orders, order_items, payments (Native GTID Catch-up)",
+    "source_label": "Node 1",
+    "source_node": "192.168.1.221",
+    "target_display": "Node 3",
+    "target_nodes": [
+      "Node 3"
+    ],
+    "target_hosts": [
+      "192.168.1.223"
+    ],
+    "target_statuses": [
+      {
+        "label": "Node 3",
+        "host": "192.168.1.223",
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
+      }
+    ],
+    "mechanism": "MySQL Group Replication Recovery (GTID Catch-up)",
+    "detail": "Node 3 (192.168.1.223) đã trực tuyến trở lại, hoàn tất Group Replication Recovery từ Primary (Node 1 192.168.1.221) qua kênh Binary Log/GTID. Dữ liệu nhất quán 100%.",
+    "latency_ms": 15.0,
+    "status": "SYNCED",
+    "status_text": "Đã đồng bộ bù thành công"
+  },
+  {
+    "id": "SYNC-b8b42a8e",
+    "thoi_diem": "2026-11-04 21:09:11.624",
+    "he_csdl": "MYSQL_GR",
+    "loai_su_kien": "CATCHUP_SYNC",
+    "ma_nhom_giao_dich": "CATCHUP-SYNC-fac20e19-Node 2",
+    "gtid_hoac_optime": "",
+    "node_nguon": "Node 1 (192.168.1.221)",
+    "node_dich": [
+      {
+        "node": "Node 2",
+        "host": "192.168.1.222",
+        "thoi_diem_ap_dung": "21:09:11.045",
+        "do_tre_ms": 15.0,
+        "trang_thai": "APPLIED"
+      }
+    ],
+    "trang_thai": "SYNCED",
+    "so_ban_ghi": 1,
+    "chi_tiet": [],
+    "log_id": "SYNC-b8b42a8e",
+    "time": "21:09:11",
+    "date": "04/11/2026",
+    "timestamp": "21:09:11",
+    "start_time": "21:09:11.045",
+    "end_time": "21:09:11.045",
+    "db_type": "MYSQL_GR",
+    "action": "CATCHUP_SYNC",
+    "title": "Đồng bộ bù GTID qua Node 2",
+    "summary": "Node 2 trực tuyến trở lại · Nhận bù GTID từ Node 1",
+    "data_payload": "Đồng bộ bù giao dịch #SYNC-fac20e19 (Kích hoạt MySQL Distributed Recovery) sang Node 2 (192.168.1.222)",
+    "affected_tables": "users, products, orders, order_items, payments (Native GTID Catch-up)",
+    "source_label": "Node 1",
+    "source_node": "192.168.1.221",
+    "target_display": "Node 2",
+    "target_nodes": [
+      "Node 2"
+    ],
+    "target_hosts": [
+      "192.168.1.222"
+    ],
+    "target_statuses": [
+      {
+        "label": "Node 2",
+        "host": "192.168.1.222",
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
+      }
+    ],
+    "mechanism": "MySQL Group Replication Recovery (GTID Catch-up)",
+    "detail": "Node 2 (192.168.1.222) đã trực tuyến trở lại, hoàn tất Group Replication Recovery từ Primary (Node 1 192.168.1.221) qua kênh Binary Log/GTID. Dữ liệu nhất quán 100%.",
+    "latency_ms": 15.0,
+    "status": "SYNCED",
+    "status_text": "Đã đồng bộ bù thành công"
+  },
+  {
+    "id": "SYNC-c35ddaa0",
+    "thoi_diem": "2026-11-04 21:09:13.720",
+    "he_csdl": "MYSQL_GR",
+    "loai_su_kien": "CATCHUP_SYNC",
+    "ma_nhom_giao_dich": "CATCHUP-SYNC-fac20e19-Node 4",
+    "gtid_hoac_optime": "",
+    "node_nguon": "Node 1 (192.168.1.221)",
+    "node_dich": [
+      {
+        "node": "Node 4",
+        "host": "192.168.1.224",
+        "thoi_diem_ap_dung": "21:09:11.045",
+        "do_tre_ms": 15.0,
+        "trang_thai": "APPLIED"
+      }
+    ],
+    "trang_thai": "SYNCED",
+    "so_ban_ghi": 1,
+    "chi_tiet": [],
+    "log_id": "SYNC-c35ddaa0",
+    "time": "21:09:13",
+    "date": "04/11/2026",
+    "timestamp": "21:09:13",
+    "start_time": "21:09:11.045",
+    "end_time": "21:09:11.045",
+    "db_type": "MYSQL_GR",
+    "action": "CATCHUP_SYNC",
+    "title": "Đồng bộ bù GTID qua Node 4",
+    "summary": "Node 4 trực tuyến trở lại · Nhận bù GTID từ Node 1",
+    "data_payload": "Đồng bộ bù giao dịch #SYNC-fac20e19 (Kích hoạt MySQL Distributed Recovery) sang Node 4 (192.168.1.224)",
+    "affected_tables": "users, products, orders, order_items, payments (Native GTID Catch-up)",
+    "source_label": "Node 1",
+    "source_node": "192.168.1.221",
+    "target_display": "Node 4",
+    "target_nodes": [
+      "Node 4"
+    ],
+    "target_hosts": [
+      "192.168.1.224"
+    ],
+    "target_statuses": [
+      {
+        "label": "Node 4",
+        "host": "192.168.1.224",
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
+      }
+    ],
+    "mechanism": "MySQL Group Replication Recovery (GTID Catch-up)",
+    "detail": "Node 4 (192.168.1.224) đã trực tuyến trở lại, hoàn tất Group Replication Recovery từ Primary (Node 1 192.168.1.221) qua kênh Binary Log/GTID. Dữ liệu nhất quán 100%.",
+    "latency_ms": 15.0,
+    "status": "SYNCED",
+    "status_text": "Đã đồng bộ bù thành công"
+  },
+  {
     "id": "SYNC-1de26702",
     "thoi_diem": "2026-11-03 22:30:03.992",
     "he_csdl": "MYSQL_GR",
@@ -73,23 +560,23 @@
       {
         "node": "Node 2",
         "host": "192.168.1.222",
-        "thoi_diem_ap_dung": "22:30:00.645",
-        "do_tre_ms": 2897.4,
-        "trang_thai": "OFFLINE_WAITING"
+        "thoi_diem_ap_dung": "21:09:11.045",
+        "do_tre_ms": 15.0,
+        "trang_thai": "APPLIED"
       },
       {
         "node": "Node 3",
         "host": "192.168.1.223",
-        "thoi_diem_ap_dung": "22:30:00.645",
-        "do_tre_ms": 2897.4,
-        "trang_thai": "OFFLINE_WAITING"
+        "thoi_diem_ap_dung": "21:11:53.808",
+        "do_tre_ms": 15.0,
+        "trang_thai": "APPLIED"
       },
       {
         "node": "Node 4",
         "host": "192.168.1.224",
-        "thoi_diem_ap_dung": "22:30:00.645",
-        "do_tre_ms": 2897.4,
-        "trang_thai": "OFFLINE_WAITING"
+        "thoi_diem_ap_dung": "21:09:11.045",
+        "do_tre_ms": 15.0,
+        "trang_thai": "APPLIED"
       }
     ],
     "trang_thai": "SYNCED",
@@ -109,7 +596,7 @@
     "affected_tables": "users, products, orders, order_items, payments (Native GTID Catch-up)",
     "source_label": "Node 1",
     "source_node": "192.168.1.221",
-    "target_display": "Node 1 (Node 2, Node 3, Node 4 ngoại tuyến)",
+    "target_display": "Node 1, Node 2, Node 3, Node 4",
     "target_nodes": [
       "Node 1",
       "Node 2",
@@ -132,27 +619,27 @@
       {
         "label": "Node 2",
         "host": "192.168.1.222",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
       },
       {
         "label": "Node 3",
         "host": "192.168.1.223",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
       },
       {
         "label": "Node 4",
         "host": "192.168.1.224",
-        "state": "OFFLINE",
-        "message": "Ngoại tuyến (Chờ bù log)"
+        "state": "ONLINE",
+        "message": "Đã nhận bù"
       }
     ],
     "mechanism": "MySQL Group Replication Distributed Recovery (Native Binary Log / GTID Catch-up)",
     "detail": "Giao dịch đã đồng bộ thành công tới Node 1. Các Node ngoại tuyến (Node 2, Node 3, Node 4) sẽ tự động nhận bù dữ liệu qua Group Replication Recovery ngay khi trực tuyến trở lại.",
     "latency_ms": 2897.4,
     "status": "SYNCED",
-    "status_text": "Đã đồng bộ 1/1 node trực tuyến (Node 2, Node 3, Node 4 ngoại tuyến)",
+    "status_text": "Đã đồng bộ 4/4 node phụ (Node 1 đã nhận bù)",
     "online_count": 1,
     "total_targets": 4
   },

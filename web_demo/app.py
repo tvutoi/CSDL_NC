@@ -16,10 +16,10 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import mysql.connector
 from pymongo import MongoClient, ReadPreference, WriteConcern
-import copy
+import copy, logging
 from collections import defaultdict
 import sync_log_store
-
+logger = logging.getLogger("web_demo")
 _IDEMPOTENCY_CACHE: Dict[str, Dict[str, Any]] = {}
 _IDEMPOTENCY_LOCK = threading.Lock()
 
@@ -32,6 +32,33 @@ _MYSQL_CONSECUTIVE_FAILURES: Dict[str, int] = defaultdict(int)
 _MONGO_CONSECUTIVE_FAILURES: Dict[str, int] = defaultdict(int)
 _LAST_HEALTHY_MYSQL: Dict[str, Dict[str, Any]] = {}
 _LAST_HEALTHY_MONGO: Dict[str, Dict[str, Any]] = {}
+
+# Ngưỡng dò MySQL trong /api/cluster/status (mạng Wi-Fi có lúc trễ 1–3 s)
+MYSQL_SCAN_TCP_TIMEOUT = 1.2        # giây, mỗi lần dò cổng (dò tối đa 2 lần)
+MYSQL_SCAN_CONNECT_TIMEOUT = 2.0    # giây, kết nối + truy vấn
+MYSQL_SCAN_FAIL_THRESHOLD = 3       # dò hụt liên tiếp đủ số lần này mới báo OFFLINE
+
+
+def _mysql_scan_failed(idx: int, host: str) -> Dict[str, Any]:
+    """Một lần dò MySQL thất bại. Dưới ngưỡng dò hụt liên tiếp thì trả lại kết quả tốt gần nhất
+    (đánh dấu _stale, ping_ms = None); đủ ngưỡng hoặc chưa từng dò được thì trả OFFLINE."""
+    with _STATUS_CACHE_LOCK:
+        _MYSQL_CONSECUTIVE_FAILURES[host] += 1
+        fails = _MYSQL_CONSECUTIVE_FAILURES[host]
+        last = _LAST_HEALTHY_MYSQL.get(host)
+    if last is not None and fails < MYSQL_SCAN_FAIL_THRESHOLD:
+        logger.info(f"[MYSQL_STATUS_SCAN] {host} dò hụt lần {fails}/{MYSQL_SCAN_FAIL_THRESHOLD}, giữ trạng thái cũ")
+        stale = copy.deepcopy(last)
+        stale["node_name"] = f"Node {idx}"
+        stale["ping_ms"] = None
+        stale["_stale"] = True
+        return stale
+    return {
+        "node_name": f"Node {idx}", "host": host, "server_id": "-", "hostname": "-",
+        "state": "OFFLINE", "role": "UNREACHABLE", "ping_ms": None, "gtid": "-",
+        "counts": {"users": 0, "products": 0, "orders": 0, "order_items": 0, "payments": 0},
+        "_uuid": None, "_primary_uuid": None, "_ro": 1
+    }
 
 
 def measure_tcp_ping(host_or_addr: str, default_port: int = 3306, timeout: float = 1.2) -> Tuple[bool, Optional[float]]:
@@ -1848,21 +1875,20 @@ def get_cluster_status(request: Request):
         h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
         p_int = int(p_int)
         
-        # 1. Thăm dò TCP thuần túy và đo độ trễ mạng chuẩn xác (timeout 1.5s phù hợp mạng LAN WiFi phòng lab)
-        is_alive, tcp_ping = measure_tcp_ping(h_str, p_int, timeout=1.5)
+        # 1. Thăm dò TCP và đo độ trễ (1 round-trip SYN-ACK). Mạng Wi-Fi có lúc trễ > 1 s,
+        # nên chờ MYSQL_SCAN_TCP_TIMEOUT và thử lại 1 lần trước khi coi là dò hụt.
+        is_alive, tcp_ping = measure_tcp_ping(h_str, p_int, timeout=MYSQL_SCAN_TCP_TIMEOUT)
         if not is_alive:
-            return {
-                "node_name": f"Node {idx}", "host": host, "server_id": "-", "hostname": "-",
-                "state": "OFFLINE", "role": "UNREACHABLE", "ping_ms": None, "gtid": "-",
-                "counts": {"users": 0, "products": 0, "orders": 0, "order_items": 0, "payments": 0},
-                "_uuid": None, "_primary_uuid": None, "_ro": 1
-            }
+            time.sleep(0.05)
+            is_alive, tcp_ping = measure_tcp_ping(h_str, p_int, timeout=MYSQL_SCAN_TCP_TIMEOUT)
+        if not is_alive:
+            return _mysql_scan_failed(idx, host)
         try:
             conn = mysql.connector.connect(
                 host=h_str, port=p_int,
                 user=CLUSTER_CONFIG["mysql_user"],
                 password=CLUSTER_CONFIG["mysql_password"],
-                connection_timeout=2.0
+                connection_timeout=MYSQL_SCAN_CONNECT_TIMEOUT
             )
             cur = conn.cursor(dictionary=True)
             cur.execute("""
@@ -1938,16 +1964,11 @@ def get_cluster_status(request: Request):
             }
             with _STATUS_CACHE_LOCK:
                 _MYSQL_CONSECUTIVE_FAILURES[host] = 0
-                _LAST_HEALTHY_MYSQL[host] = res_item
+                _LAST_HEALTHY_MYSQL[host] = copy.deepcopy(res_item)  # bản sao: res_item bị sửa/pop khóa ở phía sau
             return res_item
-        except Exception:
-            # Khi kết nối MySQL bị lỗi (đang tắt service hoặc ngắt mạng), lập tức phản hồi OFFLINE, không trì hoãn 3 chu kỳ
-            return {
-                "node_name": f"Node {idx}", "host": host, "server_id": "-", "hostname": "-",
-                "state": "OFFLINE", "role": "UNREACHABLE", "ping_ms": None, "gtid": "-",
-                "counts": {"users": 0, "products": 0, "orders": 0, "order_items": 0, "payments": 0},
-                "_uuid": None, "_primary_uuid": None, "_ro": 1
-            }
+        except Exception as e:  # Cổng mở nhưng kết nối MySQL lỗi → OFFLINE ngay; ghi log nguyên nhân (1129 = host bị chặn vì max_connect_errors)
+            logger.warning(f"[MYSQL_STATUS_SCAN] {host} mở cổng nhưng kết nối MySQL lỗi: {e}" + (" → chạy trên node đó: TRUNCATE TABLE performance_schema.host_cache" if getattr(e, "errno", None) == 1129 else ""))
+            return _mysql_scan_failed(idx, host)
 
     def _scan_mongo(idx_host):
         idx, cfg_host = idx_host
@@ -2005,14 +2026,19 @@ def get_cluster_status(request: Request):
     # MySQL Group Replication tự động quản lý cờ read_only và phân vai PRIMARY / SECONDARY.
     # Code ứng dụng chỉ đọc thông tin chuẩn từ engine, KHÔNG tự ý ép buộc super_read_only gây xung đột.
     recovering_mysql = [n for n in mysql_results if n["state"] == "RECOVERING"]
-    group_primary_uuid = next((n["_primary_uuid"] for n in online_mysql if n.get("_primary_uuid")), None)
+    # Ưu tiên UUID Primary do node dò được thật (không phải kết quả giữ lại _stale) báo về
+    fresh_mysql = [n for n in online_mysql if not n.get("_stale")]
+    group_primary_uuid = next((n["_primary_uuid"] for n in fresh_mysql if n.get("_primary_uuid")), None) \
+        or next((n["_primary_uuid"] for n in online_mysql if n.get("_primary_uuid")), None)
     primary_node = None
     if group_primary_uuid:
+        # Nhóm đã báo Primary: chỉ nhận đúng node đó. Primary không nằm trong danh sách dò được
+        # thì để trống, không gán node khác (node đó đang read_only, gán vào là hiển thị sai).
         primary_node = next((n for n in online_mysql if n.get("_uuid") == group_primary_uuid), None)
-    if not primary_node:
+    else:
         primary_node = next((n for n in online_mysql if n.get("role") == "PRIMARY"), None)
-    if not primary_node and online_mysql:
-        primary_node = next((n for n in online_mysql if n.get("_ro") == 0), online_mysql[0])
+        if not primary_node and online_mysql:
+            primary_node = next((n for n in online_mysql if n.get("_ro") == 0), online_mysql[0])
 
     if primary_node:
         set_active_mysql_primary(primary_node["host"])
@@ -2024,7 +2050,8 @@ def get_cluster_status(request: Request):
             else:
                 n["role"] = "OFFLINE"
     else:
-        set_active_mysql_primary(None)
+        if not group_primary_uuid:  # nhóm báo Primary mà app không dò tới: giữ nguyên giá trị đã ghi
+            set_active_mysql_primary(None)
         for n in mysql_results:
             if n["state"] == "RECOVERING":
                 n["role"] = "RECOVERING"
@@ -2034,7 +2061,7 @@ def get_cluster_status(request: Request):
                 n["role"] = "OFFLINE"
 
     for n in mysql_results:
-        for k in ["_uuid", "_primary_uuid", "_ro"]:
+        for k in ["_uuid", "_primary_uuid", "_ro", "_stale"]:
             n.pop(k, None)
         if n["counts"]["orders"] > status["data_counts"]["orders"]:
             for k, v in n["counts"].items():
