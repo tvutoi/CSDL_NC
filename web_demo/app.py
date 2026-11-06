@@ -1838,10 +1838,11 @@ MYSQL_BOOTSTRAP_CONFIRM_ROUNDS = 2
 MYSQL_BOOTSTRAP_LOCK_NAME = "ecom_gr_bootstrap"
 _BOOTSTRAP_LOCK = threading.Lock()
 _BOOTSTRAP_STREAK = {"candidate": None, "count": 0}
-# Node ERROR (thường do bị expel khi mạng chập chờn) phải ở ERROR liên tục quá ngưỡng này, và MySQL không còn
-# tự rejoin, thì app mới STOP/START GROUP_REPLICATION. Lần auto-rejoin đầu có thể mất ~30 s nếu seed đầu tiên đang tắt.
-MYSQL_GR_ERROR_GRACE_SEC = 60
-_GR_ERROR_SINCE: Dict[str, float] = {}
+# Node ERROR/OFFLINE trong khi nhóm đang sống: nếu MySQL đang auto-rejoin thì app chờ tối đa ngưỡng này rồi mới
+# STOP/START (lần auto-rejoin đo được 11–26 s; thất bại thì MySQL chờ 5 phút mới thử lại). Không auto-rejoin thì
+# app cho vào nhóm ngay.
+MYSQL_GR_AUTOREJOIN_GRACE_SEC = 20
+_GR_ERROR_SINCE: Dict[str, float] = {}  # host -> lúc đầu tiên thấy ERROR/OFFLINE
 _LAST_BOOTSTRAP_BLOCK_MSG = {"msg": None}
 
 
@@ -2070,27 +2071,21 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
             info = scan[host]
             lbl = get_node_label(host, "mysql")
             st = info["state"]
-            if st != "ERROR":
+            if st not in ("ERROR", "OFFLINE"):
                 _GR_ERROR_SINCE.pop(host, None)
             if st in ("ONLINE", "RECOVERING"):
                 already_online_nodes.append(f"{lbl} ({host})")
-            elif info.get("autorejoin"):
-                # MySQL đang tự rejoin (sau khi bị expel vì mạng chập chờn): không chen STOP/START vào giữa.
-                # Trước 2026-11-06 app STOP rồi START ngay, hủy lần rejoin vừa thành công (99 #55).
-                continue
-            elif st == "ERROR":
+            elif st in ("ERROR", "OFFLINE"):
                 since = _GR_ERROR_SINCE.setdefault(host, time.time())
-                if time.time() - since < MYSQL_GR_ERROR_GRACE_SEC:
-                    continue  # chờ MySQL tự xử lý trước khi can thiệp
+                if info.get("autorejoin") and time.time() - since < MYSQL_GR_AUTOREJOIN_GRACE_SEC:
+                    # MySQL đang tự rejoin: cho nó tối đa MYSQL_GR_AUTOREJOIN_GRACE_SEC, không chen STOP/START
+                    # vào giữa (bản cũ hủy lần rejoin vừa thành công, 99 #55). Quá hạn thì app làm thay, vì lần
+                    # auto-rejoin thất bại chỉ thử lại sau 5 phút (khoảng chờ cố định của MySQL, 99 #58).
+                    continue
+                # ERROR/OFFLINE mà MySQL không còn tự rejoin: vào nhóm ngay
                 try:
-                    _gr_join_node(host, stop_first=True)
+                    _gr_join_node(host, stop_first=(st == "ERROR" or bool(info.get("autorejoin"))))
                     _GR_ERROR_SINCE.pop(host, None)
-                    recovered_nodes.append(f"{lbl} [Distributed Recovery Started]")
-                except Exception as s_err:
-                    failed_nodes.append(f"{lbl} ({s_err})")
-            elif st == "OFFLINE":
-                try:
-                    _gr_join_node(host, stop_first=False)
                     recovered_nodes.append(f"{lbl} [Distributed Recovery Started]")
                 except Exception as s_err:
                     failed_nodes.append(f"{lbl} ({s_err})")
@@ -2540,6 +2535,13 @@ def get_cluster_status(request: Request):
                 logger.warning(f"[GR_STATUS_SCAN] {n['host']} tự báo {n['state']} nhưng không có trong nhóm của Primary {auth_primary['host']} (đã bị expel)")
                 n["state"] = "ERROR"
                 n["role"] = "OFFLINE"
+        # Node dò hụt đang hiện kết quả cũ (_stale, chống chập chờn 99 #48) mà Primary cũng không còn thấy nó
+        # ONLINE/RECOVERING trong nhóm -> báo OFFLINE ngay, không chờ đủ MYSQL_SCAN_FAIL_THRESHOLD lần dò (99 #58).
+        for n in mysql_results:
+            if n.get("_stale") and n.get("_uuid") and n["_uuid"] not in auth_view:
+                n.update({"state": "OFFLINE", "role": "UNREACHABLE", "ping_ms": None})
+                with _STATUS_CACHE_LOCK:
+                    _MYSQL_CONSECUTIVE_FAILURES[n["host"]] = MYSQL_SCAN_FAIL_THRESHOLD
         for n in mysql_results:  # UUID Primary lấy theo view chuẩn, không theo node đang ở view cũ
             if n.get("_primary_uuid"):
                 n["_primary_uuid"] = auth_primary["_uuid"]
