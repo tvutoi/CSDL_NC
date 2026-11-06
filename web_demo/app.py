@@ -491,7 +491,7 @@ def measure_mysql_replicas_for_log(primary_conn, primary_host: str, t_commit_per
     latencies = []
     pwd = CLUSTER_CONFIG.get("mysql_password", "root")
 
-    target_secs = [h for h in CLUSTER_CONFIG["mysql_nodes"] if h != primary_host]
+    target_secs = [h for h in CLUSTER_CONFIG["mysql_nodes"] if not is_same_mysql_host(h, primary_host)]
 
     def _probe_single_replica(sec_host):
         h_sec, p_sec = (sec_host.split(":") if ":" in sec_host else (sec_host, 3306))
@@ -622,13 +622,16 @@ def measure_mongo_replicas_for_log(primary_client, primary_host: str, t_commit_p
             optime_str = str(applied_ts)
 
         for sec_host in CLUSTER_CONFIG["mongo_nodes"]:
-            if sec_host == primary_host:
+            # So theo host chuẩn hóa: cấu hình có thể ghi "192.168.1.221" còn primary_host là "192.168.1.221:27017".
+            # Trước 2026-11-06 so chuỗi thô nên Primary lọt vào danh sách node đích, bị ghi OFFLINE_WAITING
+            # rồi sinh sự kiện "Node 1 nhận bù Oplog từ Node 1".
+            if is_same_mongo_host(sec_host, primary_host):
                 continue
             lbl = get_node_label(sec_host, "mongo")
 
             member_match = None
             for m in status.get("members", []):
-                if sec_host in m.get("name", ""):
+                if is_same_mongo_host(m.get("name", ""), sec_host):
                     member_match = m
                     break
 
@@ -4022,13 +4025,41 @@ def reconcile_offline_nodes_in_file(force: bool = False):
     for log in logs:
         node_dich = log.get("node_dich") or []
         target_statuses = log.get("target_statuses") or []
+        db_type = log.get("he_csdl") or log.get("db_type")
+
+        # Node nguồn (Primary đã ghi) không bao giờ là node đích. Log ghi trước 2026-11-06 có thể chứa
+        # chính Primary ở trạng thái chờ bù (lỗi so chuỗi host, xem measure_mongo_replicas_for_log): gỡ ra.
+        src_host = log.get("source_node") or ""
+        _same = is_same_mysql_host if db_type == "MYSQL_GR" else is_same_mongo_host
+        stripped = False
+        if src_host and any(_same(nd.get("host"), src_host) for nd in node_dich):
+            stripped = True
+            node_dich = [nd for nd in node_dich if not _same(nd.get("host"), src_host)]
+            target_statuses = [ts for ts in target_statuses if not _same(ts.get("host"), src_host)]
+            keep = [i for i, h in enumerate(log.get("target_hosts") or []) if not _same(h, src_host)]
+            old_hosts = log.get("target_hosts") or []
+            old_labels = log.get("target_nodes") or []
+            log["target_hosts"] = [old_hosts[i] for i in keep]
+            log["target_nodes"] = [old_labels[i] for i in keep if i < len(old_labels)]
+            log["node_dich"] = node_dich
+            log["target_statuses"] = target_statuses
+            updated_any = True
+            if (log.get("action") or log.get("loai_su_kien")) == "CATCHUP_SYNC" and not node_dich:
+                # Sự kiện "node X nhận bù từ chính node X": không có thật, xóa khỏi nhật ký
+                log["_drop"] = True
+                continue
+
+        caught_now: List[str] = []  # nhãn node vừa được đánh dấu nhận bù trong lượt này
 
         has_waiting = any(nd.get("trang_thai") == "OFFLINE_WAITING" for nd in node_dich) or \
                       any(ts.get("state") == "OFFLINE" for ts in target_statuses)
         if not has_waiting:
+            if stripped and node_dich and all(nd.get("trang_thai") == "APPLIED" for nd in node_dich):
+                n_nd = len(node_dich)
+                log["trang_thai"] = log["status"] = "SYNCED"
+                log["status_text"] = f"Đã đồng bộ {n_nd}/{n_nd} node phụ"
+                log["target_display"] = ", ".join(log.get("target_nodes") or [nd.get("node") for nd in node_dich])
             continue
-
-        db_type = log.get("he_csdl") or log.get("db_type")
 
         if db_type == "MYSQL_GR":
             pwd = CLUSTER_CONFIG.get("mysql_password", "root")
@@ -4051,6 +4082,7 @@ def reconcile_offline_nodes_in_file(force: bool = False):
                             nd["thoi_diem_ap_dung"] = now_str
                             nd["do_tre_ms"] = 15.0
                             updated_any = True
+                            caught_now.append(nd.get("node") or nd["host"])
 
                             for ts in target_statuses:
                                 if ts.get("host") == nd["host"] or ts.get("label") == nd.get("node"):
@@ -4139,6 +4171,7 @@ def reconcile_offline_nodes_in_file(force: bool = False):
                                 nd["thoi_diem_ap_dung"] = now_str
                                 nd["do_tre_ms"] = 12.0
                                 updated_any = True
+                                caught_now.append(nd.get("node") or nd["host"])
 
                                 for ts in target_statuses:
                                     if ts.get("host") == nd["host"] or ts.get("label") == nd.get("node"):
@@ -4222,12 +4255,18 @@ def reconcile_offline_nodes_in_file(force: bool = False):
         if node_dich and all(nd.get("trang_thai") == "APPLIED" for nd in node_dich):
             log["trang_thai"] = "SYNCED"
             log["status"] = "SYNCED"
-            log["status_text"] = f"Đã đồng bộ {len(node_dich)}/{len(node_dich)} node phụ (Node 1 đã nhận bù)"
+            # Ghi đúng node vừa nhận bù (trước 2026-11-06 là chuỗi cứng "(Node 1 đã nhận bù)")
+            caught_str = f" ({', '.join(caught_now)} đã nhận bù)" if caught_now else ""
+            log["status_text"] = f"Đã đồng bộ {len(node_dich)}/{len(node_dich)} node phụ{caught_str}"
             all_names = [nd.get("node") for nd in node_dich if nd.get("node")]
             sorted_names = sorted(all_names, key=lambda x: int(''.join(filter(str.isdigit, x))) if any(c.isdigit() for c in x) else 99)
             log["target_display"] = ", ".join(sorted_names)
             log["target_nodes"] = sorted_names
             updated_any = True
+
+    if any(l.get("_drop") for l in logs):
+        logs = [l for l in logs if not l.get("_drop")]
+        updated_any = True
 
     if new_catchup_logs:
         for cl in reversed(new_catchup_logs):
