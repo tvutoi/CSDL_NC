@@ -121,12 +121,43 @@ def set_cached_node_counts(host: str, counts: Dict[str, int]):
         _NODE_COUNTS_CACHE[host] = (time.time(), dict(counts))
 
 
+# Số tài liệu đếm trên CHÍNH từng node Mongo (host -> {ts, reviews, logs, readable, err}), cache _NODE_COUNTS_TTL
+_MONGO_NODE_COUNTS: Dict[str, Dict[str, Any]] = {}
+
+
+def get_mongo_node_counts(host: str, client) -> Dict[str, Any]:
+    """
+    Đếm product_reviews / user_activity_logs trên chính node `host` qua client directConnection của node đó.
+    Node không phục vụ đọc (RECOVERING, STARTUP2...) từ chối mọi lệnh đếm/thống kê:
+    trả readable=False và 0 tài liệu đọc được, để bảng đối chiếu thấy node đó lệch.
+    """
+    now = time.time()
+    with _MONGO_COUNTS_LOCK:
+        cached = _MONGO_NODE_COUNTS.get(host)
+        if cached and (now - cached["ts"]) < _NODE_COUNTS_TTL:
+            return dict(cached)
+    try:
+        db = client[CLUSTER_CONFIG["mongo_db"]]
+        res = {
+            "ts": now,
+            "reviews": int(db["product_reviews"].estimated_document_count()),
+            "logs": int(db["user_activity_logs"].estimated_document_count()),
+            "readable": True, "err": None,
+        }
+    except Exception as e:
+        res = {"ts": now, "reviews": 0, "logs": 0, "readable": False, "err": str(e)[:160]}
+    with _MONGO_COUNTS_LOCK:
+        _MONGO_NODE_COUNTS[host] = res
+    return dict(res)
+
+
 def invalidate_node_counts_cache():
     """Xóa sạch cache đếm dữ liệu khi có ghi đơn hàng / thêm dữ liệu mới để UI cập nhật tức thì"""
     with _NODE_COUNTS_LOCK:
         _NODE_COUNTS_CACHE.clear()
     with _MONGO_COUNTS_LOCK:
         _MONGO_COUNTS_CACHE_DATA["ts"] = 0.0
+        _MONGO_NODE_COUNTS.clear()
 
 app = FastAPI(title="Hệ Thống Thương Mại Điện Tử Phân Tán Polyglot - Đề Tài 2")
 
@@ -2059,19 +2090,25 @@ def _summarize_mongo_health(mongo_results: List[Dict[str, Any]]) -> Dict[str, An
     if not cfg_members:
         return {"available": False, "warnings": []}
 
+    def _real_state(m):
+        # Trạng thái member thật do chính node báo; `state` hiển thị luôn gộp thành PRIMARY/SECONDARY.
+        if m.get("health") != 1:
+            return "OFFLINE"
+        return (m.get("member_state") or m.get("state") or "").upper()
+
     total_votes = sum(cfg_members.values())
     majority = total_votes // 2 + 1
     by_host = {normalize_mongo_host(m["host"]): m for m in mongo_results}
     healthy_voters = [h for h, v in cfg_members.items()
-                      if v > 0 and (by_host.get(h) or {}).get("state") in ("PRIMARY", "SECONDARY")]
+                      if v > 0 and h in by_host and _real_state(by_host[h]) in ("PRIMARY", "SECONDARY")]
     zero_vote = [h for h, v in cfg_members.items() if v == 0]
     primary = next((m for m in mongo_results if m.get("state") == "PRIMARY"), None)
     oplog_first = (primary or {}).get("_oplog_first")
 
     stale, unhealthy = [], []
     for m in mongo_results:
-        st = m.get("state")
-        if m.get("health") != 1 or st in ("PRIMARY", "SECONDARY", "OFFLINE"):
+        st = _real_state(m)
+        if st in ("PRIMARY", "SECONDARY", "ONLINE", "OFFLINE", ""):
             continue
         is_stale = bool(oplog_first and m.get("_optime") and m["_optime"] < oplog_first)
         m["too_stale"] = is_stale
@@ -2096,7 +2133,7 @@ def _summarize_mongo_health(mongo_results: List[Dict[str, Any]]) -> Dict[str, An
             f"{oplog_first:%d/%m/%Y %H:%M} UTC): không tự bắt kịp, chạy resync_mongo_node.bat trên máy đó."
         )
     for m in unhealthy:
-        warnings.append(f"{_lbl(m['host'])} đang ở trạng thái {m['state']}, chưa phải SECONDARY khỏe.")
+        warnings.append(f"{_lbl(m['host'])} đang ở trạng thái {_real_state(m)}, chưa phải SECONDARY khỏe.")
     if zero_vote:
         warnings.append(
             "Không có phiếu bầu: " + ", ".join(_lbl(h) for h in zero_vote)
@@ -2296,10 +2333,13 @@ def get_cluster_status(request: Request):
                         oplog_first = doc["ts"].as_datetime().replace(tzinfo=None)
                 except Exception:
                     pass
+            node_counts = get_mongo_node_counts(cfg_host, m_single)
             m_single.close()
             return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": state_str, "health": 1,
-                "ping_ms": tcp_ping, "reviews_count": 0, "logs_count": 0,
+                "ping_ms": tcp_ping,
+                "reviews_count": node_counts["reviews"], "logs_count": node_counts["logs"],
+                "counts_readable": node_counts["readable"],
                 "member_state": member_state, "votes": votes,
                 "_is_prim": is_prim,
                 "_set_name": set_name,
@@ -2416,11 +2456,10 @@ def get_cluster_status(request: Request):
         # chập chờn, stepUp lúc đó ép bầu lại và hất Primary đang chạy. Replica set tự bầu sau ~10–12 s.
 
         # Áp dụng vai trò hiển thị:
-        # Node không phải Primary: giữ trạng thái thật nếu nó không khỏe (RECOVERING, STARTUP2, ROLLBACK...),
-        # không gộp hết thành SECONDARY (trước 2026-11-06 node RECOVERING hiện là "Node phụ - Sẵn sàng").
+        # `state` giữ như giao diện đang dùng (mọi node không phải Primary là SECONDARY).
+        # Trạng thái thật (RECOVERING, STARTUP2...) nằm ở `member_state` và `mongo_health`.
         def _non_primary_state(m):
-            real = (m.get("member_state") or "SECONDARY").upper()
-            return "SECONDARY" if real in ("PRIMARY", "SECONDARY", "ONLINE") else real
+            return "SECONDARY"
 
         if authoritative_primary_node:
             set_active_mongo_primary(authoritative_primary_node["host"])
@@ -2437,41 +2476,20 @@ def get_cluster_status(request: Request):
                 m["state"] = _non_primary_state(m)
                 m["_is_prim"] = False
 
-        # Lấy số lượng tài liệu từ cache hoặc node online đầu tiên (hoặc primary)
-        # Luôn gán số lượng từ cache trước để không bao giờ bị rớt về 0 tài liệu khi đang failover
-        now_ts = time.time()
-        need_mongo_count = False
+        # Mỗi node giữ số đếm trên CHÍNH nó (get_mongo_node_counts trong _scan_mongo); trước 2026-11-06
+        # mọi node online bị chép cùng một số đếm trên Primary nên bảng đối chiếu luôn "khớp" (99 #3).
+        # Tổng hiển thị (data_counts) lấy theo Primary nếu đọc được, không thì node đọc được có số lớn nhất,
+        # cuối cùng là giá trị đã lưu gần nhất (tránh rớt về 0 lúc failover).
+        readable = [m for m in online_m if m.get("counts_readable")]
+        src = next((m for m in readable if m.get("state") == "PRIMARY"), None) \
+            or max(readable, key=lambda m: m.get("reviews_count", 0), default=None)
         with _MONGO_COUNTS_LOCK:
+            if src:
+                _MONGO_COUNTS_CACHE_DATA["ts"] = time.time()
+                _MONGO_COUNTS_CACHE_DATA["reviews"] = src["reviews_count"]
+                _MONGO_COUNTS_CACHE_DATA["logs"] = src["logs_count"]
             status["data_counts"]["reviews"] = _MONGO_COUNTS_CACHE_DATA["reviews"]
             status["data_counts"]["logs"] = _MONGO_COUNTS_CACHE_DATA["logs"]
-            for m in online_m:
-                m["reviews_count"] = _MONGO_COUNTS_CACHE_DATA["reviews"]
-                m["logs_count"] = _MONGO_COUNTS_CACHE_DATA["logs"]
-
-            if (now_ts - _MONGO_COUNTS_CACHE_DATA["ts"]) > _NODE_COUNTS_TTL:
-                need_mongo_count = True
-
-        if need_mongo_count:
-            probe_target = next((m for m in online_m if m.get("state") == "PRIMARY"), online_m[0])
-            try:
-                t_h = probe_target["host"]
-                h_mg, p_mg = (t_h.split(":") if ":" in t_h else (t_h, 27017))
-                probe_c = MongoClient(f"mongodb://{h_mg}:{p_mg}/?directConnection=true", read_preference=ReadPreference.PRIMARY_PREFERRED, serverSelectionTimeoutMS=800, connectTimeoutMS=800)
-                probe_db = probe_c[CLUSTER_CONFIG["mongo_db"]]
-                r_c = probe_db["product_reviews"].estimated_document_count()
-                l_c = probe_db["user_activity_logs"].estimated_document_count()
-                status["data_counts"]["reviews"] = r_c
-                status["data_counts"]["logs"] = l_c
-                for m in online_m:
-                    m["reviews_count"] = r_c
-                    m["logs_count"] = l_c
-                probe_c.close()
-                with _MONGO_COUNTS_LOCK:
-                    _MONGO_COUNTS_CACHE_DATA["ts"] = now_ts
-                    _MONGO_COUNTS_CACHE_DATA["reviews"] = r_c
-                    _MONGO_COUNTS_CACHE_DATA["logs"] = l_c
-            except Exception:
-                pass
 
     status["mongo_health"] = _summarize_mongo_health(mongo_results)
 
