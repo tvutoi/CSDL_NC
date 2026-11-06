@@ -219,6 +219,25 @@
         border-color: #d0d5db;
         color: #4b5563;
       }
+      .badge-pill--warn {
+        background-color: #fff6e5;
+        border-color: #f5c97a;
+        color: #8a5300;
+      }
+      .mongo-health-warn {
+        margin-top: 8px;
+        padding: 8px 10px;
+        border: 1px solid #f5c97a;
+        background: #fff9ec;
+        color: #6b4100;
+        border-radius: 6px;
+        font-size: 12.5px;
+        line-height: 1.45;
+      }
+      .mongo-health-warn ul {
+        margin: 4px 0 0;
+        padding-left: 18px;
+      }
       .badge-pill-placeholder {
         display: inline-block;
         min-width: 84px;
@@ -3989,6 +4008,50 @@
         if (el) el.classList.add("active");
       }
 
+      // ---- Hiển thị trạng thái MongoDB theo member state thật (RECOVERING, quá cũ, 0 phiếu) ----
+      const MONGO_STATE_LABELS = {
+        RECOVERING: "Đang phục hồi",
+        STARTUP: "Đang khởi động",
+        STARTUP2: "Đang đồng bộ ban đầu",
+        ROLLBACK: "Đang rollback",
+        ARBITER: "Arbiter",
+        DOWN: "Không phản hồi",
+        UNKNOWN: "Không rõ",
+        REMOVED: "Bị loại khỏi cụm",
+      };
+
+      function mongoRoleBadge(n) {
+        const zeroVote =
+          n.votes === 0
+            ? ` <span class="text-muted" style="font-size: 11px" title="Node không có phiếu bầu Primary">0 phiếu</span>`
+            : "";
+        if (n.state === "PRIMARY") {
+          return `<span class="badge-pill badge-pill--primary">Node chính</span>`;
+        }
+        return `<span class="badge-pill badge-pill--muted">Node phụ</span>${zeroVote}`;
+      }
+
+      function mongoStateBadge(n, isOnline) {
+        if (!isOnline) {
+          return `<span class="badge-pill badge-pill--danger">Mất kết nối</span>`;
+        }
+        if (n.state === "PRIMARY" || n.state === "SECONDARY") {
+          return `<span class="badge-pill badge-pill--ok">Sẵn sàng</span>`;
+        }
+        const label = n.too_stale
+          ? "Quá cũ, cần resync"
+          : MONGO_STATE_LABELS[n.state] || n.state;
+        return `<span class="badge-pill badge-pill--warn" title="Trạng thái replica set: ${escapeHtml(n.state)}">${escapeHtml(label)}</span>`;
+      }
+
+      function mongoHealthWarningHtml(h) {
+        if (!h || !h.available || !h.warnings || h.warnings.length === 0) return "";
+        const head = `Replica set: ${h.healthy_voters}/${h.total_votes} phiếu khỏe, cần ${h.majority} phiếu để bầu Primary.`;
+        return `<div class="mongo-health-warn"><strong>${escapeHtml(head)}</strong><ul>${h.warnings
+          .map((w) => `<li>${escapeHtml(w)}</li>`)
+          .join("")}</ul></div>`;
+      }
+
       // Ảnh nhận xét được lưu thẳng trong document MongoDB (data URL), nên phải nén trước khi gửi:
       // cạnh dài tối đa 1280 px, JPEG; giảm chất lượng dần cho tới khi dưới giới hạn của server.
       const REVIEW_IMAGE_MAX_SIDE = 1280;
@@ -4791,7 +4854,11 @@
         }
 
         if (summaryMongo && data.mongodb) {
-          summaryMongo.innerHTML = data.mongodb
+          summaryMongo.innerHTML = mongoRowsHtml(data) + mongoHealthWarningHtml(data.mongo_health);
+        }
+
+        function mongoRowsHtml(data) {
+          return data.mongodb
             .map((n, idx) => {
               const isOnline =
                 n.health === 1 &&
@@ -4806,12 +4873,8 @@
               const isPrimary = n.state === "PRIMARY";
               const roleHtml = !isOnline
                 ? `<div class="cluster-node-role"></div>`
-                : isPrimary
-                  ? `<div class="cluster-node-role"><span class="badge-pill badge-pill--primary">Node chính</span></div>`
-                  : `<div class="cluster-node-role"><span class="badge-pill badge-pill--muted">Node phụ</span></div>`;
-              const stateHtml = !isOnline
-                ? `<div class="cluster-node-status"><span class="badge-pill badge-pill--danger">Mất kết nối</span></div>`
-                : `<div class="cluster-node-status"><span class="badge-pill badge-pill--ok">Sẵn sàng</span></div>`;
+                : `<div class="cluster-node-role">${mongoRoleBadge(n)}</div>`;
+              const stateHtml = `<div class="cluster-node-status">${mongoStateBadge(n, isOnline)}</div>`;
               const pingFormatted =
                 isOnline && n.ping_ms !== null && n.ping_ms !== undefined
                   ? Number(n.ping_ms).toFixed(1) + " ms"
@@ -5007,19 +5070,10 @@
                   n.health === 1 &&
                   n.state !== "OFFLINE" &&
                   n.state.indexOf("not reachable") === -1;
-                const stateBadge = isOnline
-                  ? `<span class="badge-pill badge-pill--ok">Sẵn sàng</span>`
-                  : `<span class="badge-pill badge-pill--danger">Mất kết nối</span>`;
-                const displayRole = !isOnline
-                  ? "OFFLINE"
-                  : n.state === "PRIMARY"
-                    ? "PRIMARY"
-                    : "SECONDARY";
+                const stateBadge = mongoStateBadge(n, isOnline);
                 const roleBadge = !isOnline
                   ? `<span class="text-muted small">-</span>`
-                  : displayRole === "PRIMARY"
-                    ? `<span class="badge-pill badge-pill--primary">Node chính</span>`
-                    : `<span class="badge-pill badge-pill--muted">Node phụ</span>`;
+                  : mongoRoleBadge(n);
                 return `
               <tr>
                 <td class="fw-medium text-dark text-start" style="font-size: 14px;">${n.node_name}</td>

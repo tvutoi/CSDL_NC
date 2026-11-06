@@ -2046,6 +2046,77 @@ def manual_sync_cluster_data():
 
 
 
+def _summarize_mongo_health(mongo_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Đánh giá khả năng bầu Primary của replica set (chỉ đọc, không đổi cấu hình):
+    - Số phiếu lấy từ rs.conf() của một node trả lời được; đa số = tổng phiếu // 2 + 1.
+    - "Chịu lỗi" = số node có phiếu đang khỏe (PRIMARY/SECONDARY) trừ đa số: < 1 nghĩa là mất thêm
+      một node có phiếu là không bầu được Primary.
+    - Node RECOVERING có optime cũ hơn bản ghi đầu tiên trong oplog của Primary là "quá cũ" (too stale):
+      không tự bắt kịp được, phải đồng bộ lại từ đầu (resync_mongo_node.bat).
+    """
+    cfg_members = next((m.get("_cfg_members") for m in mongo_results if m.get("_cfg_members")), None)
+    if not cfg_members:
+        return {"available": False, "warnings": []}
+
+    total_votes = sum(cfg_members.values())
+    majority = total_votes // 2 + 1
+    by_host = {normalize_mongo_host(m["host"]): m for m in mongo_results}
+    healthy_voters = [h for h, v in cfg_members.items()
+                      if v > 0 and (by_host.get(h) or {}).get("state") in ("PRIMARY", "SECONDARY")]
+    zero_vote = [h for h, v in cfg_members.items() if v == 0]
+    primary = next((m for m in mongo_results if m.get("state") == "PRIMARY"), None)
+    oplog_first = (primary or {}).get("_oplog_first")
+
+    stale, unhealthy = [], []
+    for m in mongo_results:
+        st = m.get("state")
+        if m.get("health") != 1 or st in ("PRIMARY", "SECONDARY", "OFFLINE"):
+            continue
+        is_stale = bool(oplog_first and m.get("_optime") and m["_optime"] < oplog_first)
+        m["too_stale"] = is_stale
+        (stale if is_stale else unhealthy).append(m)
+
+    def _lbl(h):
+        return f"{get_node_label(h, 'mongo')} ({h.split(':')[0]})"
+
+    warnings = []
+    tolerance = len(healthy_voters) - majority
+    if not primary:
+        warnings.append(
+            f"Không có Primary: {len(healthy_voters)}/{total_votes} phiếu khỏe, cần {majority} phiếu để bầu."
+        )
+    elif tolerance < 1:
+        warnings.append(
+            f"Chỉ {len(healthy_voters)}/{total_votes} phiếu khỏe (đa số {majority}): mất thêm 1 node có phiếu là không bầu được Primary."
+        )
+    for m in stale:
+        warnings.append(
+            f"{_lbl(m['host'])} quá cũ (optime {m['_optime']:%d/%m/%Y %H:%M} UTC, oplog Primary chỉ còn từ "
+            f"{oplog_first:%d/%m/%Y %H:%M} UTC): không tự bắt kịp, chạy resync_mongo_node.bat trên máy đó."
+        )
+    for m in unhealthy:
+        warnings.append(f"{_lbl(m['host'])} đang ở trạng thái {m['state']}, chưa phải SECONDARY khỏe.")
+    if zero_vote:
+        warnings.append(
+            "Không có phiếu bầu: " + ", ".join(_lbl(h) for h in zero_vote)
+            + ". App tự cấp lại phiếu (mỗi lượt một node) khi node đó thành SECONDARY khỏe."
+        )
+
+    return {
+        "available": True,
+        "total_votes": total_votes,
+        "majority": majority,
+        "healthy_voters": len(healthy_voters),
+        "fault_tolerance": tolerance,
+        "has_primary": bool(primary),
+        "zero_vote_members": zero_vote,
+        "stale_members": [m["host"] for m in stale],
+        "oplog_first_utc": oplog_first.strftime("%Y-%m-%d %H:%M:%S") if oplog_first else None,
+        "warnings": warnings,
+    }
+
+
 @app.get("/api/cluster/status")
 def get_cluster_status(request: Request):
     """
@@ -2199,13 +2270,43 @@ def get_cluster_status(request: Request):
             reported_primary = hello_res.get("primary")
             is_prim = bool(hello_res.get("isWritablePrimary") or hello_res.get("ismaster"))
             state_str = "PRIMARY" if is_prim else ("SECONDARY" if hello_res.get("secondary") else "ONLINE")
+            # Trạng thái thật của member (RECOVERING, STARTUP2, ROLLBACK...), số phiếu, optime:
+            # `hello` không phân biệt được RECOVERING với các trạng thái khác.
+            member_state, votes, optime, oplog_first, cfg_members = state_str, None, None, None, None
+            try:
+                rs_st = m_single.admin.command("replSetGetStatus")
+                me = next((x for x in rs_st.get("members", []) if x.get("self")), None)
+                if me:
+                    member_state = me.get("stateStr") or member_state
+                    optime = me.get("optimeDate")
+            except Exception:
+                pass
+            try:
+                cfg = m_single.admin.command("replSetGetConfig").get("config", {})
+                cfg_members = {normalize_mongo_host(x["host"]): int(x.get("votes", 1)) for x in cfg.get("members", [])}
+                me_host = hello_res.get("me")
+                if me_host:
+                    votes = cfg_members.get(normalize_mongo_host(me_host))
+            except Exception:
+                pass
+            if is_prim:
+                try:  # mốc cũ nhất còn trong oplog của Primary: node có optime cũ hơn mốc này không bắt kịp được nữa
+                    doc = next(iter(m_single.local["oplog.rs"].find({}, {"ts": 1}).sort("$natural", 1).limit(1)), None)
+                    if doc:
+                        oplog_first = doc["ts"].as_datetime().replace(tzinfo=None)
+                except Exception:
+                    pass
             m_single.close()
             return {
                 "node_name": f"Node {idx}", "host": cfg_host, "state": state_str, "health": 1,
                 "ping_ms": tcp_ping, "reviews_count": 0, "logs_count": 0,
+                "member_state": member_state, "votes": votes,
                 "_is_prim": is_prim,
                 "_set_name": set_name,
-                "_reported_primary": reported_primary
+                "_reported_primary": reported_primary,
+                "_optime": optime.replace(tzinfo=None) if optime else None,
+                "_oplog_first": oplog_first,
+                "_cfg_members": cfg_members
             }
         except Exception:
             return {
@@ -2315,6 +2416,12 @@ def get_cluster_status(request: Request):
         # chập chờn, stepUp lúc đó ép bầu lại và hất Primary đang chạy. Replica set tự bầu sau ~10–12 s.
 
         # Áp dụng vai trò hiển thị:
+        # Node không phải Primary: giữ trạng thái thật nếu nó không khỏe (RECOVERING, STARTUP2, ROLLBACK...),
+        # không gộp hết thành SECONDARY (trước 2026-11-06 node RECOVERING hiện là "Node phụ - Sẵn sàng").
+        def _non_primary_state(m):
+            real = (m.get("member_state") or "SECONDARY").upper()
+            return "SECONDARY" if real in ("PRIMARY", "SECONDARY", "ONLINE") else real
+
         if authoritative_primary_node:
             set_active_mongo_primary(authoritative_primary_node["host"])
             for m in online_m:
@@ -2322,12 +2429,12 @@ def get_cluster_status(request: Request):
                     m["state"] = "PRIMARY"
                     m["_is_prim"] = True
                 else:
-                    m["state"] = "SECONDARY"
+                    m["state"] = _non_primary_state(m)
                     m["_is_prim"] = False
         else:
             set_active_mongo_primary(None)
             for m in online_m:
-                m["state"] = "SECONDARY"
+                m["state"] = _non_primary_state(m)
                 m["_is_prim"] = False
 
         # Lấy số lượng tài liệu từ cache hoặc node online đầu tiên (hoặc primary)
@@ -2366,8 +2473,10 @@ def get_cluster_status(request: Request):
             except Exception:
                 pass
 
+    status["mongo_health"] = _summarize_mongo_health(mongo_results)
+
     for m in mongo_results:
-        for k in ["_is_prim", "_set_name", "_reported_primary"]:
+        for k in ["_is_prim", "_set_name", "_reported_primary", "_optime", "_oplog_first", "_cfg_members"]:
             m.pop(k, None)
 
     status["mongodb"] = mongo_results
