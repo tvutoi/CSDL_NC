@@ -2103,7 +2103,7 @@
                           >
                         </div>
                         <div class="text-muted" style="font-size: 11px">
-                          Hỗ trợ ảnh JPG, PNG dưới 5MB
+                          Ảnh JPG, PNG (tối đa 15 MB), tự nén về 1280 px trước khi gửi
                         </div>
                       </div>
                       <div
@@ -3989,13 +3989,63 @@
         if (el) el.classList.add("active");
       }
 
+      // Ảnh nhận xét được lưu thẳng trong document MongoDB (data URL), nên phải nén trước khi gửi:
+      // cạnh dài tối đa 1280 px, JPEG; giảm chất lượng dần cho tới khi dưới giới hạn của server.
+      const REVIEW_IMAGE_MAX_SIDE = 1280;
+      const REVIEW_IMAGE_MAX_CHARS = 1500000; // khớp REVIEW_IMAGE_MAX_CHARS trong app.py
+      const REVIEW_IMAGE_MAX_FILE_BYTES = 15 * 1024 * 1024;
+
+      function compressReviewImage(file) {
+        return new Promise((resolve, reject) => {
+          if (!file || !file.type || !file.type.startsWith("image/")) {
+            reject(new Error("Tệp đã chọn không phải ảnh"));
+            return;
+          }
+          if (file.size > REVIEW_IMAGE_MAX_FILE_BYTES) {
+            reject(new Error("Ảnh gốc quá lớn (tối đa 15 MB)"));
+            return;
+          }
+          const objUrl = URL.createObjectURL(file);
+          const img = new Image();
+          img.onload = function () {
+            URL.revokeObjectURL(objUrl);
+            const scale = Math.min(1, REVIEW_IMAGE_MAX_SIDE / Math.max(img.width, img.height));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round(img.width * scale));
+            canvas.height = Math.max(1, Math.round(img.height * scale));
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#ffffff"; // nền trắng cho ảnh PNG trong suốt khi đổi sang JPEG
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            for (const q of [0.82, 0.7, 0.55, 0.4]) {
+              const out = canvas.toDataURL("image/jpeg", q);
+              if (out.length <= REVIEW_IMAGE_MAX_CHARS) {
+                resolve(out);
+                return;
+              }
+            }
+            reject(new Error("Không nén được ảnh xuống dưới giới hạn cho phép"));
+          };
+          img.onerror = function () {
+            URL.revokeObjectURL(objUrl);
+            reject(new Error("Không đọc được ảnh"));
+          };
+          img.src = objUrl;
+        });
+      }
+
+      function useReviewImageFile(file) {
+        compressReviewImage(file)
+          .then((dataUrl) => setReviewPreviewImage(dataUrl))
+          .catch((err) => {
+            removeReviewImage();
+            showToastNotification(err.message || "Không dùng được ảnh này", "danger");
+          });
+      }
+
       function handleReviewImageUpload(input) {
         if (input.files && input.files[0]) {
-          const reader = new FileReader();
-          reader.onload = function (e) {
-            setReviewPreviewImage(e.target.result);
-          };
-          reader.readAsDataURL(input.files[0]);
+          useReviewImageFile(input.files[0]);
         }
       }
 
@@ -4049,11 +4099,7 @@
         ) {
           const file = e.dataTransfer.files[0];
           if (file.type.startsWith("image/")) {
-            const reader = new FileReader();
-            reader.onload = function (ev) {
-              setReviewPreviewImage(ev.target.result);
-            };
-            reader.readAsDataURL(file);
+            useReviewImageFile(file);
           }
         }
       }
@@ -7040,7 +7086,7 @@
               const imgHtml =
                 r.images && r.images.length > 0 && r.images[0]
                   ? `<div class="ms-3 flex-shrink-0">
-                       <img src="${escapeHtml(r.images[0])}" data-lightbox-url="${escapeHtml(r.images[0])}" alt="Ảnh thực tế" class="review-thumb-img" onclick="openImageLightbox(this.dataset.lightboxUrl)" title="Bấm để phóng to" onerror="this.parentElement.remove()" />
+                       <img src="${escapeHtml(r.images[0])}" loading="lazy" data-lightbox-url="${escapeHtml(r.images[0])}" alt="Ảnh thực tế" class="review-thumb-img" onclick="openImageLightbox(this.dataset.lightboxUrl)" title="Bấm để phóng to" onerror="this.parentElement.remove()" />
                      </div>`
                   : "";
 

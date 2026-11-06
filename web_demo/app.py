@@ -901,20 +901,54 @@ _LAST_AUTO_MONGO_RECOVERY = 0.0
 _MONGO_ELECTION_LOCK = threading.Lock()
 
 
+def _normalize_mongo_votes_step(primary_host: str, healthy_secondaries: List[str]) -> None:
+    """Đưa cấu hình replica set về "mọi member votes 1, priority 1" theo từng bước an toàn.
+    - Member đã có phiếu: priority về 1.0 (không node nào được ưu tiên giành lại Primary).
+    - Member votes 0: mỗi lần gọi chỉ cấp phiếu cho TỐI ĐA MỘT member, và chỉ khi member đó đang là
+      SECONDARY khỏe. Reconfig thường của MongoDB chỉ cho thêm/bớt một member có phiếu mỗi lần; member
+      RECOVERING (vd tụt quá xa oplog) mà có phiếu sẽ không xác nhận được ghi → treo commit point.
+    - Không dùng force. Lỗi chỉ ghi log; lần gọi sau (thread nền) thử tiếp."""
+    try:
+        c = MongoClient(f"mongodb://{primary_host}/?directConnection=true&w=1", serverSelectionTimeoutMS=1500)
+        try:
+            cfg = c.admin.command("replSetGetConfig")["config"]
+            changes = []
+            vote_added = False
+            for m in cfg.get("members", []):
+                if m.get("arbiterOnly") or m.get("hidden"):
+                    continue
+                m_host = m.get("host", "")
+                if m.get("votes", 1) == 1:
+                    if float(m.get("priority", 1.0)) != 1.0:
+                        changes.append(f"{m_host}: priority {m.get('priority')}→1")
+                        m["priority"] = 1.0
+                elif not vote_added and any(is_same_mongo_host(m_host, h) for h in healthy_secondaries):
+                    changes.append(f"{m_host}: votes 0→1, priority→1")
+                    m["votes"] = 1
+                    m["priority"] = 1.0
+                    vote_added = True
+            if changes:
+                cfg["version"] += 1
+                c.admin.command("replSetReconfig", cfg, maxTimeMS=10000)
+                logger.info(f"[MONGO_NORMALIZE] Đã reconfig qua {primary_host}: {'; '.join(changes)}")
+        finally:
+            c.close()
+    except Exception as e:
+        logger.warning(f"[MONGO_NORMALIZE] Không chuẩn hóa được phiếu/priority qua {primary_host}: {e}")
+
+
 def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[str] = None) -> Dict[str, Any]:
     """
     Quản lý tính sẵn sàng và duy trì đồng thuận của cụm MongoDB Replica Set:
-    1. KHI ĐÃ CÓ NODE CHÍNH (PRIMARY):
-       - Áp dụng nguyên tắc Non-Preemptive HA: Tuyệt đối giữ nguyên Primary hiện tại.
-       - Không gọi replSetReconfig liên tục trong luồng nền để tránh làm gián đoạn Oplog và tránh Exit Code 100.
-       - Khi đủ 100% node online, chuẩn hóa nhẹ nhàng priority=1.0, votes=1 nếu cần.
+    1. KHI ĐÃ CÓ NODE CHÍNH (PRIMARY): giữ nguyên Primary hiện tại (non-preemptive).
+       - Chuẩn hóa từng bước về votes 1, priority 1 (_normalize_mongo_votes_step). Không node nào có
+         priority cao hơn, nên node cũ quay lại không giành lại Primary (không có priority takeover).
+       - force + target_primary: replSetStepDown trên Primary hiện tại rồi replSetStepUp trên node đích,
+         không đổi priority.
     2. KHI CHƯA CÓ NODE CHÍNH:
-       - Nếu số node online >= 3 (đủ Quorum tự nhiên >= 3/4):
-         Gọi lệnh replSetStepUp tự nhiên (chuẩn Raft, không ghi đè version cấu hình).
-       - Nếu số node online < 3 (thiếu Quorum) và force=False:
-         Tự động bảo toàn ở trạng thái CHỈ ĐỌC (Read-Only) để chống Split-Brain và chống phân mảnh dữ liệu.
-         TUYỆT ĐỐI KHÔNG gọi replSetReconfig(force=True) tự động vì sẽ làm crash service mongod khi node cũ gia nhập lại.
-       - Chỉ khi force=True (người dùng chủ động nhấn nút ép bầu trên Web UI) mới thực hiện can thiệp cứu Quorum.
+       - force=False (thread nền): không làm gì, chờ replica set tự bầu.
+       - force=True (thủ công): thử replSetStepUp khi >= 3 node trả lời, không được thì
+         replSetReconfig(force=True) cứu quorum (ứng viên priority 1, node offline votes 0).
     """
     global _LAST_MONGO_PRIORITY_CHECK
     now_ts = time.time()
@@ -952,17 +986,20 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                     c.close()
                     is_prim = bool(hello.get("isWritablePrimary") or hello.get("ismaster"))
                     rep_p = hello.get("primary")
-                    return norm_h, True, is_prim, rep_p
+                    return norm_h, True, is_prim, rep_p, bool(hello.get("secondary"))
                 except Exception:
-                    return norm_h, False, False, None
-            return norm_h, False, False, None
+                    return norm_h, False, False, None, False
+            return norm_h, False, False, None, False
 
         with ThreadPoolExecutor(max_workers=max(1, len(norm_mongo_nodes))) as ex:
             mg_probe_res = list(ex.map(_probe_mg, norm_mongo_nodes))
 
-        for norm_h, is_on, is_prim, rep_p in mg_probe_res:
+        healthy_secondaries = []  # node trả hello là SECONDARY (không tính RECOVERING/STARTUP2)
+        for norm_h, is_on, is_prim, rep_p, is_sec in mg_probe_res:
             if is_on:
                 online_nodes.append(norm_h)
+                if is_sec:
+                    healthy_secondaries.append(norm_h)
                 if is_prim:
                     active_primary = norm_h
                 if rep_p:
@@ -979,19 +1016,10 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
         if active_primary:
             # A. Người dùng chủ động yêu cầu chuyển giao Node chính (Manual Switch):
             if force and target_primary and not is_same_mongo_host(target_primary, active_primary):
+                # Không nâng priority của node đích: priority cao hơn làm MongoDB tự giành lại
+                # Primary (priority takeover) mỗi khi node đó quay lại, phá nguyên tắc giữ Primary hiện có.
                 try:
                     c_act = MongoClient(f"mongodb://{active_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=2000)
-                    cfg_act = c_act.admin.command("replSetGetConfig")["config"]
-                    cfg_act["version"] += 1
-                    for m in cfg_act.get("members", []):
-                        m_h = m.get("host", "")
-                        if is_same_mongo_host(m_h, target_primary):
-                            m["priority"] = 2.0
-                            m["votes"] = 1
-                        else:
-                            m["priority"] = 1.0
-                            m["votes"] = 1
-                    c_act.admin.command("replSetReconfig", cfg_act)
                     try:
                         c_act.admin.command("replSetStepDown", 60)
                     except Exception:
@@ -1015,24 +1043,10 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                 except Exception:
                     pass
 
-            # B. Duy trì Node chính hiện tại. Chỉ khi toàn bộ 100% node online mới chuẩn hóa cấu hình êm ả:
+            # B. Giữ Node chính hiện tại, đưa cấu hình dần về "mọi member votes 1, priority 1"
+            # để không node nào được MongoDB ưu tiên giành lại Primary.
             set_active_mongo_primary(active_primary)
-            if len(online_nodes) == len(norm_mongo_nodes):
-                try:
-                    c_act = MongoClient(f"mongodb://{active_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=1500)
-                    cfg_act = c_act.admin.command("replSetGetConfig")["config"]
-                    needs_normalize = False
-                    for m in cfg_act.get("members", []):
-                        if m.get("votes") != 1 or m.get("priority") != 1.0:
-                            m["votes"] = 1
-                            m["priority"] = 1.0
-                            needs_normalize = True
-                    if needs_normalize:
-                        cfg_act["version"] += 1
-                        c_act.admin.command("replSetReconfig", cfg_act)
-                    c_act.close()
-                except Exception:
-                    pass
+            _normalize_mongo_votes_step(active_primary, healthy_secondaries)
 
             return {
                 "status": "ALREADY_PRIMARY",
@@ -1065,9 +1079,18 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
         if not chosen_primary and online_nodes:
             chosen_primary = online_nodes[0]
 
-        # 4. TIẾN HÀNH BẦU CHỌN THEO CHUẨN ĐỒNG THUẬN AN TOÀN (SAFE RAFT CONSENSUS):
-        # A. NẾU CỤM ĐỦ QUORUM (>= 3 NODE ONLINE / 4 NODE):
-        # Sử dụng replSetStepUp tự nhiên - Tuyệt đối không can thiệp replSetReconfig, bảo đảm 100% không crash service
+        # 4. KHÔNG CÓ PRIMARY VÀ KHÔNG PHẢI LỆNH THỦ CÔNG: để MongoDB tự bầu (~10–12 s).
+        # Không gọi replSetStepUp tự động: app có thể "không thấy" Primary chỉ vì mạng chập chờn,
+        # stepUp lúc đó ép bầu lại và hất Primary đang chạy tốt. Không ghi đè Primary đã lưu.
+        if not force:
+            return {
+                "status": "NO_PRIMARY_WAITING",
+                "primary": None,
+                "online_nodes": online_nodes,
+                "message": f"Chưa thấy Node chính MongoDB ({len(online_nodes)} node trả lời); chờ replica set tự bầu, app không can thiệp."
+            }
+
+        # A. LỆNH THỦ CÔNG (force=True), ĐỦ QUORUM (>= 3 NODE ONLINE): thử replSetStepUp trước
         if len(online_nodes) >= 3:
             try:
                 c_cand = MongoClient(f"mongodb://{chosen_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=2000)
@@ -1088,19 +1111,7 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
             except Exception:
                 pass
 
-        # B. NẾU CỤM THIẾU QUORUM (< 3 NODE ONLINE) VÀ KHÔNG PHẢI LỆNH FORCE THỦ CÔNG:
-        # BẢO VỆ CHẾ ĐỘ CHỈ ĐỌC (READ-ONLY) - TUYỆT ĐỐI KHÔNG GỌI replSetReconfig(force=True) TRONG NỀN!
-        # Việc không ép force=True giúp bảo toàn cấu hình Oplog, khi node cũ online lại sẽ hòa nhập êm ả, không bao giờ bị Exit Code 100.
-        if not force:
-            set_active_mongo_primary(chosen_primary)
-            return {
-                "status": "QUORUM_LOST_READONLY",
-                "primary": chosen_primary,
-                "online_nodes": online_nodes,
-                "message": f"Cụm MongoDB đang ở chế độ Chỉ đọc để bảo toàn dữ liệu (chỉ có {len(online_nodes)}/4 node online, thiếu Quorum). Không cưỡng chế cấu hình để tránh Stop Service."
-            }
-
-        # C. CHỈ KHI NGƯỜI DÙNG BẤM NÚT ÉP BẦU (force=True) QUA GIAO DIỆN MỚI CAN THIỆP CỨU NGUY (QUORUM RESCUE):
+        # B. CHỈ KHI NGƯỜI DÙNG BẤM NÚT ÉP BẦU (force=True) QUA GIAO DIỆN MỚI CAN THIỆP CỨU NGUY (QUORUM RESCUE):
         try:
             c_cand = MongoClient(f"mongodb://{chosen_primary}/?directConnection=true&w=1", serverSelectionTimeoutMS=2500)
             hello_cand = c_cand.admin.command("hello")
@@ -1118,7 +1129,7 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                     is_cand = (idx == cand_idx) or (m_host == my_internal_name) or is_same_mongo_host(m_host, chosen_primary) or is_same_mongo_host(cfg_host, chosen_primary)
                     is_on = is_cand or any(is_same_mongo_host(cfg_host, on_h) for on_h in online_nodes)
                     if is_cand:
-                        v, p = 1, 2.0
+                        v, p = 1, 1.0  # không dùng priority cao hơn (tránh priority takeover về sau)
                     elif is_on:
                         v, p = 1, 1.0
                     else:
@@ -1142,7 +1153,7 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
                     is_cand = is_same_mongo_host(nh, chosen_primary)
                     is_on = (nh in online_nodes)
                     if is_cand:
-                        v, p = 1, 2.0
+                        v, p = 1, 1.0  # không dùng priority cao hơn (tránh priority takeover về sau)
                     elif is_on:
                         v, p = 1, 1.0
                     else:
@@ -1200,7 +1211,7 @@ def ensure_mongo_primary_priority(force: bool = False, target_primary: Optional[
 
 
 
-def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
+def get_mongo_client(read_mode: str = "primary", with_meta: bool = False, socket_timeout_ms: int = 2000):
     """
     Khởi tạo kết nối MongoDB phân tán chuẩn xác theo đúng vai trò Primary / Secondary:
     - Khi read_mode='primary': Luôn ưu tiên kết nối trực tiếp vào Node Primary (Node chính) của cụm.
@@ -1266,7 +1277,7 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
                 read_preference=rp,
                 serverSelectionTimeoutMS=1000,
                 connectTimeoutMS=1000,
-                socketTimeoutMS=2000
+                socketTimeoutMS=socket_timeout_ms
             )
             hello = c.admin.command("hello")
             is_prim = bool(hello.get("isWritablePrimary") or hello.get("ismaster"))
@@ -1307,7 +1318,7 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False):
         if curr_p and not any(is_same_mongo_host(h, curr_p) for h in ordered_hosts):
             try:
                 h_p, p_p = (curr_p.split(":") if ":" in curr_p else (curr_p, 27017))
-                c_p = MongoClient(f"mongodb://{h_p}:{p_p}/?directConnection=true&w=1", serverSelectionTimeoutMS=1000)
+                c_p = MongoClient(f"mongodb://{h_p}:{p_p}/?directConnection=true&w=1", serverSelectionTimeoutMS=1000, socketTimeoutMS=socket_timeout_ms)
                 h_chk = c_p.admin.command("hello")
                 if h_chk.get("isWritablePrimary") or h_chk.get("ismaster"):
                     set_active_mongo_primary(curr_p)
@@ -1670,6 +1681,209 @@ def export_sync_logs():
 
 
 
+# ---------------------------------------------------------------------------
+# Quét Group Replication và bootstrap an toàn (chống split-brain)
+# ---------------------------------------------------------------------------
+# Số lượt quét liên tiếp phải cùng kết luận "cả cụm tắt, cùng một node ứng viên" thì mới bootstrap.
+MYSQL_BOOTSTRAP_CONFIRM_ROUNDS = 2
+# Tên khóa MySQL (GET_LOCK) trên node ứng viên: hai instance app (vd. chạy trên .221 và .224)
+# không thể cùng bootstrap một lúc.
+MYSQL_BOOTSTRAP_LOCK_NAME = "ecom_gr_bootstrap"
+_BOOTSTRAP_LOCK = threading.Lock()
+_BOOTSTRAP_STREAK = {"candidate": None, "count": 0}
+_LAST_BOOTSTRAP_BLOCK_MSG = {"msg": None}
+
+
+def _reset_bootstrap_streak():
+    with _BOOTSTRAP_LOCK:
+        _BOOTSTRAP_STREAK["candidate"] = None
+        _BOOTSTRAP_STREAK["count"] = 0
+
+
+def _log_bootstrap_blocked(msg: str):
+    """Ghi log khi lý do chặn bootstrap thay đổi (tránh lặp log mỗi chu kỳ nền)."""
+    if _LAST_BOOTSTRAP_BLOCK_MSG["msg"] != msg:
+        _LAST_BOOTSTRAP_BLOCK_MSG["msg"] = msg
+        logger.warning(f"[GR_BOOTSTRAP_GUARD] {msg}")
+
+
+def _mysql_admin_connect(host: str, timeout: float = 2.0):
+    h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
+    return mysql.connector.connect(
+        host=h_str, port=int(p_int),
+        user=CLUSTER_CONFIG["mysql_user"],
+        password=CLUSTER_CONFIG.get("mysql_password", "root"),
+        connection_timeout=timeout
+    )
+
+
+def _scan_gr_node(host: str) -> Dict[str, Any]:
+    """
+    Đọc trạng thái Group Replication của một node.
+    state:
+      - UNREACHABLE: cổng 3306 không mở.
+      - SCAN_FAILED: cổng mở nhưng không kết nối/truy vấn được -> KHÔNG biết node đang ở nhóm nào.
+      - ONLINE / RECOVERING / OFFLINE / ERROR: trạng thái thật do chính node báo.
+    peers_alive: số thành viên KHÁC đang ONLINE/RECOVERING trong góc nhìn của node này.
+    """
+    h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
+    if not is_port_open(h_str, int(p_int), timeout=0.35, retries=1):
+        return {"state": "UNREACHABLE", "role": "", "peers_alive": 0}
+    try:
+        conn = _mysql_admin_connect(host, timeout=1.5)
+    except Exception as e:
+        return {"state": "SCAN_FAILED", "role": "", "peers_alive": 0, "err": str(e)}
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT @@server_uuid AS uuid, @@global.gtid_executed AS gtid")
+        meta = cur.fetchone() or {}
+        cur.execute("SELECT MEMBER_ID, MEMBER_STATE, MEMBER_ROLE FROM performance_schema.replication_group_members")
+        rows = cur.fetchall() or []
+        cur.close()
+        uuid_self = meta.get("uuid")
+        self_row = next((r for r in rows if r.get("MEMBER_ID") == uuid_self), None)
+        state = ((self_row or {}).get("MEMBER_STATE") or "OFFLINE").upper()
+        role = ((self_row or {}).get("MEMBER_ROLE") or "").upper()
+        peers_alive = sum(
+            1 for r in rows
+            if r.get("MEMBER_ID") != uuid_self and (r.get("MEMBER_STATE") or "").upper() in ("ONLINE", "RECOVERING")
+        )
+        return {
+            "state": state, "role": role, "peers_alive": peers_alive,
+            "uuid": uuid_self, "gtid": (meta.get("gtid") or "").replace("\n", ""), "conn": conn
+        }
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return {"state": "SCAN_FAILED", "role": "", "peers_alive": 0, "err": str(e)}
+
+
+def _scan_gr_nodes(nodes: List[str]) -> Dict[str, Dict[str, Any]]:
+    if not nodes:
+        return {}
+    with ThreadPoolExecutor(max_workers=min(8, len(nodes))) as ex:
+        results = list(ex.map(_scan_gr_node, nodes))
+    return dict(zip(nodes, results))
+
+
+def _close_gr_scan(scan: Dict[str, Dict[str, Any]]):
+    for info in scan.values():
+        c = info.pop("conn", None)
+        if c is not None:
+            try:
+                c.close()
+            except Exception:
+                pass
+
+
+def _gr_group_alive(scan: Dict[str, Dict[str, Any]]) -> bool:
+    """Có bằng chứng một nhóm đang chạy: node nào đó ONLINE/RECOVERING hoặc thấy peer đang sống."""
+    return any(
+        info["state"] in ("ONLINE", "RECOVERING") or info.get("peers_alive", 0) > 0
+        for info in scan.values()
+    )
+
+
+def _pick_bootstrap_candidate(nodes: List[str], scan: Dict[str, Dict[str, Any]]) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Chọn node được phép bootstrap. Trả (candidate, None) hoặc (None, lý_do_chặn).
+    Điều kiện:
+      1. MỌI node trong cấu hình đều đọc được trạng thái (không UNREACHABLE/SCAN_FAILED):
+         node không đọc được có thể vẫn đang ONLINE trong nhóm cũ (Wi-Fi chập chờn), bootstrap lúc đó là split-brain.
+      2. Mọi node đều OFFLINE hoặc ERROR (không ai ONLINE/RECOVERING).
+      3. Ứng viên có gtid_executed bao trùm GTID của mọi node khác (không mất giao dịch).
+         Hòa nhau thì lấy node đứng trước trong cấu hình (mọi instance app chọn cùng một node).
+    """
+    if not nodes:
+        return None, "Danh sách node MySQL trống"
+    unknown = [f"{get_node_label(h, 'mysql')} ({h}: {scan[h]['state']})"
+               for h in nodes if scan[h]["state"] in ("UNREACHABLE", "SCAN_FAILED")]
+    if unknown:
+        return None, (
+            "Không bootstrap tự động: chưa đọc được trạng thái Group Replication của "
+            + ", ".join(unknown)
+            + ". Node đó có thể vẫn đang ở nhóm cũ. Nếu chắc chắn cả cụm đã tắt, hãy bootstrap thủ công trên node có GTID mới nhất."
+        )
+    for host in nodes:
+        info = scan[host]
+        try:
+            cur = info["conn"].cursor()
+            ok = True
+            for other in nodes:
+                if other == host:
+                    continue
+                cur.execute("SELECT GTID_SUBSET(%s, @@global.gtid_executed)", (scan[other].get("gtid") or "",))
+                if int((cur.fetchone() or [0])[0] or 0) != 1:
+                    ok = False
+                    break
+            cur.close()
+            if ok:
+                return host, None
+        except Exception as e:
+            return None, f"Không so sánh được GTID trên {host}: {e}"
+    return None, "Không bootstrap tự động: GTID giữa các node lệch nhau, không node nào chứa đủ giao dịch của các node khác. Cần xử lý thủ công."
+
+
+def _gr_join_node(host: str, stop_first: bool = False):
+    """Cho node vào nhóm đang có (Distributed Recovery). Không bao giờ bật bootstrap_group."""
+    c = _mysql_admin_connect(host, timeout=2.0)
+    try:
+        cur = c.cursor()
+        cur.execute("SET GLOBAL group_replication_bootstrap_group = OFF")
+        if stop_first:
+            cur.execute("STOP GROUP_REPLICATION")
+        cur.execute("START GROUP_REPLICATION")
+        cur.close()
+    finally:
+        c.close()
+
+
+def _gr_bootstrap_node(candidate: str, nodes: List[str]) -> Tuple[bool, Optional[str]]:
+    """
+    Bootstrap nhóm trên `candidate` sau khi giữ khóa GET_LOCK trên chính node đó và quét lại toàn cụm.
+    Trả (True, None) khi đã bootstrap; (False, lý_do) khi bỏ qua.
+    """
+    c = _mysql_admin_connect(candidate, timeout=2.0)
+    try:
+        cur = c.cursor()
+        cur.execute("SELECT GET_LOCK(%s, 0)", (MYSQL_BOOTSTRAP_LOCK_NAME,))
+        if int((cur.fetchone() or [0])[0] or 0) != 1:
+            return False, "Một instance app khác đang bootstrap node này, bỏ qua lượt này"
+        try:
+            # Quét lại ngay trước khi bootstrap: điều kiện phải vẫn đúng
+            rescan = _scan_gr_nodes(nodes)
+            try:
+                if _gr_group_alive(rescan):
+                    return False, "Lượt quét lại phát hiện nhóm đang sống, hủy bootstrap"
+                again, why = _pick_bootstrap_candidate(nodes, rescan)
+                if not again or not is_same_mysql_host(again, candidate):
+                    return False, why or "Ứng viên bootstrap thay đổi sau lượt quét lại, hủy bootstrap"
+                cand_state = rescan[candidate]["state"]
+            finally:
+                _close_gr_scan(rescan)
+            if cand_state == "ERROR":
+                cur.execute("STOP GROUP_REPLICATION")
+            cur.execute("SET GLOBAL group_replication_bootstrap_group = ON")
+            try:
+                cur.execute("START GROUP_REPLICATION")
+            finally:
+                # Luôn tắt cờ bootstrap, kể cả khi START lỗi (cờ còn ON là nguy cơ dựng nhóm thứ hai)
+                cur.execute("SET GLOBAL group_replication_bootstrap_group = OFF")
+            logger.warning(f"[GR_BOOTSTRAP] Đã bootstrap nhóm trên {candidate}")
+            return True, None
+        finally:
+            try:
+                cur.execute("SELECT RELEASE_LOCK(%s)", (MYSQL_BOOTSTRAP_LOCK_NAME,))
+                cur.fetchone()
+            except Exception:
+                pass
+            cur.close()
+    finally:
+        c.close()
+
+
 def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
     """
     Kiểm tra và kích hoạt cơ chế tự bù dữ liệu chuẩn (Distributed Recovery) của MySQL Group Replication:
@@ -1679,96 +1893,84 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
         * Tự động gửi lệnh `START GROUP_REPLICATION;` để Node kết nối vào cụm.
         * Kênh Distributed Recovery (`group_replication_recovery`) của MySQL sẽ tự động kéo Binary Log
           từ Node Donor/Primary và replay đầy đủ toàn bộ giao dịch thiếu theo mã GTID chuẩn.
-    - Nếu toàn bộ các Node trong cụm đều đang tắt hoặc cần Bootstrap:
-        * Hỗ trợ bootstrap Node Primary được chỉ định (`group_replication_bootstrap_group = ON`).
+    - Chỉ bootstrap (`group_replication_bootstrap_group = ON`) khi chắc chắn cả cụm đã tắt:
+        * đọc được trạng thái của MỌI node và tất cả OFFLINE/ERROR, không node nào thấy peer đang sống;
+        * điều kiện lặp lại ở MYSQL_BOOTSTRAP_CONFIRM_ROUNDS lượt quét liên tiếp với cùng ứng viên;
+        * ứng viên có GTID bao trùm các node khác (hòa thì lấy theo thứ tự cấu hình);
+        * giữ GET_LOCK trên ứng viên và quét lại toàn cụm ngay trước khi bootstrap.
+      Không thỏa thì không bootstrap, lý do trả về ở trường `bootstrap_blocked`.
     """
     t0 = time.perf_counter()
-    pwd = CLUSTER_CONFIG.get("mysql_password", "root")
     recovered_nodes = []
     already_online_nodes = []
     failed_nodes = []
+    bootstrap_blocked = None  # lý do không bootstrap (khi cụm có vẻ tắt hết)
 
-    # 1. Quét trạng thái hiện tại của Group Replication trên toàn bộ các node
-    node_statuses = {}
-    for host in CLUSTER_CONFIG["mysql_nodes"]:
-        h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
-        p_int = int(p_int)
-        if not is_port_open(h_str, p_int, timeout=0.35, retries=1):
-            node_statuses[host] = {"tcp": False, "state": "UNREACHABLE", "role": "UNREACHABLE"}
-            continue
-        try:
-            conn = mysql.connector.connect(
-                host=h_str, port=p_int,
-                user=CLUSTER_CONFIG["mysql_user"],
-                password=pwd,
-                connection_timeout=1.5
-            )
-            cur = conn.cursor(dictionary=True)
-            cur.execute("""
-                SELECT MEMBER_STATE, MEMBER_ROLE 
-                FROM performance_schema.replication_group_members 
-                WHERE MEMBER_ID = @@server_uuid OR MEMBER_HOST = %s
-            """, (h_str,))
-            row = cur.fetchone()
-            st = (row.get("MEMBER_STATE") if row else "OFFLINE") or "OFFLINE"
-            ro = (row.get("MEMBER_ROLE") if row else "") or ""
-            node_statuses[host] = {"tcp": True, "state": st.upper(), "role": ro.upper(), "conn": conn, "cur": cur}
-        except Exception as e:
-            node_statuses[host] = {"tcp": True, "state": "OFFLINE", "role": "ERROR", "err": str(e)}
+    nodes = list(CLUSTER_CONFIG["mysql_nodes"])
+    scan = _scan_gr_nodes(nodes)
 
-    # 2. Kiểm tra xem đã có node nào là PRIMARY / ONLINE trong cụm chưa
-    online_members = [h for h, info in node_statuses.items() if info.get("state") == "ONLINE"]
-    primary_member = next((h for h, info in node_statuses.items() if info.get("role") == "PRIMARY" and info.get("state") == "ONLINE"), None)
-
-    # 3. Kích hoạt Native Recovery cho các node đang OFFLINE
-    for host, info in node_statuses.items():
-        st = info.get("state")
-        lbl = get_node_label(host, "mysql")
-        if st == "ONLINE":
-            already_online_nodes.append(f"{lbl} ({host})")
-            if "conn" in info:
+    if _gr_group_alive(scan):
+        _reset_bootstrap_streak()
+        # 2a. Nhóm đang sống: node OFFLINE/ERROR chỉ được JOIN vào nhóm, không bao giờ bootstrap
+        for host in nodes:
+            info = scan[host]
+            lbl = get_node_label(host, "mysql")
+            st = info["state"]
+            if st in ("ONLINE", "RECOVERING"):
+                already_online_nodes.append(f"{lbl} ({host})")
+            elif st in ("OFFLINE", "ERROR"):
                 try:
-                    info["cur"].close()
-                    info["conn"].close()
-                except Exception:
-                    pass
-            continue
-        if st in ["OFFLINE", "ERROR"]:
-            h_str, p_int = (host.split(":") if ":" in host else (host, 3306))
-            p_int = int(p_int)
-            try:
-                c = info.get("conn")
-                if not c or not c.is_connected():
-                    c = mysql.connector.connect(
-                        host=h_str, port=p_int,
-                        user=CLUSTER_CONFIG["mysql_user"],
-                        password=pwd,
-                        connection_timeout=2.0
-                    )
-                cur = c.cursor()
-
-                # Nếu cụm chưa có node nào ONLINE và đây là Primary được cấu hình -> Bootstrap
-                is_configured_primary = is_same_mysql_host(host, CLUSTER_CONFIG.get("active_mysql_primary") or CLUSTER_CONFIG["mysql_nodes"][0])
-                if not online_members and is_configured_primary:
-                    try:
-                        cur.execute("SET GLOBAL group_replication_bootstrap_group = ON;")
-                        cur.execute("START GROUP_REPLICATION;")
-                        cur.execute("SET GLOBAL group_replication_bootstrap_group = OFF;")
-                        online_members.append(host)
-                        recovered_nodes.append(f"{lbl} [Bootstrapped Primary]")
-                    except Exception as b_err:
-                        failed_nodes.append(f"{lbl} ({b_err})")
+                    _gr_join_node(host, stop_first=(st == "ERROR"))
+                    recovered_nodes.append(f"{lbl} [Distributed Recovery Started]")
+                except Exception as s_err:
+                    failed_nodes.append(f"{lbl} ({s_err})")
+            # UNREACHABLE / SCAN_FAILED: không làm gì, chờ lượt sau
+    else:
+        # 2b. Không thấy nhóm nào sống: chỉ bootstrap khi chắc chắn cả cụm tắt thật
+        candidate, bootstrap_blocked = _pick_bootstrap_candidate(nodes, scan)
+        if candidate:
+            with _BOOTSTRAP_LOCK:
+                if _BOOTSTRAP_STREAK["candidate"] == candidate:
+                    _BOOTSTRAP_STREAK["count"] += 1
                 else:
-                    # Node gia nhập nhóm bình thường để tự động kích hoạt Distributed Recovery
-                    try:
-                        cur.execute("START GROUP_REPLICATION;")
-                        recovered_nodes.append(f"{lbl} [Distributed Recovery Started]")
-                    except Exception as s_err:
-                        failed_nodes.append(f"{lbl} ({s_err})")
-                cur.close()
-                c.close()
-            except Exception as conn_err:
-                failed_nodes.append(f"{lbl} ({conn_err})")
+                    _BOOTSTRAP_STREAK["candidate"] = candidate
+                    _BOOTSTRAP_STREAK["count"] = 1
+                streak = _BOOTSTRAP_STREAK["count"]
+            if streak < MYSQL_BOOTSTRAP_CONFIRM_ROUNDS:
+                bootstrap_blocked = (
+                    f"Cả cụm có vẻ đã tắt; chờ xác nhận lần quét {streak + 1}/{MYSQL_BOOTSTRAP_CONFIRM_ROUNDS} "
+                    f"trước khi bootstrap {get_node_label(candidate, 'mysql')} ({candidate})"
+                )
+            else:
+                lbl = get_node_label(candidate, "mysql")
+                try:
+                    done, why = _gr_bootstrap_node(candidate, nodes)
+                    if done:
+                        _reset_bootstrap_streak()
+                        recovered_nodes.append(f"{lbl} [Bootstrapped Primary]")
+                        # Các node còn lại join vào nhóm vừa dựng
+                        for host in nodes:
+                            if is_same_mysql_host(host, candidate):
+                                continue
+                            if scan[host]["state"] in ("OFFLINE", "ERROR"):
+                                h_lbl = get_node_label(host, "mysql")
+                                try:
+                                    _gr_join_node(host, stop_first=(scan[host]["state"] == "ERROR"))
+                                    recovered_nodes.append(f"{h_lbl} [Distributed Recovery Started]")
+                                except Exception as s_err:
+                                    failed_nodes.append(f"{h_lbl} ({s_err})")
+                    else:
+                        _reset_bootstrap_streak()
+                        bootstrap_blocked = why
+                except Exception as b_err:
+                    _reset_bootstrap_streak()
+                    failed_nodes.append(f"{lbl} ({b_err})")
+        else:
+            _reset_bootstrap_streak()
+
+    _close_gr_scan(scan)
+    if bootstrap_blocked:
+        _log_bootstrap_blocked(bootstrap_blocked)
 
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
 
@@ -1800,6 +2002,7 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
         "recovered_nodes": recovered_nodes,
         "already_online_nodes": already_online_nodes,
         "failed_nodes": failed_nodes,
+        "bootstrap_blocked": bootstrap_blocked,
         "elapsed_ms": elapsed_ms
     }
 
@@ -1818,12 +2021,15 @@ def manual_sync_cluster_data():
             msg = f"✓ Toàn bộ {len(onl)} Node MySQL Group Replication đang ONLINE và tự động đồng bộ dữ liệu chuẩn qua GTID!"
         elif fl:
             msg = f"⚠ Không thể khởi động Group Replication trên: {', '.join(fl)}. Vui lòng kiểm tra cổng 33061 và IP card mạng."
+        elif res.get("bootstrap_blocked"):
+            msg = f"⚠ {res['bootstrap_blocked']}"
         else:
             msg = "Đã kiểm tra trạng thái cụm MySQL Group Replication."
 
         return {
-            "status": "SUCCESS" if not fl else "WARNING",
+            "status": "SUCCESS" if not (fl or res.get("bootstrap_blocked")) else "WARNING",
             "message": msg,
+            "bootstrap_blocked": res.get("bootstrap_blocked"),
             "total_synced_rows": 0,
             "synced_nodes": res.get("synced_nodes", []),
             "elapsed_ms": res.get("elapsed_ms", 0.0)
@@ -2104,36 +2310,9 @@ def get_cluster_status(request: Request):
                         authoritative_primary_node = matched
                         break
 
-        # CHỈ KHI PRIMARY HIỆN TẠI THỰC SỰ CHẾT (OFFLINE) VÀ CỤM ĐỦ QUORUM (>= 3 NODE ONLINE):
-        # Mới tiến hành Failover bầu Node mới tự nhiên qua replSetStepUp:
-        if not authoritative_primary_node and len(online_m) >= 3:
-            cand_to_step = None
-            curr_known = get_active_mongo_primary()
-            if curr_known:
-                cand_to_step = next((m for m in online_m if is_same_mongo_host(m["host"], curr_known)), None)
-            if not cand_to_step:
-                cfg_mongo_list = CLUSTER_CONFIG.get("mongo_nodes", [])
-                for cn in cfg_mongo_list:
-                    cand_to_step = next((m for m in online_m if is_same_mongo_host(m["host"], cn)), None)
-                    if cand_to_step:
-                        break
-            if not cand_to_step:
-                cand_to_step = online_m[0]
-
-            try:
-                c_step = MongoClient(f"mongodb://{cand_to_step['host']}/?directConnection=true", serverSelectionTimeoutMS=1200)
-                res_step = c_step.admin.command("replSetStepUp")
-                if res_step.get("ok"):
-                    h_step = c_step.admin.command("hello")
-                    if h_step.get("isWritablePrimary") or h_step.get("ismaster"):
-                        cand_to_step["state"] = "PRIMARY"
-                        cand_to_step["_is_prim"] = True
-                        authoritative_primary_node = cand_to_step
-                c_step.close()
-            except Exception:
-                pass
-            # TUYỆT ĐỐI KHÔNG GỌI ensure_mongo_primary_priority(force=True) ở đây!
-            # Vì polling đọc trạng thái không được tự ý ép buộc Quorum gây split-brain và crash service.
+        # Không thấy Primary: CHỈ HIỂN THỊ, không gọi replSetStepUp (bỏ từ 2026-11-04).
+        # Mỗi tab trình duyệt gọi endpoint này mỗi vài giây; app không thấy Primary có khi chỉ do mạng
+        # chập chờn, stepUp lúc đó ép bầu lại và hất Primary đang chạy. Replica set tự bầu sau ~10–12 s.
 
         # Áp dụng vai trò hiển thị:
         if authoritative_primary_node:
@@ -2298,11 +2477,6 @@ def get_polyglot_products(
             try:
                 mongo_node_used = mongo_meta["host"]
                 mongo_role_used = mongo_meta["role"]
-                cluster_pri = get_active_mongo_primary()
-                if (cluster_pri and is_same_mongo_host(mongo_node_used, cluster_pri)) or (read_mode == "primary"):
-                    mongo_role_used = "PRIMARY"
-                    mongo_meta["role"] = "PRIMARY"
-                    mongo_meta["role_vn"] = "Node chính" 
                 mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
 
                 pipeline_rev = [
@@ -2317,7 +2491,8 @@ def get_polyglot_products(
                             "rating": "$rating",
                             "title": "$title",
                             "comment": "$comment",
-                            "images": "$images",
+                            # chỉ đếm ảnh, không đẩy ảnh nhúng (có thể vài MB) vào kết quả group
+                            "image_count": {"$size": {"$cond": [{"$isArray": "$images"}, "$images", []]}},
                             "attributes": "$sentiment_attributes"
                         }}
                     }}
@@ -2605,6 +2780,15 @@ def checkout(req: OrderRequest, x_idempotency_key: Optional[str] = Header(None))
         conn.close()
 
 
+# Ảnh nhận xét (data URL base64) tối đa ~1,5 triệu ký tự ≈ 1,1 MB ảnh thật. Giao diện đã nén ảnh
+# (cạnh dài ≤ 1280 px, JPEG) trước khi gửi nên ảnh thường chỉ vài trăm KB.
+REVIEW_IMAGE_MAX_CHARS = 1_500_000
+# Phần tử `images` dài hơn ngưỡng này (ảnh nhúng) không được gửi kèm /api/reviews/list mà đổi thành link tải riêng.
+REVIEW_INLINE_IMAGE_MAX_CHARS = 2048
+# Timeout đọc khi tải một ảnh nhận xét (ảnh cũ lưu trước khi có giới hạn có thể ~4 MB, qua Wi-Fi mất vài giây).
+REVIEW_IMAGE_SOCKET_TIMEOUT_MS = 30000
+
+
 class ReviewRequest(BaseModel):
     product_id: int
     user_id: int
@@ -2626,6 +2810,12 @@ def add_review(req: ReviewRequest, x_idempotency_key: Optional[str] = Header(Non
         with _IDEMPOTENCY_LOCK:
             if x_idempotency_key in _IDEMPOTENCY_CACHE:
                 return _IDEMPOTENCY_CACHE[x_idempotency_key]
+
+    if req.image_url and len(req.image_url) > REVIEW_IMAGE_MAX_CHARS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Ảnh quá lớn ({len(req.image_url):,} ký tự sau mã hóa, tối đa {REVIEW_IMAGE_MAX_CHARS:,}). Hãy chọn ảnh nhỏ hơn."
+        )
 
     t0 = time.perf_counter()
     doc = {
@@ -2765,6 +2955,57 @@ def add_review(req: ReviewRequest, x_idempotency_key: Optional[str] = Header(Non
     return res_data
 
 
+_DATA_URL_RE = re.compile(r"^data:(image/[A-Za-z0-9.+-]+);base64,(.*)$", re.DOTALL)
+
+
+@app.get("/api/reviews/{review_id}/image/{idx}")
+def get_review_image(review_id: str, idx: int):
+    """
+    Trả một ảnh của nhận xét dưới dạng file ảnh (giải mã data URL base64), đọc riêng từng document
+    với timeout dài để danh sách nhận xét không phải kéo ảnh nặng về.
+    """
+    import base64
+    from bson import ObjectId
+    from bson.errors import InvalidId
+    from fastapi.responses import RedirectResponse
+
+    if idx < 0:
+        raise HTTPException(status_code=404, detail="Không có ảnh")
+    try:
+        oid = ObjectId(review_id)
+    except (InvalidId, TypeError):
+        raise HTTPException(status_code=404, detail="Mã nhận xét không hợp lệ")
+
+    m_client = None
+    try:
+        m_client, _ = get_mongo_client("primary", socket_timeout_ms=REVIEW_IMAGE_SOCKET_TIMEOUT_MS)
+        col = m_client[CLUSTER_CONFIG["mongo_db"]]["product_reviews"]
+        doc = col.find_one({"_id": oid}, {"images": {"$slice": [idx, 1]}})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Lỗi đọc ảnh nhận xét từ MongoDB: {e}")
+    finally:
+        if m_client is not None:
+            m_client.close()
+
+    imgs = (doc or {}).get("images") or []
+    if not imgs or not isinstance(imgs[0], str) or not imgs[0]:
+        raise HTTPException(status_code=404, detail="Không có ảnh")
+    val = imgs[0]
+    m = _DATA_URL_RE.match(val)
+    if m:
+        try:
+            raw = base64.b64decode(m.group(2), validate=False)
+        except Exception:
+            raise HTTPException(status_code=422, detail="Ảnh lưu sai định dạng base64")
+        # Nội dung ảnh gắn với _id nhận xét, không đổi -> cho trình duyệt cache lâu
+        return Response(content=raw, media_type=m.group(1), headers={"Cache-Control": "public, max-age=86400"})
+    if val.startswith(("http://", "https://", "/")):
+        return RedirectResponse(val)
+    raise HTTPException(status_code=422, detail="Định dạng ảnh không hỗ trợ")
+
+
 @app.get("/api/reviews/list")
 def get_product_reviews_list(
     product_id: int = Query(1, ge=1),
@@ -2780,11 +3021,8 @@ def get_product_reviews_list(
         m_client, mongo_meta = get_mongo_client(read_mode, with_meta=True)
         active_host = mongo_meta["host"]
         active_role = mongo_meta["role"]
-        cluster_pri = get_active_mongo_primary()
-        if (cluster_pri and is_same_mongo_host(active_host, cluster_pri)) or (read_mode == "primary"):
-            active_role = "PRIMARY"
-            mongo_meta["role"] = "PRIMARY"
-            mongo_meta["role_vn"] = "Node chính" 
+        # Nhãn vai trò lấy theo kết quả `hello` của node thật (get_mongo_client đã gán);
+        # không ép "Node chính" chỉ vì read_mode='primary' (khi rơi xuống Secondary dự phòng).
         mdb = m_client[CLUSTER_CONFIG["mongo_db"]]
         col = mdb["product_reviews"]
 
@@ -2822,9 +3060,32 @@ def get_product_reviews_list(
         else:
             sort_spec = [("created_at", -1)]
 
-        cursor = col.find(query_filter).sort(sort_spec).skip(offset).limit(limit)
+        # Không kéo ảnh nhúng (data URL base64, có thể vài MB) về cùng danh sách: chỉ giữ URL ngắn,
+        # ảnh nhúng được thay bằng null rồi đổi thành link /api/reviews/{id}/image/{i} (tải riêng, lazy).
+        list_projection = {
+            "product_id": 1, "user_id": 1, "user_name": 1, "author_name": 1, "rating": 1,
+            "title": 1, "comment": 1, "sentiment_attributes": 1, "created_at": 1,
+            "images": {"$map": {
+                "input": {"$cond": [{"$isArray": "$images"}, "$images", []]},
+                "as": "img",
+                "in": {"$cond": [
+                    {"$and": [
+                        {"$eq": [{"$type": "$$img"}, "string"]},
+                        {"$lte": [{"$strLenBytes": "$$img"}, REVIEW_INLINE_IMAGE_MAX_CHARS]}
+                    ]},
+                    "$$img",
+                    None
+                ]}
+            }}
+        }
+        cursor = col.find(query_filter, list_projection).sort(sort_spec).skip(offset).limit(limit)
         reviews = []
         for doc in cursor:
+            rid = str(doc.get("_id", ""))
+            doc["images"] = [
+                img if isinstance(img, str) else f"/api/reviews/{rid}/image/{i}"
+                for i, img in enumerate(doc.get("images") or [])
+            ]
             created_val = doc.get("created_at")
             created_str = created_val.strftime("%d/%m/%Y %H:%M:%S") if hasattr(created_val, "strftime") else ""
             author_name = doc.get("user_name") or doc.get("author_name") or f"Khách hàng #{doc.get('user_id', 1)}"
