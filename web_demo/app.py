@@ -1397,6 +1397,98 @@ def get_mongo_client(read_mode: str = "primary", with_meta: bool = False, socket
     )
 
 
+# Các cột GR của chính node, gộp vào câu SELECT metadata sẵn có của get_mysql_connection (không thêm lượt hỏi)
+_GR_SELF_COLUMNS_SQL = """
+    @@server_uuid AS gr_uuid,
+    (SELECT MEMBER_STATE FROM performance_schema.replication_group_members
+      WHERE MEMBER_ID = @@server_uuid LIMIT 1) AS gr_state,
+    (SELECT VARIABLE_VALUE FROM performance_schema.global_status
+      WHERE VARIABLE_NAME = 'group_replication_primary_member' LIMIT 1) AS gr_primary_uuid,
+    (SELECT VIEW_ID FROM performance_schema.replication_group_member_stats
+      WHERE MEMBER_ID = @@server_uuid LIMIT 1) AS gr_view_id,
+    (SELECT COUNT(*) FROM performance_schema.replication_group_members
+      WHERE MEMBER_STATE = 'ONLINE') AS gr_online,
+    (SELECT COUNT(*) FROM performance_schema.replication_group_members) AS gr_members
+"""
+
+
+def _parse_gr_self(r: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        seq = int(str(r.get("gr_view_id") or "").rsplit(":", 1)[1])
+    except (IndexError, ValueError):
+        seq = -1
+    online, members = int(r.get("gr_online") or 0), int(r.get("gr_members") or 0)
+    return {"uuid": r.get("gr_uuid"), "state": (r.get("gr_state") or "").upper(),
+            "primary_uuid": r.get("gr_primary_uuid") or "", "view_seq": seq,
+            # node thấy đa số member trong view của nó đang ONLINE (Primary bị cô lập thấy các node kia UNREACHABLE)
+            "has_majority": members > 0 and online * 2 > members}
+
+
+def _gr_self_info(cur) -> Dict[str, Any]:
+    """Trạng thái GR của node đang kết nối: uuid, MEMBER_STATE, UUID Primary node đó báo, số thứ tự VIEW_ID."""
+    cur.execute("SELECT " + _GR_SELF_COLUMNS_SQL)
+    return _parse_gr_self(cur.fetchone() or {})
+
+
+def _verify_gr_primary_candidate(conn, host: str, nodes: List[str], me: Optional[Dict[str, Any]] = None) -> Tuple[bool, str]:
+    """
+    Chỉ gọi ở đường dự phòng của get_mysql_connection('primary') (node không phải Primary đang cache).
+    Nhận `host` làm Primary khi:
+      - node tự báo ONLINE và group_replication_primary_member = chính nó, VÀ
+      - có ít nhất một node khác đang ONLINE xác nhận cùng UUID Primary với VIEW_ID không cũ hơn,
+        và không node ONLINE nào có VIEW_ID mới hơn mà báo Primary khác.
+    Ngoại lệ MySQL đơn lẻ: node không chạy GR và không node nào dò được đang ở trong nhóm -> chấp nhận.
+    """
+    if me is None:
+        try:
+            cur = conn.cursor(dictionary=True)
+            me = _gr_self_info(cur)
+            cur.close()
+        except Exception as e:
+            return False, f"không đọc được trạng thái GR ({e})"
+
+    in_group = me["state"] in ("ONLINE", "RECOVERING")
+    confirmed = False
+    any_peer_in_group = False
+    for peer in nodes:
+        if is_same_mysql_host(peer, host):
+            continue
+        p_h, p_p = (peer.split(":") if ":" in peer else (peer, 3306))
+        if not is_port_open(p_h, int(p_p), timeout=0.4, retries=1):
+            continue
+        try:
+            pc = _mysql_admin_connect(peer, timeout=1.5)
+            try:
+                pcur = pc.cursor(dictionary=True)
+                pi = _gr_self_info(pcur)
+                pcur.close()
+            finally:
+                pc.close()
+        except Exception:
+            continue
+        if pi["state"] != "ONLINE":
+            continue
+        any_peer_in_group = True
+        if not in_group:
+            break
+        if pi["view_seq"] > me["view_seq"] and pi["primary_uuid"] != me["uuid"]:
+            return False, (f"{peer} ở view mới hơn ({pi['view_seq']} > {me['view_seq']}) và báo Primary khác: "
+                           f"{host} là Primary cũ bị cô lập")
+        if pi["primary_uuid"] == me["uuid"] and pi["view_seq"] >= me["view_seq"]:
+            confirmed = True
+            break
+
+    if not in_group:
+        if any_peer_in_group:
+            return False, f"{host} không ở trong nhóm GR (trạng thái {me['state'] or 'không chạy GR'}) trong khi nhóm đang chạy"
+        return True, "MySQL đơn lẻ, không có nhóm GR"
+    if me["primary_uuid"] != me["uuid"]:
+        return False, f"{host} không phải Primary của nhóm"
+    if not confirmed:
+        return False, f"không node nào khác xác nhận {host} là Primary"
+    return True, "đã xác nhận"
+
+
 def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = None):
     """
     Định tuyến kết nối MySQL thông minh Fast-Path:
@@ -1447,13 +1539,34 @@ def get_mysql_connection(mode: str = "primary", target_host: Optional[str] = Non
                 connection_timeout=2.5
             )
             cur = conn.cursor(dictionary=True)
-            cur.execute("SELECT @@server_id AS server_id, @@hostname AS hostname, @@global.read_only AS read_only")
+            try:
+                cur.execute("SELECT @@server_id AS server_id, @@hostname AS hostname, @@global.read_only AS read_only, "
+                            + _GR_SELF_COLUMNS_SQL)
+            except Exception:
+                # MySQL không có bảng/biến GR (bản cũ, plugin chưa cài): metadata như trước 2026-11-06
+                cur.execute("SELECT @@server_id AS server_id, @@hostname AS hostname, @@global.read_only AS read_only")
             meta = cur.fetchone()
             cur.close()
+            gr_me = _parse_gr_self(meta)
 
             is_ro = (meta.get("read_only") == 1)
 
             if mode == "primary":
+                # Đường chính: node Primary đang cache (giám sát xác định theo VIEW_ID) và tự báo ONLINE + là
+                # Primary của nhóm -> dùng ngay. Các thông tin này đi chung câu SELECT ở trên, không thêm lượt hỏi.
+                # Còn lại (node khác, hoặc node cache không còn là Primary/không ở trong nhóm) phải qua
+                # _verify_gr_primary_candidate: tránh nhận Primary cũ bị cô lập vẫn read_only = 0,
+                # hoặc node chưa vào nhóm (99 #57).
+                is_cached = bool(active_pri) and is_same_mysql_host(host, active_pri)
+                fast_ok = (is_cached and gr_me["state"] == "ONLINE" and gr_me["primary_uuid"] == gr_me["uuid"]
+                           and gr_me["has_majority"])
+                if not is_ro and not fast_ok:
+                    ok, why = _verify_gr_primary_candidate(conn, host, nodes, me=gr_me)
+                    if not ok:
+                        logger.warning(f"[MYSQL_ROUTE] Bỏ qua {host} làm Primary: {why}")
+                        last_err = why
+                        conn.close()
+                        continue
                 if not is_ro:
                     set_active_mysql_primary(host)
                     return conn, {
@@ -1725,6 +1838,10 @@ MYSQL_BOOTSTRAP_CONFIRM_ROUNDS = 2
 MYSQL_BOOTSTRAP_LOCK_NAME = "ecom_gr_bootstrap"
 _BOOTSTRAP_LOCK = threading.Lock()
 _BOOTSTRAP_STREAK = {"candidate": None, "count": 0}
+# Node ERROR (thường do bị expel khi mạng chập chờn) phải ở ERROR liên tục quá ngưỡng này, và MySQL không còn
+# tự rejoin, thì app mới STOP/START GROUP_REPLICATION. Lần auto-rejoin đầu có thể mất ~30 s nếu seed đầu tiên đang tắt.
+MYSQL_GR_ERROR_GRACE_SEC = 60
+_GR_ERROR_SINCE: Dict[str, float] = {}
 _LAST_BOOTSTRAP_BLOCK_MSG = {"msg": None}
 
 
@@ -1773,6 +1890,9 @@ def _scan_gr_node(host: str) -> Dict[str, Any]:
         meta = cur.fetchone() or {}
         cur.execute("SELECT MEMBER_ID, MEMBER_STATE, MEMBER_ROLE FROM performance_schema.replication_group_members")
         rows = cur.fetchall() or []
+        # MySQL đang tự rejoin (group_replication_autorejoin_tries): có thread THD_autorejoin
+        cur.execute("SELECT COUNT(*) AS n FROM performance_schema.threads WHERE NAME LIKE 'thread/group_rpl/THD_autorejoin%'")
+        autorejoin = int((cur.fetchone() or {}).get("n") or 0) > 0
         cur.close()
         uuid_self = meta.get("uuid")
         self_row = next((r for r in rows if r.get("MEMBER_ID") == uuid_self), None)
@@ -1783,7 +1903,7 @@ def _scan_gr_node(host: str) -> Dict[str, Any]:
             if r.get("MEMBER_ID") != uuid_self and (r.get("MEMBER_STATE") or "").upper() in ("ONLINE", "RECOVERING")
         )
         return {
-            "state": state, "role": role, "peers_alive": peers_alive,
+            "state": state, "role": role, "peers_alive": peers_alive, "autorejoin": autorejoin,
             "uuid": uuid_self, "gtid": (meta.get("gtid") or "").replace("\n", ""), "conn": conn
         }
     except Exception as e:
@@ -1950,11 +2070,27 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
             info = scan[host]
             lbl = get_node_label(host, "mysql")
             st = info["state"]
+            if st != "ERROR":
+                _GR_ERROR_SINCE.pop(host, None)
             if st in ("ONLINE", "RECOVERING"):
                 already_online_nodes.append(f"{lbl} ({host})")
-            elif st in ("OFFLINE", "ERROR"):
+            elif info.get("autorejoin"):
+                # MySQL đang tự rejoin (sau khi bị expel vì mạng chập chờn): không chen STOP/START vào giữa.
+                # Trước 2026-11-06 app STOP rồi START ngay, hủy lần rejoin vừa thành công (99 #55).
+                continue
+            elif st == "ERROR":
+                since = _GR_ERROR_SINCE.setdefault(host, time.time())
+                if time.time() - since < MYSQL_GR_ERROR_GRACE_SEC:
+                    continue  # chờ MySQL tự xử lý trước khi can thiệp
                 try:
-                    _gr_join_node(host, stop_first=(st == "ERROR"))
+                    _gr_join_node(host, stop_first=True)
+                    _GR_ERROR_SINCE.pop(host, None)
+                    recovered_nodes.append(f"{lbl} [Distributed Recovery Started]")
+                except Exception as s_err:
+                    failed_nodes.append(f"{lbl} ({s_err})")
+            elif st == "OFFLINE":
+                try:
+                    _gr_join_node(host, stop_first=False)
                     recovered_nodes.append(f"{lbl} [Distributed Recovery Started]")
                 except Exception as s_err:
                     failed_nodes.append(f"{lbl} ({s_err})")
@@ -2260,7 +2396,23 @@ def get_cluster_status(request: Request):
                 if gr_member:
                     gr_state = (gr_member.get("MEMBER_STATE") or "OFFLINE").upper()
                     gr_role = (gr_member.get("MEMBER_ROLE") or "").upper()
+                # Góc nhìn nhóm của node này: các member nó thấy đang ONLINE/RECOVERING
+                cur.execute("""
+                    SELECT MEMBER_ID FROM performance_schema.replication_group_members
+                    WHERE MEMBER_STATE IN ('ONLINE', 'RECOVERING')
+                """)
+                gr_view = [r["MEMBER_ID"] for r in (cur.fetchall() or [])]
+                # VIEW_ID "<tiền tố>:<số thứ tự>" tăng mỗi lần thành viên nhóm đổi. Node bị cô lập/expel
+                # giữ VIEW_ID cũ, nhóm thật có số lớn hơn.
+                cur.execute("""
+                    SELECT VIEW_ID FROM performance_schema.replication_group_member_stats
+                    WHERE MEMBER_ID = %s
+                """, (sys_info.get("uuid"),))
+                vrow = cur.fetchone() or {}
+                gr_view_id = vrow.get("VIEW_ID") or ""
             except Exception as e:
+                gr_view = []
+                gr_view_id = ""
                 logger.warning(f"[GR_STATUS_SCAN] Lỗi đọc replication_group_members từ {host}: {e}")
 
             cur.close()
@@ -2277,7 +2429,8 @@ def get_cluster_status(request: Request):
             res_item = {
                 "node_name": f"Node {idx}", "host": host, "server_id": sys_info.get("sid", "-"), "hostname": sys_info.get("hname", "-"),
                 "state": final_state, "role": final_role, "ping_ms": tcp_ping, "gtid": gtid_short,
-                "counts": node_counts, "_uuid": sys_info.get("uuid"), "_primary_uuid": primary_uuid, "_ro": sys_info.get("ro", 1)
+                "counts": node_counts, "_uuid": sys_info.get("uuid"), "_primary_uuid": primary_uuid, "_ro": sys_info.get("ro", 1),
+                "_view": gr_view, "_view_id": gr_view_id
             }
             with _STATUS_CACHE_LOCK:
                 _MYSQL_CONSECUTIVE_FAILURES[host] = 0
@@ -2363,6 +2516,34 @@ def get_cluster_status(request: Request):
         mysql_results = [f.result() for f in f_mysql]
         mongo_results = [f.result() for f in f_mongo]
 
+    # Đối chiếu góc nhìn nhóm (từ 2026-11-06, 99 #55, #56). Node bị cô lập/expel vì mạng có thể vẫn tự báo
+    # ONLINE theo view cũ một lúc lâu (> 2 phút trên .224), và Primary cũ bị cô lập vẫn tự báo PRIMARY
+    # (.221 sau khi có mạng lại, ~20 s). Lấy view chuẩn là view của node tự báo PRIMARY có VIEW_ID mới nhất
+    # (số thứ tự sau dấu ":" lớn nhất), hòa thì view chứa nhiều node đang dò được nhất. Node tự báo
+    # ONLINE/RECOVERING nhưng không có trong view chuẩn thì không còn trong nhóm -> ERROR.
+    def _view_seq(n):
+        vid = n.get("_view_id") or ""
+        try:
+            return int(vid.rsplit(":", 1)[1])
+        except (IndexError, ValueError):
+            return -1
+
+    _fresh_gr = [n for n in mysql_results
+                 if n["state"] in ("ONLINE", "RECOVERING") and not n.get("_stale") and n.get("_uuid")]
+    _fresh_ids = {n["_uuid"] for n in _fresh_gr}
+    _primaries = [n for n in _fresh_gr if n.get("role") == "PRIMARY" and n["_uuid"] in (n.get("_view") or [])]
+    auth_primary = max(_primaries, key=lambda n: (_view_seq(n), len(_fresh_ids & set(n.get("_view") or []))), default=None)
+    if auth_primary:
+        auth_view = set(auth_primary.get("_view") or [])
+        for n in _fresh_gr:
+            if n["_uuid"] not in auth_view:
+                logger.warning(f"[GR_STATUS_SCAN] {n['host']} tự báo {n['state']} nhưng không có trong nhóm của Primary {auth_primary['host']} (đã bị expel)")
+                n["state"] = "ERROR"
+                n["role"] = "OFFLINE"
+        for n in mysql_results:  # UUID Primary lấy theo view chuẩn, không theo node đang ở view cũ
+            if n.get("_primary_uuid"):
+                n["_primary_uuid"] = auth_primary["_uuid"]
+
     online_mysql = [n for n in mysql_results if n["state"] == "ONLINE"]
     online_mysql_count = len(online_mysql)
 
@@ -2411,7 +2592,7 @@ def get_cluster_status(request: Request):
                 n["role"] = "OFFLINE"
 
     for n in mysql_results:
-        for k in ["_uuid", "_primary_uuid", "_ro", "_stale"]:
+        for k in ["_uuid", "_primary_uuid", "_ro", "_stale", "_view", "_view_id"]:
             n.pop(k, None)
         if n["counts"]["orders"] > status["data_counts"]["orders"]:
             for k, v in n["counts"].items():
