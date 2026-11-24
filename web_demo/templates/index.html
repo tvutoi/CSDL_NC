@@ -4187,55 +4187,46 @@
           .replace(/'/g, "&#039;");
       }
 
+      // Độ lệch (ms) giữa đồng hồ chung của cụm (Primary MongoDB, trường server_now của API) và đồng hồ
+      // trình duyệt. Mọi máy tính "x phút trước" theo cùng một mốc nên hiển thị giống nhau dù đồng hồ máy lệch.
+      let serverClockOffsetMs = 0;
+
+      function parseVnDateTime(dateStr) {
+        // "dd/mm/yyyy HH:MM:SS" (định dạng API trả) hoặc chuỗi ISO
+        if (!dateStr) return null;
+        const parts = String(dateStr).trim().split(" ");
+        let isoLike = String(dateStr);
+        if (parts.length === 2 && parts[0].includes("/")) {
+          const dp = parts[0].split("/");
+          isoLike = `${dp[2]}-${dp[1]}-${dp[0]}T${parts[1]}`;
+        }
+        const d = new Date(isoLike);
+        return isNaN(d.getTime()) ? null : d;
+      }
+
+      function syncServerClock(serverNowStr) {
+        const sn = parseVnDateTime(serverNowStr);
+        if (sn) serverClockOffsetMs = sn.getTime() - Date.now();
+      }
+
+      // Một format thống nhất: < 1 phút (kể cả lệch về tương lai) "Vừa xong"; < 1 giờ "x phút trước";
+      // < 24 giờ "x giờ trước"; từ 24 giờ trở lên hiện ngày giờ dd/MM/yyyy HH:mm.
       function formatRelativeTime(dateStr) {
         if (!dateStr) return { relative: "Gần đây", full: "" };
         try {
-          const parts = dateStr.split(" ");
-          let isoLike = dateStr;
-          if (parts.length === 2 && parts[0].includes("/")) {
-            const dp = parts[0].split("/");
-            isoLike = `${dp[2]}-${dp[1]}-${dp[0]}T${parts[1]}`;
-          }
-          const d = new Date(isoLike);
-          if (isNaN(d.getTime())) return { relative: dateStr, full: dateStr };
-          const now = new Date();
-          const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
-          const fullDate = d.toLocaleString("vi-VN", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
+          const d = parseVnDateTime(dateStr);
+          if (!d) return { relative: dateStr, full: dateStr };
+          const p2 = (n) => String(n).padStart(2, "0");
+          const fullDate = `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+          const nowMs = Date.now() + serverClockOffsetMs;
+          const diffSec = Math.floor((nowMs - d.getTime()) / 1000);
 
-          // Thời điểm ở tương lai hơn 1 phút: đồng hồ máy chạy app đã ghi bản ghi chạy nhanh hơn máy này.
-          // Hiện giờ đầy đủ thay vì "Vừa xong" để không đứng yên nhiều phút gây hiểu nhầm.
-          if (diffSec < -60) {
-            const p2 = (n) => String(n).padStart(2, "0");
-            const shortFuture = `${p2(d.getDate())}/${p2(d.getMonth() + 1)} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
-            return {
-              relative: shortFuture,
-              full: `${fullDate} (thời điểm sau giờ máy này: đồng hồ máy ghi bản ghi có thể chạy nhanh)`,
-            };
-          }
           if (diffSec < 60) return { relative: "Vừa xong", full: fullDate };
           const diffMin = Math.floor(diffSec / 60);
-          if (diffMin < 60)
-            return { relative: `${diffMin} phút trước`, full: fullDate };
+          if (diffMin < 60) return { relative: `${diffMin} phút trước`, full: fullDate };
           const diffHour = Math.floor(diffMin / 60);
-          if (diffHour < 24)
-            return { relative: `${diffHour} giờ trước`, full: fullDate };
-          const diffDay = Math.floor(diffHour / 24);
-          if (diffDay === 1) return { relative: "Hôm qua", full: fullDate };
-          if (diffDay < 30)
-            return { relative: `${diffDay} ngày trước`, full: fullDate };
-          const diffMonth = Math.floor(diffDay / 30);
-          if (diffMonth < 12)
-            return { relative: `${diffMonth} tháng trước`, full: fullDate };
-          return {
-            relative: `${Math.floor(diffMonth / 12)} năm trước`,
-            full: fullDate,
-          };
+          if (diffHour < 24) return { relative: `${diffHour} giờ trước`, full: fullDate };
+          return { relative: fullDate, full: fullDate };
         } catch (e) {
           return { relative: dateStr, full: dateStr };
         }
@@ -4497,9 +4488,12 @@
             throw new Error("Không tìm thấy dữ liệu đơn hàng.");
           }
           const data = await res.json();
+          if (data.server_now) syncServerClock(data.server_now);
           document.getElementById("detail-order-id").innerText = data.order_id;
-          document.getElementById("detail-order-time").innerText =
-            `Thời gian đặt hàng: ${data.created_at_str || "-"}`;
+          // Cùng format thời gian với danh sách; nhãn tự cập nhật (js-reltime), giờ đầy đủ ở tooltip
+          const dt = formatRelativeTime(data.created_at_str || "");
+          document.getElementById("detail-order-time").innerHTML =
+            `Thời gian đặt hàng: <span class="js-reltime" data-ts="${escapeHtml(data.created_at_str || "")}" title="${escapeHtml(dt.full)}">${escapeHtml(data.created_at_str ? dt.relative : "-")}</span>`;
 
           document.getElementById("detail-cust-name").innerText =
             data.full_name || `Khách hàng #${data.user_id}`;
@@ -7040,6 +7034,7 @@
           }
           const data = await res.json();
           if (seq !== _reviewsReqSeq) return null;
+          if (data.server_now) syncServerClock(data.server_now);
           const revs = data.reviews || [];
           const totalItems = data.total_items || 0;
           const totalPages = data.total_pages || 1;
@@ -7613,6 +7608,7 @@
           });
           const data = await res.json();
           if (seq !== _ordersReqSeq) return null; // đã có lần tải mới hơn
+          if (data.server_now) syncServerClock(data.server_now);
           const node = data.node || {};
           const nodeInfoEl = document.getElementById("orders-node-info");
           if (nodeInfoEl) {
@@ -7640,8 +7636,11 @@
                 .trim();
               const prodTitle =
                 o.items_detail || o.product_display || o.product_name || "";
-              const shortDate = o.created_at_short || o.created_at || "-";
-              const fullDate = o.created_at_full || o.created_at || "";
+              // Cùng format thời gian với nhận xét (formatRelativeTime, tự cập nhật mỗi 30 s)
+              const rawDate = o.created_at_full || o.created_at || "";
+              const tInfo = formatRelativeTime(rawDate);
+              const shortDate = rawDate ? tInfo.relative : "-";
+              const fullDate = tInfo.full;
 
               return `
           <tr onclick="openOrderDetail(${o.order_id})" title="Nhấp để xem chi tiết đơn hàng #${o.order_id}">
@@ -7657,7 +7656,7 @@
             <td class="text-end fw-semibold text-dark">${fmtMoney(o.total_amount)}</td>
             <td class="text-center">${renderPaymentMethod(o.payment_method)}</td>
             <td class="text-center text-nowrap" style="min-width: 105px;">${renderOrderStatus(st)}</td>
-            <td class="text-end pe-3 text-secondary text-nowrap" title="${fullDate}" style="font-size: 12.5px;">${shortDate}</td>
+            <td class="text-end pe-3 text-secondary text-nowrap js-reltime" data-ts="${escapeHtml(rawDate)}" title="${escapeHtml(fullDate)}" style="font-size: 12.5px;">${escapeHtml(shortDate)}</td>
           </tr>
         `;
             })

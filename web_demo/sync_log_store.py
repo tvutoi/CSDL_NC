@@ -57,6 +57,11 @@ _no_primary_at = 0.0
 _indexes_ready_for: Optional[str] = None
 _insert_counter = 0
 
+# --- dong ho chung cua cum: gio cua Primary MongoDB (hello.localTime) ---
+_clock_offset_sec = 0.0         # gio Primary - gio may chay app
+_clock_checked_at = 0.0
+CLOCK_REFRESH_SEC = 60.0
+
 # --- cache doc + dang ky doi tuong da tra ra (de save biet ban ghi nao thay doi) ---
 _CACHE_LOGS: List[Dict[str, Any]] = []
 _CACHE_AT = 0.0
@@ -280,6 +285,7 @@ def _connect(need_primary: bool):
             )
             hello = c.admin.command("hello")
             if hello.get("isWritablePrimary"):
+                _update_clock(hello)
                 if secondary is not None:
                     secondary[0].close()
                 _client, _client_host, _client_is_primary = c, f"{h}:{p}", True
@@ -306,6 +312,35 @@ def _connect(need_primary: bool):
 
     _last_fail_at = now
     return None
+
+
+def _update_clock(hello: Dict[str, Any]) -> None:
+    global _clock_offset_sec, _clock_checked_at
+    lt = hello.get("localTime")
+    if isinstance(lt, datetime):
+        if lt.tzinfo is None:
+            lt = lt.replace(tzinfo=timezone.utc)
+        _clock_offset_sec = (lt - datetime.now(timezone.utc)).total_seconds()
+        _clock_checked_at = time.time()
+
+
+def cluster_now() -> datetime:
+    """Gio dia phuong (naive) theo dong ho Primary MongoDB, dung chung cho moi may chay app.
+    Dong ho tung may co the lech (vd .223 nhanh ~7 phut); ghi created_at/thoi_diem theo gio nay thi
+    moi may hien thi giong nhau. Khong lien lac duoc Primary thi giu do lech lan gan nhat (mac dinh 0)."""
+    with _SYNC_LOCK:
+        if (time.time() - _clock_checked_at) >= CLOCK_REFRESH_SEC:
+            col = _connect(need_primary=True)
+            if col is not None and _client is not None:
+                try:
+                    _update_clock(_client.admin.command("hello"))
+                except _MONGO_ERRORS as e:
+                    _on_mongo_error(e, "đọc giờ Primary")
+        return datetime.now() + timedelta(seconds=_clock_offset_sec)
+
+
+def get_clock_offset_sec() -> float:
+    return _clock_offset_sec
 
 
 def _on_mongo_error(err: Exception, where: str) -> None:

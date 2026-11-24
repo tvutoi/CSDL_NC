@@ -750,7 +750,7 @@ def record_sync_log(
     """Ghi nhận sự kiện nhân bản và đồng bộ dữ liệu vào DUY NHẤT 01 file JSON theo cơ chế nguyên tử"""
     global SYNC_AUDIT_LOGS, SYNC_LOG_COUNTER, _LAST_BATCH_TIME, _LAST_BATCH_LOG
     SYNC_LOG_COUNTER += 1
-    now = datetime.now()
+    now = sync_log_store.cluster_now()  # giờ chung của cụm: thứ tự sự kiện giữa các máy không lệch theo đồng hồ từng máy
     log_id = f"SYNC-{uuid.uuid4().hex[:8]}"
 
     lat_val = round(latency_ms, 1) if latency_ms is not None else None
@@ -3156,7 +3156,8 @@ def add_review(req: ReviewRequest, x_idempotency_key: Optional[str] = Header(Non
             "verified_purchase": True,
             "helpful_votes": 1
         },
-        "created_at": datetime.now()
+        # Giờ chung của cụm (Primary MongoDB), không theo đồng hồ máy chạy app: các máy lệch giờ vẫn hiển thị giống nhau
+        "created_at": sync_log_store.cluster_now()
     }
 
     try:
@@ -3441,6 +3442,8 @@ def get_product_reviews_list(
             "mongo_role_vn": mongo_meta.get("role_vn", "Node chính" if active_role == "PRIMARY" else "Node phụ"),
             "mongo_node_name": mongo_meta.get("node_name", get_node_label(active_host, "mongo")),
             "latency_ms": elapsed_ms,
+            # Mốc "bây giờ" theo cùng đồng hồ với created_at: giao diện tính "x phút trước" theo mốc này
+            "server_now": sync_log_store.cluster_now().strftime("%d/%m/%Y %H:%M:%S"),
             "reviews": reviews
         }
     except HTTPException:
@@ -3708,6 +3711,7 @@ def get_recent_orders(
         "limit": limit,
         "total_items": total_items,
         "total_pages": total_pages,
+        "server_now": sync_log_store.cluster_now().strftime("%d/%m/%Y %H:%M:%S"),  # mốc chung cho "x phút trước"
         "orders": rows
     }
 
@@ -3763,6 +3767,7 @@ def get_order_detail(order_id: int, read_mode: Optional[str] = Query(None)):
 
     order["items"] = items
     order["node"] = meta
+    order["server_now"] = sync_log_store.cluster_now().strftime("%d/%m/%Y %H:%M:%S")
     return order
 
 
