@@ -1,6 +1,6 @@
 @echo off
 title Web Demo Server - Polyglot Ecommerce
-cd /d "%~dp0"
+cd /d "%~dp0.."
 echo ===================================================
 echo KHOI DONG SERVER WEB DEMO (FASTAPI)
 echo ===================================================
