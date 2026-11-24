@@ -4208,6 +4208,16 @@
             minute: "2-digit",
           });
 
+          // Thời điểm ở tương lai hơn 1 phút: đồng hồ máy chạy app đã ghi bản ghi chạy nhanh hơn máy này.
+          // Hiện giờ đầy đủ thay vì "Vừa xong" để không đứng yên nhiều phút gây hiểu nhầm.
+          if (diffSec < -60) {
+            const p2 = (n) => String(n).padStart(2, "0");
+            const shortFuture = `${p2(d.getDate())}/${p2(d.getMonth() + 1)} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+            return {
+              relative: shortFuture,
+              full: `${fullDate} (thời điểm sau giờ máy này: đồng hồ máy ghi bản ghi có thể chạy nhanh)`,
+            };
+          }
           if (diffSec < 60) return { relative: "Vừa xong", full: fullDate };
           const diffMin = Math.floor(diffSec / 60);
           if (diffMin < 60)
@@ -4230,6 +4240,17 @@
           return { relative: dateStr, full: dateStr };
         }
       }
+
+      // Nhãn thời gian tương đối chỉ được tính lúc vẽ danh sách: cứ 30 s tính lại các nhãn đang hiển thị
+      // (phần tử có class js-reltime và data-ts), để "Vừa xong" tự chuyển thành "1 phút trước"...
+      function refreshRelativeTimeLabels() {
+        document.querySelectorAll(".js-reltime[data-ts]").forEach((el) => {
+          const info = formatRelativeTime(el.getAttribute("data-ts"));
+          if (el.textContent !== info.relative) el.textContent = info.relative;
+          if (el.getAttribute("title") !== info.full) el.setAttribute("title", info.full);
+        });
+      }
+      setInterval(refreshRelativeTimeLabels, 30000);
 
       function getAvatarLetter(name) {
         if (!name || typeof name !== "string") return "K";
@@ -7117,7 +7138,7 @@
                 <div class="flex-grow-1">
                   <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
                     <span class="fw-semibold text-dark" style="font-size: 14px;">${authorNameSafe}</span>
-                    <span class="text-secondary small" title="${timeFullSafe}" style="font-size: 12px; cursor: default;">${timeRelSafe}</span>
+                    <span class="text-secondary small js-reltime" data-ts="${escapeHtml(r.created_at || "")}" title="${timeFullSafe}" style="font-size: 12px; cursor: default;">${timeRelSafe}</span>
                   </div>
                   <div class="d-flex align-items-center flex-wrap mb-1.5">
                     ${starsHtml}
