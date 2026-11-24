@@ -6030,7 +6030,7 @@
       async function confirmClearSyncLogs() {
         if (
           !confirm(
-            "Bạn có chắc chắn muốn xóa toàn bộ lịch sử sự kiện đồng bộ không? Thao tác này không thể hoàn tác.",
+            "Bạn có chắc chắn muốn xóa toàn bộ lịch sử sự kiện đồng bộ không? Nhật ký lưu chung trên MongoDB nên sẽ mất trên MỌI máy. Thao tác này không thể hoàn tác.",
           )
         )
           return;
@@ -6039,10 +6039,14 @@
             method: "POST",
           });
           if (res.ok) {
+            const body = await res.json().catch(() => ({}));
             cachedSyncLogs = [];
             updateSyncLogBadge(0, 0);
             renderSyncLogsUI();
-            showToastNotification("Đã xóa toàn bộ nhật ký đồng bộ", "success");
+            showToastNotification(
+              body.message || "Đã xóa toàn bộ nhật ký đồng bộ",
+              body.status === "PENDING" ? "warning" : "success",
+            );
           } else {
             showToastNotification(
               "Lỗi khi xóa nhật ký: " + (await res.text()),

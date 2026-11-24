@@ -291,7 +291,12 @@ def set_active_mongo_primary(host: Optional[str]):
 load_cluster_config(force=True)
 
 
-# QUẢN LÝ NHẬT KÝ ĐỒNG BỘ CỤM THỜI GIAN THỰC (LƯU VĨNH VIỄN VÀO FILE JSON DUY NHẤT)
+# QUẢN LÝ NHẬT KÝ ĐỒNG BỘ CỤM: lưu chung trong MongoDB (ecommerce_nosql.sync_audit_logs) để mọi máy
+# chạy app cùng thấy; file sync_audit_logs.json chỉ là bản sao local + bộ đệm khi cụm Mongo không có Primary.
+sync_log_store.configure(
+    get_nodes=lambda: list(CLUSTER_CONFIG.get("mongo_nodes") or []),
+    get_db_name=lambda: CLUSTER_CONFIG.get("mongo_db") or "ecommerce_nosql",
+)
 SYNC_LOGS_FILE = sync_log_store.get_sync_log_file_path()
 SYNC_LOGS_LOCK = sync_log_store._SYNC_LOCK
 SYNC_AUDIT_LOGS: List[Dict[str, Any]] = []
@@ -1794,7 +1799,8 @@ def get_sync_logs(
         "logs": res["logs"],
         "cnt_all": res["cnt_all"],
         "cnt_mysql": res["cnt_mysql"],
-        "cnt_mongo": res["cnt_mongo"]
+        "cnt_mongo": res["cnt_mongo"],
+        "store": res["store"]
     }
 
 
@@ -1802,8 +1808,10 @@ def get_sync_logs(
 def clear_sync_logs():
     global SYNC_AUDIT_LOGS
     SYNC_AUDIT_LOGS.clear()
-    sync_log_store.clear_sync_logs_store()
-    return {"status": "SUCCESS", "message": "Đã xóa toàn bộ nhật ký đồng bộ trong file JSON!", "total": 0}
+    ok = sync_log_store.clear_sync_logs_store()
+    if ok:
+        return {"status": "SUCCESS", "message": "Đã xóa toàn bộ nhật ký đồng bộ trên MongoDB (mọi máy)!", "total": 0}
+    return {"status": "PENDING", "message": "Cụm MongoDB chưa có Primary: đã xóa bản local, lệnh xóa trên MongoDB sẽ chạy khi có Primary.", "total": 0}
 
 
 @app.post("/api/cluster/sync-logs/deduplicate")
@@ -2154,7 +2162,11 @@ def reconcile_mysql_cluster_data(log_sync: bool = False) -> Dict[str, Any]:
                 target_nodes=CLUSTER_CONFIG["mysql_nodes"],
                 mechanism="MySQL Group Replication Distributed Recovery (Native Binary Log / GTID Catch-up)",
                 detail="Hệ thống đã loại bỏ hoàn toàn can thiệp code và kích hoạt cơ chế tự bù dữ liệu chuẩn của MySQL Group Replication. Kênh group_replication_recovery tự động kéo và áp dụng các transaction thiếu từ Donor theo đúng chuẩn GTID.",
-                latency_ms=elapsed_ms
+                latency_ms=elapsed_ms,
+                # Mọi máy chạy app đều tự giám sát và có thể cùng kích hoạt recovery: mã nhóm theo
+                # danh sách node + phút hiện tại để kho Mongo gộp thành một sự kiện (unique index)
+                ma_nhom_giao_dich="RECOVERY-" + str(int(time.time() // 60)) + "-"
+                + "|".join(sorted(n.split(" [")[0] for n in recovered_nodes))
             )
         except Exception:
             pass
@@ -4448,6 +4460,8 @@ def reconcile_offline_nodes_in_file(force: bool = False):
             updated_any = True
 
     if any(l.get("_drop") for l in logs):
+        # Kho Mongo không xóa ngầm khi save: phải xóa tường minh
+        sync_log_store.delete_sync_logs([l.get("id") or l.get("log_id") for l in logs if l.get("_drop")])
         logs = [l for l in logs if not l.get("_drop")]
         updated_any = True
 
