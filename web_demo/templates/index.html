@@ -1508,11 +1508,11 @@
                     id="filter-readmode"
                     class="form-select"
                     onchange="loadProducts(1)">
+                    <option value="primary" selected>Chỉ đọc Node chính</option>
                     <option value="secondary_preferred">
                       Ưu tiên đọc Node phụ
                     </option>
                     <option value="round_robin">Phân tải xoay vòng</option>
-                    <option value="primary">Chỉ đọc Node chính</option>
                   </select>
                 </div>
                 <div class="col-md-2">
@@ -2251,11 +2251,11 @@
                         class="form-select"
                         onchange="loadRecentOrders(1)"
                         style="height: 38px">
+                        <option value="primary" selected>Chỉ đọc Node chính</option>
                         <option value="secondary_preferred">
                           Ưu tiên Node phụ
                         </option>
                         <option value="round_robin">Phân tải xoay vòng</option>
-                        <option value="primary">Chỉ đọc Node chính</option>
                       </select>
                     </div>
                   </div>
@@ -4468,7 +4468,7 @@
 
         try {
           const rmEl = document.getElementById("orders-readmode");
-          const readMode = rmEl ? rmEl.value : "secondary_preferred";
+          const readMode = rmEl ? rmEl.value : "primary";
           const res = await fetch(
             `/api/orders/${orderId}?read_mode=${readMode}`,
           );
@@ -6341,7 +6341,7 @@
         const catEl = document.getElementById("filter-category");
         if (catEl) catEl.value = "ALL";
         const rmEl = document.getElementById("filter-readmode");
-        if (rmEl) rmEl.value = "secondary_preferred";
+        if (rmEl) rmEl.value = "primary";
         loadProducts(1);
       }
 
@@ -6355,7 +6355,7 @@
         const catEl = document.getElementById("filter-category");
         const cat = catEl ? catEl.value : "ALL";
         const rmEl = document.getElementById("filter-readmode");
-        const rm = rmEl ? rmEl.value : "secondary_preferred";
+        const rm = rmEl ? rmEl.value : "primary";
         const sizeEl = document.getElementById("catalog-page-size");
         const limit = sizeEl ? parseInt(sizeEl.value || "15", 10) : 15;
 
@@ -7526,7 +7526,7 @@
         const sizeEl = document.getElementById("orders-page-size");
         const limit = sizeEl ? parseInt(sizeEl.value || "15", 10) : 15;
         const rmEl = document.getElementById("orders-readmode");
-        const readMode = rmEl ? rmEl.value : "secondary_preferred";
+        const readMode = rmEl ? rmEl.value : "primary";
         const kwEl = document.getElementById("orders-filter-keyword");
         const keyword = kwEl ? kwEl.value.trim() : "";
         const groupEl = document.getElementById("orders-filter-group");
