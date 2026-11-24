@@ -5214,6 +5214,10 @@
             if (isOrdersTabActive()) {
               loadRecentOrders(currentOrdersPage);
             }
+            // Tương tự cho nhận xét (sự kiện INSERT_REVIEW từ máy khác)
+            if (isReviewsTabActive() && currentReviewProductId) {
+              loadProductReviews(currentReviewProductId, currentReviewPage);
+            }
           }
 
           // Cập nhật lại trạng thái hiển thị của khung cụm theo trạng thái hiệu lực
@@ -6942,6 +6946,8 @@
 
       let currentReviewProductId = 1;
       let currentReviewPage = 1;
+      // Đánh số mỗi lần tải nhận xét: response về sau một lần tải mới hơn thì bỏ qua
+      let _reviewsReqSeq = 0;
       let currentOrdersPage = 1;
       // Đánh số mỗi lần tải danh sách đơn: response về sau một lần tải mới hơn thì bỏ qua
       let _ordersReqSeq = 0;
@@ -6986,6 +6992,7 @@
         const limit = sizeEl ? parseInt(sizeEl.value || "5", 10) : 5;
         const rmEl = document.getElementById("reviews-readmode");
         const readMode = rmEl ? rmEl.value : "primary";
+        const seq = ++_reviewsReqSeq;
 
         const container = document.getElementById("product-reviews-container");
         try {
@@ -7003,6 +7010,7 @@
           const res = await fetch("/api/reviews/list?" + params.toString(), {
             cache: "no-store",
           });
+          if (seq !== _reviewsReqSeq) return null; // đã có lần tải mới hơn
           if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
             const errMsg =
@@ -7010,6 +7018,7 @@
             throw new Error(errMsg);
           }
           const data = await res.json();
+          if (seq !== _reviewsReqSeq) return null;
           const revs = data.reviews || [];
           const totalItems = data.total_items || 0;
           const totalPages = data.total_pages || 1;
@@ -7074,7 +7083,7 @@
           if (revs.length === 0) {
             container.innerHTML = `<div class="text-muted py-4 text-center">Chưa có nhận xét nào phù hợp với bộ lọc.</div>`;
             renderReviewsPagination(1, 1, 0, limit);
-            return;
+            return revs;
           }
 
           container.innerHTML = revs
@@ -7133,7 +7142,9 @@
             totalItems,
             limit,
           );
+          return revs;
         } catch (e) {
+          if (seq !== _reviewsReqSeq) return null; // lỗi của lần tải cũ: không đè giao diện
           console.error("Load product reviews error:", e);
           if (container) {
             container.innerHTML = `
@@ -7151,7 +7162,28 @@
           }
           resetRatingSummaryBlock();
           renderReviewsPagination(1, 1, 0, limit);
+          return null;
         }
+      }
+
+      // Sau khi gửi đánh giá: đọc "Ưu tiên Node phụ"/"Gần nhất" có thể vào Secondary chưa nhận bản ghi
+      // vừa ghi lên Primary (w=1). Tải lại vài lần cho tới khi thấy review_id vừa gửi.
+      async function reloadReviewsUntilVisible(productId, reviewId) {
+        // Chỉ chờ khi review mới chắc chắn nằm ở trang 1: sắp xếp "Mới nhất", không lọc sao
+        const canSee = currentReviewSort === "newest" && currentReviewStarFilter === "ALL";
+        const delays = [0, 300, 700, 1500, 3000];
+        for (const d of delays) {
+          if (d) await new Promise((r) => setTimeout(r, d));
+          const revs = await loadProductReviews(productId, 1);
+          if (!revs) return; // lỗi, hoặc đã có lần tải mới hơn thay thế
+          if (!reviewId || !canSee) return;
+          if (revs.some((r) => String(r.review_id) === String(reviewId))) return;
+        }
+      }
+
+      function isReviewsTabActive() {
+        const pane = document.getElementById("tab-reviews");
+        return !!(pane && pane.classList.contains("active"));
       }
 
       function renderReviewsPagination(page, totalPages, totalItems, limit) {
@@ -7507,7 +7539,7 @@
               selectedProdId,
               false,
             );
-            loadProductReviews(selectedProdId, 1);
+            reloadReviewsUntilVisible(selectedProdId, data.review_id);
             fetchClusterStatus();
             loadSyncLogs();
           } else {
