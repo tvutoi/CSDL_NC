@@ -5209,6 +5209,11 @@
           } else if (window.lastSyncLogsHash !== currentHash) {
             window.lastSyncLogsHash = currentHash;
             loadSyncLogs();
+            // Nhật ký dùng chung trên MongoDB: máy khác đặt hàng cũng làm hash đổi.
+            // Đang mở tab đơn hàng thì tải lại danh sách đơn.
+            if (isOrdersTabActive()) {
+              loadRecentOrders(currentOrdersPage);
+            }
           }
 
           // Cập nhật lại trạng thái hiển thị của khung cụm theo trạng thái hiệu lực
@@ -6938,6 +6943,8 @@
       let currentReviewProductId = 1;
       let currentReviewPage = 1;
       let currentOrdersPage = 1;
+      // Đánh số mỗi lần tải danh sách đơn: response về sau một lần tải mới hơn thì bỏ qua
+      let _ordersReqSeq = 0;
 
       function openProductReviewsById(productId) {
         showProductReviewsById(productId);
@@ -7369,7 +7376,7 @@
 
             loadProducts();
             loadProductOptions(true);
-            loadRecentOrders(1);
+            reloadOrdersUntilVisible(data.order_id);
             fetchClusterStatus();
             loadSyncLogs();
           } else {
@@ -7535,6 +7542,7 @@
         const keyword = kwEl ? kwEl.value.trim() : "";
         const groupEl = document.getElementById("orders-filter-group");
         const filterGroup = groupEl ? groupEl.value : "ALL";
+        const seq = ++_ordersReqSeq;
 
         try {
           const params = new URLSearchParams({
@@ -7551,6 +7559,7 @@
             cache: "no-store",
           });
           const data = await res.json();
+          if (seq !== _ordersReqSeq) return null; // đã có lần tải mới hơn
           const node = data.node || {};
           const nodeInfoEl = document.getElementById("orders-node-info");
           if (nodeInfoEl) {
@@ -7567,7 +7576,7 @@
           if (orders.length === 0) {
             tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted">Không tìm thấy đơn hàng phù hợp với điều kiện lọc.</td></tr>`;
             renderOrdersPagination(1, 1, 0, limit);
-            return;
+            return orders;
           }
 
           tbody.innerHTML = orders
@@ -7607,9 +7616,34 @@
             totalItems,
             limit,
           );
+          return orders;
         } catch (e) {
           console.error("Load orders error:", e);
+          return null;
         }
+      }
+
+      // Sau khi đặt hàng: đọc theo "Ưu tiên Node phụ"/"Xoay vòng" có thể vào Secondary chưa áp xong
+      // giao dịch vừa commit (MGR EVENTUAL). Tải lại vài lần cho tới khi thấy mã đơn vừa đặt.
+      async function reloadOrdersUntilVisible(orderId) {
+        const kwEl = document.getElementById("orders-filter-keyword");
+        const groupEl = document.getElementById("orders-filter-group");
+        const filtered =
+          (kwEl && kwEl.value.trim()) ||
+          (groupEl && groupEl.value && groupEl.value !== "ALL");
+        const delays = [0, 300, 700, 1500, 3000];
+        for (const d of delays) {
+          if (d) await new Promise((r) => setTimeout(r, d));
+          const orders = await loadRecentOrders(1);
+          if (!orders) return; // lỗi, hoặc đã có lần tải mới hơn thay thế
+          if (orders.some((o) => Number(o.order_id) === Number(orderId))) return;
+          if (filtered) return; // đơn mới có thể bị bộ lọc ẩn đi, không chờ
+        }
+      }
+
+      function isOrdersTabActive() {
+        const pane = document.getElementById("tab-orders");
+        return !!(pane && pane.classList.contains("active"));
       }
 
       function renderOrdersPagination(page, totalPages, totalItems, limit) {
