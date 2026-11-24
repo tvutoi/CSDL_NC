@@ -1,7 +1,7 @@
 # Nhat ky dong bo: nguon chinh la MongoDB (collection sync_audit_logs cua replica set),
 # moi may chay app deu doc/ghi chung nen thay cung mot nhat ky.
-# File sync_audit_logs.json chi con la ban sao local + bo dem khi cum Mongo khong co Primary:
-# ban ghi chua day len duoc nam trong sync_audit_logs.pending.json va duoc day bu khi Mongo ghi duoc lai.
+# File sync_audit_logs.json KHONG con la noi luu: chi dung lam bo dem khi cum Mongo khong co Primary
+# (id cho day nam trong sync_audit_logs.pending.json). Day bu len Mongo xong thi file duoc lam rong.
 #
 # Giao dien ham giu nguyen nhu ban luu file (load / save / append / clear / dedup / query) de app.py
 # gan nhu khong phai doi. save_sync_logs_atomic(logs) chi day len cac ban ghi THAY DOI so voi luc
@@ -20,10 +20,14 @@ from typing import List, Dict, Any, Optional, Callable, Iterable
 try:
     from pymongo import MongoClient, DESCENDING
     from pymongo.errors import DuplicateKeyError, BulkWriteError, PyMongoError
+    from bson.errors import BSONError
 except Exception:  # pymongo luon co trong requirements; phong khi thieu thi chay che do file
     MongoClient = None
-    DuplicateKeyError = BulkWriteError = PyMongoError = Exception
+    DuplicateKeyError = BulkWriteError = PyMongoError = BSONError = Exception
     DESCENDING = -1
+
+# Loi ghi Mongo -> chuyen sang file. BSONError (vd InvalidDocument) KHONG phai PyMongoError.
+_MONGO_ERRORS = (PyMongoError, BSONError)
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 SYNC_LOG_FILE = os.path.join(CURRENT_DIR, "sync_audit_logs.json")
@@ -115,8 +119,14 @@ def _ts_of(doc: Dict[str, Any]) -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _clean(obj: Any) -> Any:
+    # Di qua JSON nhu ban luu file cu: Decimal (gia tu MySQL) -> chuoi, datetime -> ISO.
+    # BSON khong ma hoa duoc Decimal: insert/update se nem InvalidDocument va mat su kien.
+    return json.loads(json.dumps(obj, ensure_ascii=False, default=_json_serializer))
+
+
 def _to_mongo(doc: Dict[str, Any]) -> Dict[str, Any]:
-    d = copy.deepcopy(doc)
+    d = _clean(doc)
     d["_id"] = _doc_id(doc)
     d["ts"] = _ts_of(doc)
     d.setdefault("app_host", APP_HOST)
@@ -359,8 +369,11 @@ def _flush_pending(col) -> None:
 
     file_logs = None
     if not p.get("migrated"):
-        # Lan dau may nay ket noi duoc: chen nhat ky file cu len (gop nhat ky cua moi may), khong ghi de
+        # Lan dau may nay ket noi duoc: chen nhat ky file cu len (gop nhat ky cua moi may), khong ghi de.
+        # Giu ban sao file cu o sync_audit_logs.json.bak (*.bak da nam trong .gitignore).
         file_logs = _read_file_logs()
+        if file_logs:
+            _write_json_atomic(SYNC_LOG_FILE + ".bak", file_logs)
         _insert_if_absent(col, file_logs)
         p["migrated"] = True
         changed = True
@@ -380,6 +393,9 @@ def _flush_pending(col) -> None:
 
     if changed:
         _write_pending(p)
+        # Moi thu trong file da len Mongo: lam rong bo dem
+        if os.path.exists(SYNC_LOG_FILE):
+            _write_file_logs([])
 
 
 def _trim(col) -> None:
@@ -397,7 +413,7 @@ def _writable_collection():
         _ensure_indexes(col)
         _flush_pending(col)
         return col
-    except PyMongoError as e:
+    except _MONGO_ERRORS as e:
         _on_mongo_error(e, "chuẩn bị ghi")
         return None
 
@@ -456,10 +472,9 @@ def load_sync_logs_safe() -> List[Dict[str, Any]]:
                     extra = [l for l in _read_file_logs() if _doc_id(l) in want and _doc_id(l) not in have]
                     if extra:
                         logs = sorted(extra + logs, key=_ts_of, reverse=True)[:MAX_LOG_ENTRIES]
-                else:
-                    _write_file_logs(logs)
+                # Khong ghi ban sao ra file: file chi dung lam bo dem khi Mongo khong ghi duoc
                 _CACHE_SOURCE = "mongo"
-            except PyMongoError as e:
+            except _MONGO_ERRORS as e:
                 _on_mongo_error(e, "đọc nhật ký")
                 logs = None
 
@@ -493,7 +508,7 @@ def save_sync_logs_atomic(logs: List[Dict[str, Any]]) -> bool:
                 try:
                     _upsert_docs(col, changed)
                     pushed = True
-                except PyMongoError as e:
+                except _MONGO_ERRORS as e:
                     _on_mongo_error(e, "ghi nhật ký")
             if not pushed:
                 ok = _write_file_logs(logs)
@@ -528,12 +543,12 @@ def append_sync_log_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
                         existing = col.find_one({"ma_nhom_giao_dich": tx_group}) if tx_group else None
                         if existing is None:
                             return entry
-                upd = {k: entry.get(k, existing.get(k)) for k in fields}
+                upd = _clean({k: entry.get(k, existing.get(k)) for k in fields})
                 col.update_one({"_id": existing["_id"]}, {"$set": upd})
                 existing.update(upd)
                 _invalidate_cache()
                 return _from_mongo(existing)
-            except PyMongoError as e:
+            except _MONGO_ERRORS as e:
                 _on_mongo_error(e, "thêm nhật ký")
 
         # Mat ket noi: ghi vao file local, danh dau cho day
@@ -566,7 +581,7 @@ def delete_sync_logs(ids: Iterable[str]) -> int:
                 n = col.delete_many({"_id": {"$in": ids}}).deleted_count
                 _invalidate_cache()
                 return n
-            except PyMongoError as e:
+            except _MONGO_ERRORS as e:
                 _on_mongo_error(e, "xóa nhật ký")
         logs = [l for l in _read_file_logs() if _doc_id(l) not in set(ids)]
         _write_file_logs(logs)
@@ -604,13 +619,14 @@ def clear_sync_logs_store() -> bool:
         if col is not None:
             try:
                 col.delete_many({})
-            except PyMongoError as e:
+            except _MONGO_ERRORS as e:
                 _on_mongo_error(e, "xóa toàn bộ nhật ký")
                 col = None
         if col is None:
             _mark_pending(clear=True)
             ok = False
-        _write_file_logs([])
+        if col is None or os.path.exists(SYNC_LOG_FILE):
+            _write_file_logs([])
         _CACHE_LOGS = []
         _invalidate_cache()
         return ok
@@ -622,7 +638,7 @@ def trim_sync_logs() -> None:
         if col is not None:
             try:
                 _trim(col)
-            except PyMongoError as e:
+            except _MONGO_ERRORS as e:
                 _on_mongo_error(e, "cắt bớt nhật ký")
 
 
